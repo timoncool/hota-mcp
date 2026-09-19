@@ -57,7 +57,7 @@ bool Dispatch(unsigned operation,int player,int argument) {
     uintptr_t main=Read<uintptr_t>(0x699538);
     if(operation!=20&&operation!=21&&operation!=22&&operation!=23&&operation!=24&&operation!=25&&(Read<int>(0x69ccf4)!=player||Read<uintptr_t>(0x69ccfc)!=main+0x20ad0+player*0x168))return false;
     uintptr_t manager=Read<uintptr_t>(0x6992d0),dialog=Read<uintptr_t>(manager+0x54);
-    uintptr_t expected=(operation==1||operation==3||operation==31)?0x63a5e4:operation==2?0x642478:(operation==4||operation==9)?0x64373c:(operation==5||operation==10)?0x6437b0:(operation==6||operation==7)?0x643954:operation==20?0x63ff60:operation==21?0x63e6d8:(operation==22||operation==23||operation==24||operation==25)?0x641cbc:(operation==26||operation==29||operation==30)?0x63db40:0;
+    uintptr_t expected=(operation==1||operation==3||operation==31)?0x63a5e4:operation==2?0x642478:(operation==4||operation==9)?0x64373c:(operation==5||operation==10)?0x6437b0:(operation==6||operation==7)?0x643954:operation==20?0x63ff60:operation==21?0x63e6d8:(operation==22||operation==23||operation==24||operation==25||operation==46||operation==47)?0x641cbc:(operation==26||operation==29||operation==30)?0x63db40:0;
     if(!expected||Read<uintptr_t>(dialog)!=expected)return false;
     if(operation==31){
         int x=argument&255,y=(argument>>8)&255,z=(argument>>16)&1;
@@ -110,7 +110,7 @@ bool Dispatch(unsigned operation,int player,int argument) {
     if(operation==23&&argument!=128&&argument!=129&&argument!=130)return false;
     if(operation==20&&argument!=101&&argument!=102)return false;
     if(operation==21&&argument!=100&&argument!=104)return false;
-    int itemId=operation==29?30725:operation==30?30726:operation==25?186:operation==22?188:(operation==20||operation==21||operation==23||operation==24)?argument:operation==1?10:operation==5?600+argument:(operation==9||operation==10)?30720:operation==6?30721:30722;
+    int itemId=operation==29?30725:operation==30?30726:operation==25?186:operation==22?188:operation==46?186:operation==47?188:(operation==20||operation==21||operation==23||operation==24)?argument:operation==1?10:operation==5?600+argument:(operation==9||operation==10)?30720:operation==6?30721:30722;
     uintptr_t first=Read<uintptr_t>(dialog+0x34),last=Read<uintptr_t>(dialog+0x38);
     if(last<first||last-first>8192||(last-first)%4)return false;
     bool found=false;uintptr_t targetButton=0;

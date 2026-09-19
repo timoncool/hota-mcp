@@ -272,6 +272,13 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
                 var button=before.Elements.Single(e=>e.Key==request.Element);
                 await game.MouseAsync(button.X+button.Width/2,button.Y+button.Height/2,before.Width,before.Height,true,CancellationToken.None);
             }
+            else if(nativeOperation==0)
+            {
+                // Structural file-browser button (load from disk, exit to menu): addressed by
+                // its own reported control bounds, no guessing of screen coordinates.
+                var button=before.Elements.Single(e=>e.Key==request.Element);
+                await game.MouseAsync(button.X+button.Width/2,button.Y+button.Height/2,before.Width,before.Height,true,CancellationToken.None);
+            }
             else if(nativeOperation==27)await game.KeyAsync(0x1b,0x01);
             else if(nativeOperation==28)await game.KeyAsync(0x45,0x12);
             else if(nativeOperation==32)await game.KeyAsync(0x57,0x11);
@@ -321,12 +328,12 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
                 bool combatConfirmed=nativeOperation is not (32 or 33 or 34)||after?.Combat?.OwnTurn==true&&(after.Combat.ActiveStack!=before.Combat?.ActiveStack||after.Combat.Round!=before.Combat?.Round);
                 // A screen change must be visible in the revision; screen equality alone is not evidence.
                 bool screenChanged=after is not null&&after.Screen!=before.Screen&&after.Revision!=before.Revision;
-                bool sameScreenDismissed=after is not null&&(after.Screen==before.Screen&&after.Screen is "message" or "system_options")&&nativeOperation is 50;
-                if(after is not null&&((screenChanged&&(after.Screen==expected||nativeOperation==28&&after.Screen=="message"))||sameScreenDismissed)&&settingConfirmed&&turnConfirmed&&combatConfirmed&&logConfirmed)
+                bool sameScreenReset=after is not null&&after.Screen==before.Screen&&after.Revision!=before.Revision;
+                if(after is not null&&((screenChanged&&(after.Screen==expected||nativeOperation==28&&after.Screen=="message"))||sameScreenReset)&&settingConfirmed&&turnConfirmed&&combatConfirmed&&logConfirmed)
                 {
                     if(after.Combat is not null&&before.Combat is not null)
                         Record("combat_action_evidence",new{request.OperationId,Action=request.Element,BeforeLogCount=before.Combat.LogCount,AfterLogCount=after.Combat.LogCount,Entries=after.Combat.Log.Where(e=>e.Index>=before.Combat.LogCount).ToArray()});
-                    var result=new OperationResult("completed",screenChanged?"Screen transition confirmed by revision change":"Dialog dismissed; screen unchanged",after);
+                    var result=new OperationResult("completed",screenChanged?"Screen transition confirmed by revision change":"Same screen, state change confirmed by revision",after);
                     operations[request.OperationId]=(request,result);Record("operation_completed",new{request.OperationId,after.Revision,after.Screen,BeforeScreen=before.Screen});
                     return result;
                 }

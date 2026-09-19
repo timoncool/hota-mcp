@@ -115,6 +115,8 @@ internal sealed class GameReader(WindowsGame game,int player)
             if(vt is 0x63bb54 or 0x63bb88)
             {
                 record["asset"]=game.Text(game.U32(item+0x30)+4,16);
+                var keys=ReadButtonKeys(item);
+                record["keys"]=string.Join(",",keys.Select(k=>k.ToString("X")));
                 try{record["caption"]=game.Text(game.U32(item+0x5c));}catch(InvalidOperationException){}
             }
             controls.Add(record);
