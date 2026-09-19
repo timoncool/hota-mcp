@@ -107,6 +107,7 @@ internal sealed class GameSession(int? requestedPid,int player,string directory,
         finally{gate.Release();}
     }
     public Task<Observation> Observe(CancellationToken ct)=>WithGame(b=>b.Observe(ct),ct);
+    public Task<OperationResult> Move(MoveRequest request,CancellationToken ct)=>WithGame(async b=>{await EnsureAdapter(ct);return await b.Move(request,ct);},ct);
     public Task<DebugSnapshot> Snapshot(CancellationToken ct)=>WithGame(b=>b.Snapshot(ct),ct);
     public Task<CaptureResult> Capture(CancellationToken ct)=>WithGame(b=>b.Capture(ct),ct);
     public Task<OperationResult> Click(OperationRequest request,CancellationToken ct)=>WithGame(async b=>{await EnsureAdapter(ct);return await b.Click(request,ct);},ct);

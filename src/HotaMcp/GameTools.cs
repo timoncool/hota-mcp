@@ -6,6 +6,8 @@ namespace HotaMcp;
 [McpServerToolType]
 public sealed class GameTools(IGameEndpoint endpoint)
 {
+    [McpServerTool,Description("Move the selected own hero toward a currently visible target ID from nearby_targets using the ordinary game route and move handlers. May collect the resource, open a dialog or encounter enemies. Experimental incomplete adapter: uncertain is not permission to retry under another operation ID. No coordinates or hidden data required.")]
+    public Task<OperationResult> MoveTo(string operationId,string revision,string targetId,CancellationToken cancellationToken)=>endpoint.Move(new(operationId,revision,targetId),cancellationToken);
     [McpServerTool,Description("Explicit diagnostic: in one call read fair structured observation, save the game framebuffer PNG and matching JSON, and verify the observed revision is unchanged across capture. Returns observation and local file metadata, never inline images. Does not freeze animations. Use for UI mapping/debugging, not normal gameplay; no focus or input changes.")]
     public Task<DebugSnapshot> DebugSnapshot(CancellationToken cancellationToken)=>endpoint.Snapshot(cancellationToken);
     [McpServerTool,Description("Start HotA using the existing host HD Launcher's Play action and saved settings. Does not activate windows or send mouse/keyboard input. Returns already_running or launch_pending on repeated requests; use game_status and observe to check readiness.")]

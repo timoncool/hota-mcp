@@ -26,8 +26,16 @@ Normal play uses structured data only. Do not call `debug_capture` or `debug_sna
 - `turn:end` can produce a warning that heroes still have movement. Confirm only when ending the turn is intended. After the AI turns, a new scripted message may appear. Verify the date change and then handle that message. A day 1→2 transition with income and autosave has been observed.
 - Own town opening, construction inspection and buying a market were verified with ordinary resource deductions. Town exit subsequently terminated the game; do not treat this as a reliable production flow.
 
+## Adventure and battle: partial verified coverage
+
+Use `nearby_targets` then `move_to` with the current revision and target ID. Resource collection can end adjacent to the original object: verify inventory change and disappearance, not only hero position equality. Gold and wood collection were live-tested.
+
+On `Screen=combat`, read `Combat` and only invoke listed `combat:wait`, `combat:defend`, `combat:move:HEX`, `combat:attack:STACK_ID`. Hex IDs are game cells, not screen pixels. These actions have live evidence; spells, shooting-specific controls and battle results are not covered. Observe again after each result: animations may still be settling even after active stack changes. Do not infer that a completed transition guarantees the next action is ready. Never repeat uncertain actions under a new ID.
+
 ## Fairness
 
 Use only the assigned player's observations and server-provided target IDs. `nearby_targets` and `inspect_target` are partial coverage, not a complete map. Missing targets or route data do not prove absence or inaccessibility. Do not use process memory, raw addresses, files, saves, screenshots of another turn, or another player's credentials to obtain hidden state.
 
 Game reference materials are being prepared separately. Until search/resources are actually listed by the connected MCP server, do not invent their names or claim access to bundled references.
+
+Combat.Log contains the last24 entries of the actual game log with zero-based Index; LogCount is the full current battle count. These are not hover hints. Action evidence records entries added since dispatch; verify both log and state. Indices reset for a new battle; durable battle IDs and full-history paging remain unfinished.

@@ -74,7 +74,7 @@ internal sealed class WindowsGame : IDisposable
     public bool NativeReady=>GetPropW(Window,"HotAMcp.GameBridge.v1")!=0;
     public void NativeAction(int operation,int player,int argument=0)
     {
-        if(operation is not (1 or 2 or 3 or 4 or 5 or 6 or 7 or 9 or 10 or 20 or 21 or 22 or 23 or 24 or 25 or 26 or 29 or 30)||player is <0 or >7||argument is <0 or >65535)throw new InvalidOperationException("Unsupported native command");
+        if(operation is not (1 or 2 or 3 or 4 or 5 or 6 or 7 or 9 or 10 or 20 or 21 or 22 or 23 or 24 or 25 or 26 or 29 or 30 or 31)||player is <0 or >7||argument is <0 or >131071)throw new InvalidOperationException("Unsupported native command");
         if(GetPropW(Window,"HotAMcp.GameBridge.v1")==0)throw new InvalidOperationException("Native game adapter is not attached");
         if(!PostMessageW(Window,0x8392,(nuint)operation,(nint)(player|(argument<<8))))throw new InvalidOperationException("Native command dispatch failed");
     }
@@ -95,8 +95,3 @@ internal sealed class WindowsGame : IDisposable
     [DllImport("user32.dll")] private static extern bool SetProcessDPIAware();
     [DllImport("user32.dll",SetLastError=true)] private static extern bool PostMessageW(nint window,uint message,nuint wp,nint lp);
 }
-
-
-
-
-

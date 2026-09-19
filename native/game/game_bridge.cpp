@@ -57,8 +57,30 @@ bool Dispatch(unsigned operation,int player,int argument) {
     uintptr_t main=Read<uintptr_t>(0x699538);
     if(operation!=20&&operation!=21&&operation!=22&&operation!=23&&operation!=24&&operation!=25&&(Read<int>(0x69ccf4)!=player||Read<uintptr_t>(0x69ccfc)!=main+0x20ad0+player*0x168))return false;
     uintptr_t manager=Read<uintptr_t>(0x6992d0),dialog=Read<uintptr_t>(manager+0x54);
-    uintptr_t expected=(operation==1||operation==3)?0x63a5e4:operation==2?0x642478:(operation==4||operation==9)?0x64373c:(operation==5||operation==10)?0x6437b0:(operation==6||operation==7)?0x643954:operation==20?0x63ff60:operation==21?0x63e6d8:(operation==22||operation==23||operation==24||operation==25)?0x641cbc:(operation==26||operation==29||operation==30)?0x63db40:0;
+    uintptr_t expected=(operation==1||operation==3||operation==31)?0x63a5e4:operation==2?0x642478:(operation==4||operation==9)?0x64373c:(operation==5||operation==10)?0x6437b0:(operation==6||operation==7)?0x643954:operation==20?0x63ff60:operation==21?0x63e6d8:(operation==22||operation==23||operation==24||operation==25)?0x641cbc:(operation==26||operation==29||operation==30)?0x63db40:0;
     if(!expected||Read<uintptr_t>(dialog)!=expected)return false;
+    if(operation==31){
+        int x=argument&255,y=(argument>>8)&255,z=(argument>>16)&1;
+        int size=Read<int>(0x6783c8);
+        if(size<36||size>252||x>=size||y>=size||z>Read<uint8_t>(main+0x1fc48))return false;
+        uintptr_t vision=Read<uintptr_t>(0x698a48);
+        if(!(Read<uint8_t>(vision+((z*size+y)*size+x)*2)&(1<<player)))return false;
+        uintptr_t adventure=Read<uintptr_t>(0x6992b8);
+        if(Read<uintptr_t>(adventure)!=0x63a678||Read<int>(adventure+0x34)!=1)return false;
+        auto plan=reinterpret_cast<void(__thiscall*)(void*,uint32_t)>(0x419400);
+        uint32_t packed=static_cast<uint32_t>(x|(y<<16)|(z<<26));
+        plan(reinterpret_cast<void*>(adventure),packed);
+        // The normal map-selection handler owns hero destination and path changes.
+        // Only its UI target context is supplied here; no hero/world fields are written.
+        uintptr_t originalTarget=Read<uint32_t>(adventure+0xe8);
+        *reinterpret_cast<uint32_t*>(adventure+0xe8)=packed;
+        GameMessage select{8,0,0,0,0,0,nullptr,reinterpret_cast<void*>(dialog)};
+        uint32_t outputPosition=0;int outputResult=0;
+        auto choose=reinterpret_cast<void(__thiscall*)(void*,GameMessage*,uint32_t*,int*)>(0x40a530);
+        choose(reinterpret_cast<void*>(adventure),&select,&outputPosition,&outputResult);
+        *reinterpret_cast<uint32_t*>(adventure+0xe8)=static_cast<uint32_t>(originalTarget);
+        return true;
+    }
     if(operation==3){
         uintptr_t owner=Read<uintptr_t>(0x69ccfc);
         if(Read<uint8_t>(owner+0x3e)<1)return false;
@@ -122,10 +144,6 @@ bool Dispatch(unsigned operation,int player,int argument) {
     if(operation==1){
         uintptr_t adventure=Read<uintptr_t>(0x6992b8);
         if(Read<uintptr_t>(adventure)!=0x63a678||Read<int>(adventure+0x34)!=1)return false;
-        if(operation==3){
-            uintptr_t owner=Read<uintptr_t>(0x69ccfc);
-            if(Read<uint8_t>(owner+0x3e)<1||Read<int8_t>(owner+0x40)<0||Read<int>(dialog+0x68)!=0)return false;
-        }
         auto handler=reinterpret_cast<int(__thiscall*)(void*,GameMessage*)>(Read<uintptr_t>(0x63a678+8));
         handler(reinterpret_cast<void*>(adventure),&message);return true;
     }
@@ -179,8 +197,3 @@ extern "C" __declspec(dllexport) LRESULT CALLBACK GameHook(int code,WPARAM wp,LP
 BOOL WINAPI DllMain(HINSTANCE instance,DWORD reason,LPVOID){
     if(reason==DLL_PROCESS_ATTACH){module=instance;DisableThreadLibraryCalls(instance);}return TRUE;
 }
-
-
-
-
-

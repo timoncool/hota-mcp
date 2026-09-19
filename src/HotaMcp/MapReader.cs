@@ -76,6 +76,11 @@ internal sealed class MapReader(WindowsGame game,int player)
         if(BitConverter.ToInt16(game.Read(tile+0x1e,2))!=target.Type||(game.Read(tile+0xd,1)[0]&16)==0)
             throw new InvalidOperationException("Target changed; request nearby_targets again");
     }
+    public bool IsTargetPresent(Observation observation,MapObject target)
+    {
+        uint tile=VisibleTile(observation,target.X,target.Y,target.Z);
+        return BitConverter.ToInt16(game.Read(tile+0x1e,2))==target.Type&&(game.Read(tile+0xd,1)[0]&16)!=0;
+    }
     public void VerifyMouse(int x,int y,int z)
     {
         uint packed=game.U32(game.U32(0x6992b8)+0xe8);
