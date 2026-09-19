@@ -1,0 +1,17 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.dmp
+*.h3m
+*.gm1
+*.gm2
+*.exe
+*.dll
+probe_deps/
+logs/

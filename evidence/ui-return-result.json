@@ -1,0 +1,1080 @@
+{
+  "hwnd": 3213734,
+  "foreground": 395010,
+  "client": [
+    3840,
+    1601
+  ],
+  "surface": [
+    1816,
+    757
+  ],
+  "target": {
+    "id": 30722,
+    "asset": "soretrn.def",
+    "game_xy": [
+      1074,
+      573
+    ],
+    "client_xy": [
+      2271,
+      1212
+    ]
+  },
+  "before_dialog": "0x199d6c",
+  "after": {
+    "manager": "0x8130710",
+    "first": "0x22cead78",
+    "last": "0x22cead78",
+    "dialogs": [
+      {
+        "address": "0x22cead78",
+        "vtable": "0x63a5e4",
+        "xywh": [
+          0,
+          0,
+          800,
+          600
+        ],
+        "items": [
+          {
+            "address": "0x22ce7b88",
+            "vtable": "0x63bb54",
+            "id": 9,
+            "type_state": [
+              2,
+              6
+            ],
+            "xywh": [
+              1695,
+              356,
+              0,
+              0
+            ],
+            "asset": "iam008.def",
+            "hotkeys": [
+              0,
+              30
+            ]
+          },
+          {
+            "address": "0x22757a78",
+            "vtable": "0x63ba24",
+            "id": 0,
+            "type_state": [
+              1,
+              6
+            ],
+            "xywh": [
+              8,
+              8,
+              1608,
+              701
+            ]
+          },
+          {
+            "address": "0x22757a08",
+            "vtable": "0x63ba24",
+            "id": 1,
+            "type_state": [
+              1,
+              6
+            ],
+            "xywh": [
+              1646,
+              26,
+              144,
+              144
+            ]
+          },
+          {
+            "address": "0x22757f80",
+            "vtable": "0x63ba24",
+            "id": 2,
+            "type_state": [
+              1,
+              6
+            ],
+            "xywh": [
+              1621,
+              389,
+              188,
+              182
+            ]
+          },
+          {
+            "address": "0x22ce8218",
+            "vtable": "0x63bb54",
+            "id": 3,
+            "type_state": [
+              2,
+              6
+            ],
+            "xywh": [
+              1695,
+              196,
+              32,
+              32
+            ],
+            "asset": "iam002.def",
+            "hotkeys": [
+              0,
+              37
+            ]
+          },
+          {
+            "address": "0x22ce8308",
+            "vtable": "0x63bb54",
+            "id": 4,
+            "type_state": [
+              2,
+              6
+            ],
+            "xywh": [
+              1727,
+              196,
+              32,
+              32
+            ],
+            "asset": "iam010.def",
+            "hotkeys": [
+              0,
+              22
+            ]
+          },
+          {
+            "address": "0x22ce76d8",
+            "vtable": "0x63bb54",
+            "id": 5,
+            "type_state": [
+              2,
+              38
+            ],
+            "xywh": [
+              1695,
+              292,
+              32,
+              32
+            ],
+            "asset": "iam004.def",
+            "hotkeys": [
+              0,
+              16
+            ]
+          },
+          {
+            "address": "0x22ce7a20",
+            "vtable": "0x63bb54",
+            "id": 6,
+            "type_state": [
+              2,
+              6
+            ],
+            "xywh": [
+              1727,
+              292,
+              32,
+              32
+            ],
+            "asset": "iam005.def",
+            "hotkeys": [
+              44
+            ]
+          },
+          {
+            "address": "0x22ce7840",
+            "vtable": "0x63bb54",
+            "id": 7,
+            "type_state": [
+              2,
+              6
+            ],
+            "xywh": [
+              1695,
+              324,
+              32,
+              32
+            ],
+            "asset": "iam006.def",
+            "hotkeys": [
+              0,
+              50
+            ]
+          },
+          {
+            "address": "0x22ce7a98",
+            "vtable": "0x63bb54",
+            "id": 8,
+            "type_state": [
+              2,
+              6
+            ],
+            "xywh": [
+              1727,
+              324,
+              32,
+              32
+            ],
+            "asset": "iam007.def",
+            "hotkeys": [
+              0,
+              46
+            ]
+          },
+          {
+            "address": "0x22ce7480",
+            "vtable": "0x63bb54",
+            "id": 10,
+            "type_state": [
+              2,
+              6
+            ],
+            "xywh": [
+              1727,
+              356,
+              32,
+              32
+            ],
+            "asset": "iam009.def",
+            "hotkeys": [
+              0,
+              24
+            ]
+          },
+          {
+            "address": "0x22ce8290",
+            "vtable": "0x63bb54",
+            "id": 11,
+            "type_state": [
+              2,
+              6
+            ],
+            "xywh": [
+              1695,
+              388,
+              32,
+              32
+            ],
+            "asset": "iam000.def",
+            "hotkeys": [
+              0,
+              35
+            ]
+          },
+          {
+            "address": "0x22ce80b0",
+            "vtable": "0x63bb54",
+            "id": 3000,
+            "type_state": [
+              2,
+              6
+            ],
+            "xywh": [
+              1727,
+              388,
+              32,
+              32
+            ],
+            "asset": "iam016.def",
+            "hotkeys": [
+              0
+            ]
+          },
+          {
+            "address": "0x22ce7f48",
+            "vtable": "0x63bb54",
+            "id": 12,
+            "type_state": [
+              2,
+              6
+            ],
+            "xywh": [
+              1695,
+              420,
+              64,
+              32
+            ],
+            "asset": "iam001.def",
+            "hotkeys": [
+              0,
+              18
+            ]
+          },
+          {
+            "address": "0x22ce7c78",
+            "vtable": "0x63bb54",
+            "id": 30,
+            "type_state": [
+              2,
+              14
+            ],
+            "xywh": [
+              1763,
+              196,
+              48,
+              16
+            ],
+            "asset": "iam014.def",
+            "hotkeys": [
+              0
+            ]
+          },
+          {
+            "address": "0x22ce7ed0",
+            "vtable": "0x63bb54",
+            "id": 31,
+            "type_state": [
+              2,
+              14
+            ],
+            "xywh": [
+              1763,
+              436,
+              48,
+              16
+            ],
+            "asset": "iam015.def",
+            "hotkeys": [
+              0
+            ]
+          },
+          {
+            "address": "0x7e5cb60",
+            "vtable": "0x642df8",
+            "id": 200,
+            "type_state": [
+              0,
+              6
+            ],
+            "xywh": [
+              8,
+              713,
+              1608,
+              18
+            ],
+            "text": "\u0421\u0438\u0441\u0442\u0435\u043c\u043d\u044b\u0435 \u041e\u043f\u0446\u0438\u0438"
+          },
+          {
+            "address": "0x24d90f60",
+            "vtable": "0x642dc0",
+            "id": 37,
+            "type_state": [
+              0,
+              6
+            ],
+            "xywh": [
+              54,
+              100,
+              1536,
+              597
+            ],
+            "text": null
+          },
+          {
+            "address": "0x24e68560",
+            "vtable": "0x63a578",
+            "id": 38,
+            "type_state": [
+              8,
+              6
+            ],
+            "xywh": [
+              8,
+              713,
+              1608,
+              18
+            ]
+          },
+          {
+            "address": "0x24abeea0",
+            "vtable": "0x63ba94",
+            "id": 15,
+            "type_state": [
+              2048,
+              6
+            ],
+            "xywh": [
+              1633,
+              196,
+              48,
+              32
+            ]
+          },
+          {
+            "address": "0x24abebd0",
+            "vtable": "0x63ba94",
+            "id": 16,
+            "type_state": [
+              2048,
+              4
+            ],
+            "xywh": [
+              1633,
+              228,
+              48,
+              32
+            ]
+          },
+          {
+            "address": "0x24abeee8",
+            "vtable": "0x63ba94",
+            "id": 17,
+            "type_state": [
+              2048,
+              4
+            ],
+            "xywh": [
+              1633,
+              260,
+              48,
+              32
+            ]
+          },
+          {
+            "address": "0x24abe828",
+            "vtable": "0x63ba94",
+            "id": 18,
+            "type_state": [
+              2048,
+              4
+            ],
+            "xywh": [
+              1633,
+              292,
+              48,
+              32
+            ]
+          },
+          {
+            "address": "0x24abed38",
+            "vtable": "0x63ba94",
+            "id": 19,
+            "type_state": [
+              2048,
+              4
+            ],
+            "xywh": [
+              1633,
+              324,
+              48,
+              32
+            ]
+          },
+          {
+            "address": "0x24abec18",
+            "vtable": "0x63ba94",
+            "id": 20,
+            "type_state": [
+              2048,
+              4
+            ],
+            "xywh": [
+              1633,
+              356,
+              48,
+              32
+            ]
+          },
+          {
+            "address": "0x24abe6c0",
+            "vtable": "0x63ba94",
+            "id": 21,
+            "type_state": [
+              2048,
+              4
+            ],
+            "xywh": [
+              1633,
+              388,
+              48,
+              32
+            ]
+          },
+          {
+            "address": "0x24abec60",
+            "vtable": "0x63ba94",
+            "id": 22,
+            "type_state": [
+              2048,
+              4
+            ],
+            "xywh": [
+              1633,
+              420,
+              48,
+              32
+            ]
+          },
+          {
+            "address": "0x24abedc8",
+            "vtable": "0x63ba94",
+            "id": 39,
+            "type_state": [
+              2048,
+              6
+            ],
+            "xywh": [
+              1633,
+              196,
+              48,
+              32
+            ]
+          },
+          {
+            "address": "0x24abe900",
+            "vtable": "0x63ba94",
+            "id": 40,
+            "type_state": [
+              2048,
+              2
+            ],
+            "xywh": [
+              1633,
+              228,
+              48,
+              32
+            ]
+          },
+          {
+            "address": "0x24abef30",
+            "vtable": "0x63ba94",
+            "id": 41,
+            "type_state": [
+              2048,
+              2
+            ],
+            "xywh": [
+              1633,
+              260,
+              48,
+              32
+            ]
+          },
+          {
+            "address": "0x24abe708",
+            "vtable": "0x63ba94",
+            "id": 42,
+            "type_state": [
+              2048,
+              2
+            ],
+            "xywh": [
+              1633,
+              292,
+              48,
+              32
+            ]
+          },
+          {
+            "address": "0x24abe750",
+            "vtable": "0x63ba94",
+            "id": 43,
+            "type_state": [
+              2048,
+              2
+            ],
+            "xywh": [
+              1633,
+              324,
+              48,
+              32
+            ]
+          },
+          {
+            "address": "0x24abe870",
+            "vtable": "0x63ba94",
+            "id": 44,
+            "type_state": [
+              2048,
+              2
+            ],
+            "xywh": [
+              1633,
+              356,
+              48,
+              32
+            ]
+          },
+          {
+            "address": "0x24abe948",
+            "vtable": "0x63ba94",
+            "id": 45,
+            "type_state": [
+              2048,
+              2
+            ],
+            "xywh": [
+              1633,
+              388,
+              48,
+              32
+            ]
+          },
+          {
+            "address": "0x24abe8b8",
+            "vtable": "0x63ba94",
+            "id": 46,
+            "type_state": [
+              2048,
+              2
+            ],
+            "xywh": [
+              1633,
+              420,
+              48,
+              32
+            ]
+          },
+          {
+            "address": "0x24d90778",
+            "vtable": "0x63ec48",
+            "id": 47,
+            "type_state": [
+              16,
+              6
+            ],
+            "xywh": [
+              1626,
+              197,
+              8,
+              32
+            ]
+          },
+          {
+            "address": "0x24d905c0",
+            "vtable": "0x63ec48",
+            "id": 48,
+            "type_state": [
+              16,
+              4
+            ],
+            "xywh": [
+              1626,
+              229,
+              8,
+              32
+            ]
+          },
+          {
+            "address": "0x24d90880",
+            "vtable": "0x63ec48",
+            "id": 49,
+            "type_state": [
+              16,
+              4
+            ],
+            "xywh": [
+              1626,
+              261,
+              8,
+              32
+            ]
+          },
+          {
+            "address": "0x24d90988",
+            "vtable": "0x63ec48",
+            "id": 50,
+            "type_state": [
+              16,
+              4
+            ],
+            "xywh": [
+              1626,
+              293,
+              8,
+              32
+            ]
+          },
+          {
+            "address": "0x24d90b98",
+            "vtable": "0x63ec48",
+            "id": 51,
+            "type_state": [
+              16,
+              4
+            ],
+            "xywh": [
+              1626,
+              325,
+              8,
+              32
+            ]
+          },
+          {
+            "address": "0x24d911c8",
+            "vtable": "0x63ec48",
+            "id": 52,
+            "type_state": [
+              16,
+              4
+            ],
+            "xywh": [
+              1626,
+              357,
+              8,
+              32
+            ]
+          },
+          {
+            "address": "0x24d916f0",
+            "vtable": "0x63ec48",
+            "id": 53,
+            "type_state": [
+              16,
+              4
+            ],
+            "xywh": [
+              1626,
+              389,
+              8,
+              32
+            ]
+          },
+          {
+            "address": "0x24d91220",
+            "vtable": "0x63ec48",
+            "id": 54,
+            "type_state": [
+              16,
+              4
+            ],
+            "xywh": [
+              1626,
+              421,
+              8,
+              32
+            ]
+          },
+          {
+            "address": "0x24d90fb8",
+            "vtable": "0x63ec48",
+            "id": 55,
+            "type_state": [
+              16,
+              6
+            ],
+            "xywh": [
+              1682,
+              197,
+              8,
+              32
+            ]
+          },
+          {
+            "address": "0x24d820d0",
+            "vtable": "0x63ec48",
+            "id": 56,
+            "type_state": [
+              16,
+              4
+            ],
+            "xywh": [
+              1682,
+              229,
+              8,
+              32
+            ]
+          },
+          {
+            "address": "0x24d81f18",
+            "vtable": "0x63ec48",
+            "id": 57,
+            "type_state": [
+              16,
+              4
+            ],
+            "xywh": [
+              1682,
+              261,
+              8,
+              32
+            ]
+          },
+          {
+            "address": "0x24d81e68",
+            "vtable": "0x63ec48",
+            "id": 58,
+            "type_state": [
+              16,
+              4
+            ],
+            "xywh": [
+              1682,
+              293,
+              8,
+              32
+            ]
+          },
+          {
+            "address": "0x24d82650",
+            "vtable": "0x63ec48",
+            "id": 59,
+            "type_state": [
+              16,
+              4
+            ],
+            "xywh": [
+              1682,
+              325,
+              8,
+              32
+            ]
+          },
+          {
+            "address": "0x24d823e8",
+            "vtable": "0x63ec48",
+            "id": 60,
+            "type_state": [
+              16,
+              4
+            ],
+            "xywh": [
+              1682,
+              357,
+              8,
+              32
+            ]
+          },
+          {
+            "address": "0x24d82128",
+            "vtable": "0x63ec48",
+            "id": 61,
+            "type_state": [
+              16,
+              4
+            ],
+            "xywh": [
+              1682,
+              389,
+              8,
+              32
+            ]
+          },
+          {
+            "address": "0x24d82548",
+            "vtable": "0x63ec48",
+            "id": 62,
+            "type_state": [
+              16,
+              4
+            ],
+            "xywh": [
+              1682,
+              421,
+              8,
+              32
+            ]
+          },
+          {
+            "address": "0x24d825a0",
+            "vtable": "0x63ec48",
+            "id": 23,
+            "type_state": [
+              16,
+              6
+            ],
+            "xywh": [
+              1763,
+              212,
+              48,
+              32
+            ]
+          },
+          {
+            "address": "0x24d8f3e0",
+            "vtable": "0x63ec48",
+            "id": 24,
+            "type_state": [
+              16,
+              4
+            ],
+            "xywh": [
+              1763,
+              244,
+              48,
+              32
+            ]
+          },
+          {
+            "address": "0x24d8f280",
+            "vtable": "0x63ec48",
+            "id": 25,
+            "type_state": [
+              16,
+              4
+            ],
+            "xywh": [
+              1763,
+              276,
+              48,
+              32
+            ]
+          },
+          {
+            "address": "0x24d8f438",
+            "vtable": "0x63ec48",
+            "id": 26,
+            "type_state": [
+              16,
+              4
+            ],
+            "xywh": [
+              1763,
+              308,
+              48,
+              32
+            ]
+          },
+          {
+            "address": "0x24d8f540",
+            "vtable": "0x63ec48",
+            "id": 27,
+            "type_state": [
+              16,
+              4
+            ],
+            "xywh": [
+              1763,
+              340,
+              48,
+              32
+            ]
+          },
+          {
+            "address": "0x24d8f228",
+            "vtable": "0x63ec48",
+            "id": 28,
+            "type_state": [
+              16,
+              4
+            ],
+            "xywh": [
+              1763,
+              372,
+              48,
+              32
+            ]
+          },
+          {
+            "address": "0x24d8ef10",
+            "vtable": "0x63ec48",
+            "id": 29,
+            "type_state": [
+              16,
+              4
+            ],
+            "xywh": [
+              1763,
+              404,
+              48,
+              32
+            ]
+          },
+          {
+            "address": "0x22ce75e8",
+            "vtable": "0x63bb54",
+            "id": 63,
+            "type_state": [
+              2,
+              6
+            ],
+            "xywh": [
+              1695,
+              228,
+              32,
+              32
+            ],
+            "asset": "iam_view.def",
+            "hotkeys": [
+              0
+            ]
+          },
+          {
+            "address": "0x22ce77c8",
+            "vtable": "0x63bb54",
+            "id": 64,
+            "type_state": [
+              2,
+              6
+            ],
+            "xywh": [
+              1727,
+              228,
+              32,
+              32
+            ],
+            "asset": "iam_turn.def",
+            "hotkeys": [
+              0
+            ]
+          },
+          {
+            "address": "0x22ce7b10",
+            "vtable": "0x63bb54",
+            "id": 65,
+            "type_state": [
+              2,
+              6
+            ],
+            "xywh": [
+              1695,
+              260,
+              32,
+              32
+            ],
+            "asset": "iam_puz.def",
+            "hotkeys": [
+              0
+            ]
+          },
+          {
+            "address": "0x22ce7fc0",
+            "vtable": "0x63bb54",
+            "id": 66,
+            "type_state": [
+              2,
+              6
+            ],
+            "xywh": [
+              1727,
+              260,
+              32,
+              32
+            ],
+            "asset": "iam_dig.def",
+            "hotkeys": [
+              0
+            ]
+          },
+          {
+            "address": "0x22ce7660",
+            "vtable": "0x63bb54",
+            "id": 67,
+            "type_state": [
+              2,
+              6
+            ],
+            "xywh": [
+              1695,
+              356,
+              32,
+              32
+            ],
+            "asset": "iam008.def",
+            "hotkeys": [
+              0
+            ]
+          }
+        ]
+      }
+    ],
+    "surface_size": [
+      1816,
+      757
+    ],
+    "code_size": [
+      1816,
+      757
+    ]
+  }
+}
