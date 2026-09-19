@@ -117,6 +117,8 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             if(action is not null)
             {
                 (nativeOperation,expected)=action.Key switch {
+                    "menu:new" or "menu:load"=>(20,"game_type"),"menu:back"=>(21,"main_menu"),
+                    "menu:single"=>(21,"scenario_selection"),"scenario:back"=>(22,"main_menu"),
                     "town:construction"=>(4,"town_hall"),"town:close"=>(9,"adventure"),
                     "construction:close"=>(10,"town"),"building:cancel"=>(6,"town_hall"),
                     "building:buy"=>(7,"town"),
@@ -125,6 +127,8 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
                     _=>throw new InvalidOperationException("Action not implemented")
                 };
                 if(nativeOperation is 3 or 5)argument=int.Parse(action.Key.Split(':')[2]);
+                if(nativeOperation==20)argument=action.Key=="menu:new"?101:102;
+                if(nativeOperation==21)argument=action.Key=="menu:single"?100:104;
             }
             else
             {

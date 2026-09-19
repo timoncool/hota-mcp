@@ -14,6 +14,17 @@ uintptr_t pendingDialog;
 uintptr_t originalTable;
 uintptr_t dialogTable[15];
 GameMessage pendingMessage;
+uintptr_t pendingButton,buttonOriginal,buttonTable[13];
+GameMessage buttonMessage;
+int __fastcall DeliverButtonCommand(void* self,void*,GameMessage* message){
+    if(reinterpret_cast<uintptr_t>(self)!=pendingButton)return 0;
+    *reinterpret_cast<uintptr_t*>(self)=buttonOriginal;
+    pendingButton=0;
+    *message=buttonMessage;
+    // ProcessItems stops here; the modal loop delivers this result to its
+    // actual callback, including HD's custom menu callback.
+    return 2;
+}
 bool pendingButtonExit;
 int __fastcall DeliverDialogCommand(void* self,void*,GameMessage* message){
     if(reinterpret_cast<uintptr_t>(self)!=pendingDialog)return 0;
@@ -44,9 +55,9 @@ int __fastcall DeliverManagerCommand(void* self,void*,GameMessage* message){
 bool Dispatch(unsigned operation,int player,int argument) {
     if(player<0||player>7)return false;
     uintptr_t main=Read<uintptr_t>(0x699538);
-    if(operation!=20&&(Read<int>(0x69ccf4)!=player||Read<uintptr_t>(0x69ccfc)!=main+0x20ad0+player*0x168))return false;
+    if(operation!=20&&operation!=21&&operation!=22&&(Read<int>(0x69ccf4)!=player||Read<uintptr_t>(0x69ccfc)!=main+0x20ad0+player*0x168))return false;
     uintptr_t manager=Read<uintptr_t>(0x6992d0),dialog=Read<uintptr_t>(manager+0x54);
-    uintptr_t expected=(operation==1||operation==3)?0x63a5e4:operation==2?0x642478:(operation==4||operation==9)?0x64373c:(operation==5||operation==10)?0x6437b0:(operation==6||operation==7)?0x643954:operation==20?0x63ff60:0;
+    uintptr_t expected=(operation==1||operation==3)?0x63a5e4:operation==2?0x642478:(operation==4||operation==9)?0x64373c:(operation==5||operation==10)?0x6437b0:(operation==6||operation==7)?0x643954:operation==20?0x63ff60:operation==21?0x63e6d8:operation==22?0x641cbc:0;
     if(!expected||Read<uintptr_t>(dialog)!=expected)return false;
     if(operation==3){
         uintptr_t owner=Read<uintptr_t>(0x69ccfc);
@@ -72,10 +83,12 @@ bool Dispatch(unsigned operation,int player,int argument) {
         hall(reinterpret_cast<void*>(townManager));return true;
     }
     if(operation==5&&(argument<0||argument>=18))return false;
-    int itemId=operation==20?102:operation==1?10:operation==5?600+argument:(operation==9||operation==10)?30720:operation==6?30721:30722;
+    if(operation==20&&argument!=101&&argument!=102)return false;
+    if(operation==21&&argument!=100&&argument!=104)return false;
+    int itemId=operation==22?188:(operation==20||operation==21)?argument:operation==1?10:operation==5?600+argument:(operation==9||operation==10)?30720:operation==6?30721:30722;
     uintptr_t first=Read<uintptr_t>(dialog+0x34),last=Read<uintptr_t>(dialog+0x38);
     if(last<first||last-first>8192||(last-first)%4)return false;
-    bool found=false;
+    bool found=false;uintptr_t targetButton=0;
     for(uintptr_t p=first;p<last;p+=4){
         uintptr_t item=Read<uintptr_t>(p);
         if(Read<uint16_t>(item+0x10)!=itemId)continue;
@@ -83,7 +96,7 @@ bool Dispatch(unsigned operation,int player,int argument) {
             (Read<uint16_t>(item+0x16)&6)!=6)return false;
         if((operation==6||operation==7||operation==10)&&(Read<uint16_t>(item+0x16)&0x28))return false;
         if((operation==6||operation==7||operation==10)&&Read<uint8_t>(item+0x44)!=1)return false;
-        found=true;break;
+        found=true;targetButton=item;break;
     }
     if(!found)return false;
     GameMessage message{0x200,operation==5?0xC:0xD,itemId,0,0,0,nullptr,reinterpret_cast<void*>(dialog)};
@@ -107,16 +120,14 @@ bool Dispatch(unsigned operation,int player,int argument) {
         auto handler=reinterpret_cast<int(__thiscall*)(void*,GameMessage*)>(Read<uintptr_t>(0x63a678+8));
         handler(reinterpret_cast<void*>(adventure),&message);return true;
     }
-    if(operation==20){
-        uintptr_t input=Read<uintptr_t>(0x699530);
-        if(Read<uintptr_t>(input)!=0x63fe10||Read<int>(input+0x840))return false;
-        int head=Read<int>(input+0x838),tail=Read<int>(input+0x83c);
-        if(head<0||head>=64||tail<0||tail>=64)return false;
-        int next=(tail+1)&63;if(next==head)return false;
-        *reinterpret_cast<int*>(input+0x840)=1;
-        *reinterpret_cast<GameMessage*>(input+0x38+tail*32)=message;
-        MemoryBarrier();*reinterpret_cast<int*>(input+0x83c)=next;
-        *reinterpret_cast<int*>(input+0x840)=0;return true;
+    if(operation==20||operation==21||operation==22){
+        if(pendingButton)return false;
+        buttonOriginal=Read<uintptr_t>(targetButton);
+        for(int i=0;i<13;++i)buttonTable[i]=Read<uintptr_t>(buttonOriginal+i*4);
+        buttonTable[2]=reinterpret_cast<uintptr_t>(&DeliverButtonCommand);
+        buttonMessage=message;pendingButton=targetButton;
+        *reinterpret_cast<uintptr_t*>(targetButton)=reinterpret_cast<uintptr_t>(buttonTable);
+        return true;
     }
     if(pendingDialog)return false;
     // The modal loop consumes callback return values at 0x602C56. Deliver the
@@ -147,11 +158,6 @@ extern "C" __declspec(dllexport) LRESULT CALLBACK GameHook(int code,WPARAM wp,LP
             HMODULE pinned=nullptr;
             GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS|GET_MODULE_HANDLE_EX_FLAG_PIN,
                 reinterpret_cast<LPCWSTR>(&GameHook),&pinned);
-            uintptr_t manager=Read<uintptr_t>(0x6992d0),dialog=Read<uintptr_t>(manager+0x54);
-            uintptr_t table=Read<uintptr_t>(dialog);
-            // Development upgrade: restore an unused pinned menu dispatch table.
-            if(table!=0x63ff60&&Read<uintptr_t>(table)==0x4fbcc0&&Read<uintptr_t>(table+0x24)==Read<uintptr_t>(0x63ff60+0x24))
-                *reinterpret_cast<uintptr_t*>(dialog)=0x63ff60;
             SetPropW(message->hwnd,kReady,reinterpret_cast<HANDLE>(1));
             message->message=WM_NULL;
         }else if(message->message==kAction&&GetPropW(message->hwnd,kReady)){

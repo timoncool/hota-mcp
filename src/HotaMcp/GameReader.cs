@@ -38,6 +38,22 @@ internal sealed class GameReader(WindowsGame game,int player)
             catch(InvalidOperationException){}
         }
         uint activeDialog=game.U32(game.U32(0x6992d0)+0x54);
+        var dialogs=new List<object>();uint dialogCursor=game.U32(game.U32(0x6992d0)+0x50);
+        var dialogSeen=new HashSet<uint>();
+        while(dialogCursor!=0&&dialogSeen.Add(dialogCursor)&&dialogs.Count<32)
+        {
+            uint first=game.U32(dialogCursor+0x34),last=game.U32(dialogCursor+0x38);
+            var controls=new List<object>();
+            if(last>=first&&last-first<=8192)
+                for(uint slot=first;slot<last;slot+=4)
+                {
+                    uint item=game.U32(slot),vt=game.U32(item);
+                    controls.Add(new{address=item,vtable=vt,id=BitConverter.ToUInt16(game.Read(item+0x10,2)),text=vt is 0x642dc0 or 0x642df8?game.Text(game.U32(item+0x34)):null,asset=vt==0x63bb54?game.Text(game.U32(item+0x30)+4,16):null});
+                }
+            dialogs.Add(new{address=dialogCursor,vtable=game.U32(dialogCursor),z=game.I32(dialogCursor+4),previous=game.U32(dialogCursor+8),next=game.U32(dialogCursor+12),deactivated=game.I32(dialogCursor+0x48),controls});
+            dialogCursor=game.U32(dialogCursor+12);
+        }
+        if(activeDialog==0)return new{activeDialog,managers,inputCandidates,windowManager=Convert.ToHexString(game.Read(game.U32(0x6992d0),0x80)),menu=game.U32(0x6996b0)};
         uint uiFirst=game.U32(activeDialog+0x34),uiLast=game.U32(activeDialog+0x38);
         var rawUi=new List<object>();
         if(uiLast>=uiFirst&&uiLast-uiFirst<=8192)
@@ -46,22 +62,29 @@ internal sealed class GameReader(WindowsGame game,int player)
                 rawUi.Add(new{address=item,vtable=game.U32(item),id=BitConverter.ToUInt16(game.Read(item+0x10,2)),state=BitConverter.ToUInt16(game.Read(item+0x16,2)),text=game.U32(item) is 0x642dc0 or 0x642df8?game.Text(game.U32(item+0x34)):null,closeButton=game.U32(item)==0x63bb54?game.Read(item+0x44,1)[0]:-1,asset=game.U32(item)==0x63bb54?game.Text(game.U32(item+0x30)+4,16):null});
             }
         return new {
-        activeDialog,dialogVtable=game.U32(activeDialog),rawUi,townScroll=game.I32(activeDialog+0x68),ownedTowns=game.U32(0x69ccfc)>=0x10000?game.Read(game.U32(0x69ccfc)+0x3e,4).Select(b=>(int)b).ToArray():[],
+        activeDialog,dialogVtable=game.U32(activeDialog),rawUi,dialogs,townScroll=game.I32(activeDialog+0x68),ownedTowns=game.U32(0x69ccfc)>=0x10000?game.Read(game.U32(0x69ccfc)+0x3e,4).Select(b=>(int)b).ToArray():[],
         current=game.I32(0x69ccf4), other=game.I32(0x6995a4), active=game.U32(0x69ccfc),
         main=game.U32(0x699538), mode=game.I32(0x698a40),managers,inputCandidates
     };}
     private Observation ReadOnce()
     {
         if(player is <0 or >7) throw new InvalidOperationException("Player configuration invalid");
+        uint manager=game.U32(0x6992d0),dlg=game.U32(manager+0x54);
+        if(dlg==0)throw new InvalidOperationException("UI transition in progress");
+        uint vtable=game.U32(dlg);
+        bool frontend=vtable is 0x63ff60 or 0x63e6d8 or 0x641cbc;
+        int[] resources=[],date=[];HeroView? hero=null;
+        if(!frontend)
+        {
         if(game.I32(0x69ccf4)!=player) throw new InvalidOperationException("Not this player's active context");
         uint main=game.U32(0x699538),p=main+0x20ad0+(uint)player*0x168;
         if(game.U32(0x69ccfc)!=p) throw new InvalidOperationException("Active player layout not validated");
         byte[] person=game.Read(p,0x168);
         if(person[0]!=player) throw new InvalidOperationException("Player identity mismatch");
-        int[] resources=Enumerable.Range(0,7).Select(i=>BitConverter.ToInt32(person,0x9c+i*4)).ToArray();
+        resources=Enumerable.Range(0,7).Select(i=>BitConverter.ToInt32(person,0x9c+i*4)).ToArray();
         byte[] dateBytes=game.Read(main+0x1f63e,6);
-        int[] date=Enumerable.Range(0,3).Select(i=>(int)BitConverter.ToUInt16(dateBytes,i*2)).ToArray();
-        int heroId=BitConverter.ToInt32(person,4); HeroView? hero=null;
+        date=Enumerable.Range(0,3).Select(i=>(int)BitConverter.ToUInt16(dateBytes,i*2)).ToArray();
+        int heroId=BitConverter.ToInt32(person,4);
         if(heroId>=0)
         {
             if(heroId>1023) throw new InvalidOperationException("Hero index outside supported bounds");
@@ -78,9 +101,8 @@ internal sealed class GameReader(WindowsGame game,int player)
                 Enumerable.Range(0,7).Select(i=>BitConverter.ToInt32(h,0x91+i*4)).ToArray(),
                 Enumerable.Range(0,7).Select(i=>BitConverter.ToInt32(h,0xad+i*4)).ToArray());
         }
-        uint manager=game.U32(0x6992d0), dlg=game.U32(manager+0x54);
-        uint vtable=game.U32(dlg);
-        string screen=vtable switch {0x63a5e4=>"adventure",0x642478=>"system_options",0x64373c=>"town",0x6437b0=>"town_hall",0x643954=>"building_confirmation",_=>"unsupported"};
+        }
+        string screen=vtable switch {0x63ff60=>"main_menu",0x63e6d8=>"game_type",0x641cbc=>"scenario_selection",0x63a5e4=>"adventure",0x642478=>"system_options",0x64373c=>"town",0x6437b0=>"town_hall",0x643954=>"building_confirmation",_=>"unsupported"};
         // Unvalidated dialog classes are not published to the player yet.
         if(screen=="unsupported") throw new InvalidOperationException("Current screen not supported by this adapter yet");
         uint surface=game.U32(manager+0x40);
@@ -107,8 +129,16 @@ internal sealed class GameReader(WindowsGame game,int player)
             items.Add(new($"ui:{(pos-start)/4}",BitConverter.ToUInt16(b,0x10),text,asset,
                 dx+BitConverter.ToInt16(b,0x18),dy+BitConverter.ToInt16(b,0x1a),iw,ih,interactive));
         }
-        var towns=new TownReader(game,player).Read();
+        var towns=frontend?new List<TownView>():new TownReader(game,player).Read();
         var actions=new List<AvailableAction>();
+        if(screen=="main_menu")
+        {
+            if(items.Any(i=>i.Id==101&&i.Interactive))actions.Add(new("menu:new","Новая игра"));
+            if(items.Any(i=>i.Id==102&&i.Interactive))actions.Add(new("menu:load","Загрузить игру"));
+        }
+        if(screen=="game_type"&&items.Any(i=>i.Id==104&&i.Interactive))actions.Add(new("menu:back","Главное меню"));
+        if(screen=="game_type"&&items.Any(i=>i.Id==100&&i.Interactive))actions.Add(new("menu:single","Одиночная игра"));
+        if(screen=="scenario_selection"&&items.Any(i=>i.Id==188&&i.Interactive))actions.Add(new("scenario:back","Выйти из выбора сценария"));
         if(screen=="adventure")foreach(var town in towns)actions.Add(new($"town:open:{town.Id}",$"Открыть город: {town.Name}"));
         if(screen=="town")
         {

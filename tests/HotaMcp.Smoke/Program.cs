@@ -24,6 +24,28 @@ async Task<T> Call<T>(string tool,Dictionary<string,object?> parameters)
 }
 var before=await Call<Observation>("observe",new());
 Console.WriteLine($"OBSERVE {before.Screen} hero={before.Hero?.Id} movement={before.Hero?.Movement}");
+if(args.Contains("--menus"))
+{
+    async Task<Observation> Menu(Observation state,string action,string expected)
+    {
+        var parameters=new Dictionary<string,object?>{{"operationId",Guid.NewGuid().ToString("N")},{"revision",state.Revision},{"action",action}};
+        var result=await Call<OperationResult>("act",parameters);
+        if(result.Status!="completed"||result.Observation?.Screen!=expected)throw new Exception($"Menu failed: {action} {result.Status}");
+        var repeat=await Call<OperationResult>("act",parameters);
+        if(JsonSerializer.Serialize(result)!=JsonSerializer.Serialize(repeat))throw new Exception("Menu retry changed result");
+        var observed=await Call<Observation>("observe",new());
+        if(observed.Screen!=expected||observed.Hero!=null||observed.Resources.Length!=0||observed.Towns.Count!=0)throw new Exception("Invalid frontend observation");
+        return observed;
+    }
+    if(before.Screen=="game_type")before=await Menu(before,"menu:back","main_menu");
+    for(int i=0;i<3;i++)
+    {
+        before=await Menu(before,i%2==0?"menu:load":"menu:new","game_type");
+        before=await Menu(before,"menu:back","main_menu");
+    }
+    Console.WriteLine("PASS MCP menu load/new/back, three cycles, idempotent retries, no player state before game");
+    return;
+}
 if(args.Contains("--targets"))
 {
     var nearby=await Call<NearbyTargets>("nearby_targets",new());
