@@ -201,6 +201,11 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
                     "message:accept"=>(26,"adventure"),
                     "message:confirm"=>(29,"adventure"),"message:decline"=>(30,"adventure"),
                     "turn:end"=>(28,"adventure"),
+                    "combat:spellbook"=>(35,"spellbook"),"spellbook:close"=>(36,"combat"),
+                    _ when action.Key.StartsWith("spellbook:select:")=>(37,"combat"),
+                    "spell:cancel"=>(36,"combat"),
+                    "battle:accept"=>(39,"adventure"),
+                    _ when action.Key.StartsWith("spell:target:")=>(38,"combat"),
                     "combat:wait"=>(32,"combat"),"combat:defend"=>(33,"combat"),
                     _ when action.Key.StartsWith("combat:move:")||action.Key.StartsWith("combat:attack:")=>(34,"combat"),
                     _ when action.Key.StartsWith("setup:")=>(24,"scenario_selection"),
@@ -235,8 +240,17 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             else if(nativeOperation==28)await game.KeyAsync(0x45,0x12);
             else if(nativeOperation==32)await game.KeyAsync(0x57,0x11);
             else if(nativeOperation==33)await game.KeyAsync(0x44,0x20);
-            else if(nativeOperation==34)
+            else if(nativeOperation==39)await game.KeyAsync(0x0d,0x1c);
+            else if(nativeOperation==36)await game.KeyAsync(0x1b,0x01);
+            else if(nativeOperation==37)
             {
+                var item=before.Elements.Single(e=>e.Id==int.Parse(request.Element.Split(':')[2]));
+                await game.MouseAsync(item.X+item.Width/2,item.Y+item.Height/2,before.Width,before.Height,true,CancellationToken.None);
+            }
+            else if(nativeOperation==35)await game.KeyAsync(0x43,0x2e);
+            else if(nativeOperation==34||nativeOperation==38)
+            {
+                if(nativeOperation==38)argument=before.Combat!.Stacks.Single(s=>s.Id==request.Element[13..]).Hex;
                 var point=new CombatReader(game,player).Point(argument);
                 await game.MouseAsync(point.X,point.Y,before.Width,before.Height,true,CancellationToken.None);
             }
@@ -247,14 +261,21 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
                 await Task.Delay(70,CancellationToken.None);
                 Observation? after=null;
                 try {after=reader.Observe();} catch(InvalidOperationException) { }
+                if(nativeOperation is 32 or 33 or 34 or 38 && after?.Screen=="battle_result")
+                {
+                    var finished=new OperationResult("completed","Battle result screen confirmed; read and accept the result",after);
+                    operations[request.OperationId]=(request,finished);Record("battle_finished",new{request.OperationId,after});
+                    return finished;
+                }
                 bool settingConfirmed=nativeOperation!=24||after?.Setup?.Fields.SelectMany(f=>f.Choices).Any(c=>c.Action==request.Element&&c.Selected)==true;
                 bool turnConfirmed=nativeOperation!=28||after is not null&&(after.Screen=="message"||!after.Date.SequenceEqual(before.Date));
-                bool logRequired=nativeOperation is 32 or 33||request.Element.StartsWith("combat:attack:");
+                bool logRequired=nativeOperation is 32 or 33 or 38||request.Element.StartsWith("combat:attack:");
                 bool logConfirmed=!logRequired||after?.Combat is not null&&after.Combat.LogCount>before.Combat!.LogCount;
+                if(nativeOperation==38)logConfirmed=logConfirmed&&after?.Hero?.Mana<before.Hero?.Mana;
                 bool combatConfirmed=nativeOperation is not (32 or 33 or 34)||after?.Combat?.OwnTurn==true&&(after.Combat.ActiveStack!=before.Combat?.ActiveStack||after.Combat.Round!=before.Combat?.Round);
-                if(after is not null&&(after.Screen==expected||nativeOperation==28&&after?.Screen=="message")&&(nativeOperation is not (23 or 24)||after.Revision!=before.Revision)&&settingConfirmed&&turnConfirmed&&combatConfirmed&&logConfirmed)
+                if(after is not null&&(after.Screen==expected||nativeOperation==28&&after.Screen=="message")&&(nativeOperation is not (23 or 24)||after.Revision!=before.Revision)&&settingConfirmed&&turnConfirmed&&combatConfirmed&&logConfirmed)
                 {
-                    if(after?.Combat is not null&&before.Combat is not null)
+                    if(after.Combat is not null&&before.Combat is not null)
                         Record("combat_action_evidence",new{request.OperationId,Action=request.Element,BeforeLogCount=before.Combat.LogCount,AfterLogCount=after.Combat.LogCount,Entries=after.Combat.Log.Where(e=>e.Index>=before.Combat.LogCount).ToArray()});
                     var result=new OperationResult("completed",logRequired?"Combat transition and new game log entries confirmed":"Expected screen confirmed",after);
                     operations[request.OperationId]=(request,result);Record("operation_completed",new{request.OperationId,after.Revision,after.Screen});

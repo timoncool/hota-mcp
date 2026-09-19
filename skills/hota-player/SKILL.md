@@ -30,7 +30,7 @@ Normal play uses structured data only. Do not call `debug_capture` or `debug_sna
 
 Use `nearby_targets` then `move_to` with the current revision and target ID. Resource collection can end adjacent to the original object: verify inventory change and disappearance, not only hero position equality. Gold and wood collection were live-tested.
 
-On `Screen=combat`, read `Combat` and only invoke listed `combat:wait`, `combat:defend`, `combat:move:HEX`, `combat:attack:STACK_ID`. Hex IDs are game cells, not screen pixels. These actions have live evidence; spells, shooting-specific controls and battle results are not covered. Observe again after each result: animations may still be settling even after active stack changes. Do not infer that a completed transition guarantees the next action is ready. Never repeat uncertain actions under a new ID.
+On `Screen=combat`, read `Combat` and only invoke listed `combat:wait`, `combat:defend`, `combat:move:HEX`, `combat:attack:STACK_ID`. Hex IDs are game cells, not screen pixels. These actions have live evidence; shooting-specific controls and comprehensive magic coverage are unfinished. Observe again after each result: animations may still be settling even after active stack changes. Do not infer that a completed transition guarantees the next action is ready. Never repeat uncertain actions under a new ID.
 
 ## Fairness
 
@@ -39,3 +39,7 @@ Use only the assigned player's observations and server-provided target IDs. `nea
 Game reference materials are being prepared separately. Until search/resources are actually listed by the connected MCP server, do not invent their names or claim access to bundled references.
 
 Combat.Log contains the last24 entries of the actual game log with zero-based Index; LogCount is the full current battle count. These are not hover hints. Action evidence records entries added since dispatch; verify both log and state. Indices reset for a new battle; durable battle IDs and full-history paging remain unfinished.
+
+Verified magic path: combat:spellbook opens the current book; read actual labels and mana costs. spellbook:select:ID selects a currently exposed icon. In target mode choose spell:target:STACK_ID; the game checks target validity. Stone Skin on own water elementals was verified (mana30→26, log and defence change). Current target-mode recognition is Russian-text-specific; pages, schools and spell descriptions are unfinished. Do not assume all visible stacks are valid spell targets.
+
+On battle_result read the result text and losses, then battle:accept. One victory and return to adventure were verified; the complete map is not finished.
