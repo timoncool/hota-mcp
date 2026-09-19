@@ -74,6 +74,7 @@ app.MapPost("/bridge/start",(CancellationToken ct)=>session.Start(ct));
 app.MapPost("/bridge/graphics",(GraphicsRequest request,CancellationToken ct)=>session.Graphics(request.Renderer,ct));
 app.MapPost("/bridge/observe",(CancellationToken ct)=>session.Observe(ct));
 app.MapPost("/bridge/debug-capture",(CancellationToken ct)=>session.Capture(ct));
+app.MapPost("/bridge/debug-snapshot",(CancellationToken ct)=>session.Snapshot(ct));
 app.MapPost("/bridge/click",(OperationRequest request,CancellationToken ct)=>session.Click(request,ct));
 app.MapPost("/bridge/journal",(JournalRequest request,CancellationToken ct)=>session.Journal(request.Limit,ct));
 app.MapPost("/bridge/plan",(PlanRequest request,CancellationToken ct)=>session.Plan(request.Value,ct));

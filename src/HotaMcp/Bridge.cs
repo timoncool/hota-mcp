@@ -8,6 +8,7 @@ public sealed record JournalEntry(long Sequence,DateTimeOffset Time,string Kind,
 public sealed record TargetView(string Id,string Kind,RouteView Route);
 public sealed record NearbyTargets(string Revision,int HeroId,int Movement,List<TargetView> Targets,string Coverage);
 public sealed record TargetInspection(string Id,string Kind,RouteView Route,string Revision);
+public sealed record DebugSnapshot(Observation Observation,CaptureResult Capture,string ObservationPath);
 
 internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) : IDisposable
 {
@@ -18,6 +19,21 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
     private string plan="";
     private readonly Dictionary<string,MapObject> targets=new();
     private readonly Dictionary<MapObject,string> targetIds=new();
+    public async Task<DebugSnapshot> Snapshot(CancellationToken ct)
+    {
+        await gate.WaitAsync(ct);
+        try
+        {
+            var before=reader.Observe();
+            var capture=DebugCapture.Save(game,player,Path.Combine(stateDirectory,"captures"));
+            var after=reader.Observe();
+            if(before.Revision!=after.Revision)throw new InvalidOperationException("State changed during diagnostic capture; snapshot not confirmed");
+            string path=Path.ChangeExtension(capture.Path,"json");
+            await File.WriteAllTextAsync(path,JsonSerializer.Serialize(before,new JsonSerializerOptions{WriteIndented=true}),ct);
+            return new(before,capture,path);
+        }
+        finally{gate.Release();}
+    }
     public async Task<CaptureResult> Capture(CancellationToken ct)
     {
         await gate.WaitAsync(ct);
@@ -125,7 +141,13 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
                 (nativeOperation,expected)=action.Key switch {
                     "menu:new" or "menu:load"=>(20,"game_type"),"menu:back"=>(21,"main_menu"),
                     "menu:single"=>(21,"scenario_selection"),"scenario:back"=>(22,"main_menu"),
-                    "town:construction"=>(4,"town_hall"),"town:close"=>(9,"adventure"),
+                    "scenario:maps" or "scenario:players" or "scenario:random"=>(23,"scenario_selection"),
+                    "scenario:start"=>(25,"adventure"),
+                    "message:accept"=>(26,"adventure"),
+                    "message:confirm"=>(29,"adventure"),"message:decline"=>(30,"adventure"),
+                    "turn:end"=>(28,"adventure"),
+                    _ when action.Key.StartsWith("setup:")=>(24,"scenario_selection"),
+                    "town:construction"=>(4,"town_hall"),"town:close"=>(27,"adventure"),
                     "construction:close"=>(10,"town"),"building:cancel"=>(6,"town_hall"),
                     "building:buy"=>(7,"town"),
                     _ when action.Key.StartsWith("town:open:")=>(3,"town"),
@@ -135,6 +157,8 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
                 if(nativeOperation is 3 or 5)argument=int.Parse(action.Key.Split(':')[2]);
                 if(nativeOperation==20)argument=action.Key=="menu:new"?101:102;
                 if(nativeOperation==21)argument=action.Key=="menu:single"?100:104;
+                if(nativeOperation==23)argument=action.Key switch {"scenario:maps"=>128,"scenario:players"=>129,_=>130};
+                if(nativeOperation==24)argument=ScenarioReader.Controls.Single(c=>ScenarioReader.Key(c)==action.Key).Id;
             }
             else
             {
@@ -149,14 +173,18 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             var pending=new OperationResult("uncertain","Dispatch started; do not repeat using a new ID",null);
             operations.Add(request.OperationId,(request,pending));
             Record("operation_started",request);
-            game.NativeAction(nativeOperation,player,argument);
-            var deadline=DateTime.UtcNow.AddSeconds(3);
+            if(nativeOperation==27)await game.KeyAsync(0x1b,0x01);
+            else if(nativeOperation==28)await game.KeyAsync(0x45,0x12);
+            else game.NativeAction(nativeOperation,player,argument);
+            var deadline=DateTime.UtcNow.AddSeconds(nativeOperation==25?10:3);
             while(DateTime.UtcNow<deadline)
             {
                 await Task.Delay(70,CancellationToken.None);
                 Observation? after=null;
                 try {after=reader.Observe();} catch(InvalidOperationException) { }
-                if(after?.Screen==expected)
+                bool settingConfirmed=nativeOperation!=24||after?.Setup?.Fields.SelectMany(f=>f.Choices).Any(c=>c.Action==request.Element&&c.Selected)==true;
+                bool turnConfirmed=nativeOperation!=28||after is not null&&(after.Screen=="message"||!after.Date.SequenceEqual(before.Date));
+                if((after?.Screen==expected||nativeOperation==28&&after?.Screen=="message")&&(nativeOperation is not (23 or 24)||after.Revision!=before.Revision)&&settingConfirmed&&turnConfirmed)
                 {
                     var result=new OperationResult("completed","Expected screen confirmed",after);
                     operations[request.OperationId]=(request,result);Record("operation_completed",new{request.OperationId,after.Revision,after.Screen});
@@ -186,6 +214,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
 
 public interface IGameEndpoint
 {
+    Task<DebugSnapshot> Snapshot(CancellationToken ct);
     Task<object> Start(CancellationToken ct);
     Task<object> Graphics(string? renderer,CancellationToken ct);
     Task<CaptureResult> Capture(CancellationToken ct);
@@ -202,6 +231,7 @@ public interface IGameEndpoint
 
 internal sealed class LocalEndpoint(Bridge bridge) : IGameEndpoint
 {
+    public Task<DebugSnapshot> Snapshot(CancellationToken ct)=>bridge.Snapshot(ct);
     public Task<object> Start(CancellationToken ct)=>throw new InvalidOperationException("Game is already attached");
     public Task<object> Graphics(string? renderer,CancellationToken ct)=>throw new InvalidOperationException("Launcher host required");
     public Task<CaptureResult> Capture(CancellationToken ct)=>bridge.Capture(ct);
@@ -218,6 +248,7 @@ internal sealed class LocalEndpoint(Bridge bridge) : IGameEndpoint
 
 internal sealed class RemoteEndpoint(HttpClient client) : IGameEndpoint
 {
+    public Task<DebugSnapshot> Snapshot(CancellationToken ct)=>Call<DebugSnapshot>("bridge/debug-snapshot",new{},ct);
     public Task<object> Start(CancellationToken ct)=>Call<object>("bridge/start",new{},ct);
     public Task<object> Graphics(string? renderer,CancellationToken ct)=>Call<object>("bridge/graphics",new{renderer},ct);
     public Task<CaptureResult> Capture(CancellationToken ct)=>Call<CaptureResult>("bridge/debug-capture",new{},ct);
@@ -237,3 +268,4 @@ internal sealed class RemoteEndpoint(HttpClient client) : IGameEndpoint
     public Task<NearbyTargets> Nearby(CancellationToken ct)=>Call<NearbyTargets>("bridge/nearby",new{},ct);
     public Task<TargetInspection> InspectTarget(string targetId,string revision,CancellationToken ct)=>Call<TargetInspection>("bridge/target",new{targetId,revision},ct);
 }
+

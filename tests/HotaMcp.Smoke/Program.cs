@@ -10,10 +10,16 @@ int stateIndex=Array.IndexOf(args,"--state-dir");
 string stateDirectory=stateIndex>=0?Path.GetFullPath(args[stateIndex+1]):Path.Combine(root,"build/state");
 var transport=new StdioClientTransport(new(){Name="hota-smoke",Command="dotnet",
     Arguments=[Path.Combine(root,"src/HotaMcp/bin/Debug/net8.0-windows/HotaMcp.dll"),"--stdio","--state-dir",stateDirectory]});
-using var timeout=new CancellationTokenSource(TimeSpan.FromSeconds(35));
+using var timeout=new CancellationTokenSource(TimeSpan.FromSeconds(args.Contains("--atlas")?120:35));
 await using var client=await McpClient.CreateAsync(transport,cancellationToken:timeout.Token);
 var tools=await client.ListToolsAsync(cancellationToken:timeout.Token);
 Console.WriteLine("TOOLS "+string.Join(",",tools.Select(t=>t.Name)));
+int atlasIndex=Array.IndexOf(args,"--atlas");
+if(atlasIndex>=0)
+{
+    await AtlasFlow.Run(client,Path.GetFullPath(args[atlasIndex+1]),Path.Combine(root,"build","atlas",DateTime.UtcNow.ToString("yyyyMMdd-HHmmss")+"-"+Guid.NewGuid().ToString("N")[..6]),timeout.Token);
+    return;
+}
 var jsonOptions=new JsonSerializerOptions{PropertyNameCaseInsensitive=true};
 async Task<T> Call<T>(string tool,Dictionary<string,object?> parameters)
 {

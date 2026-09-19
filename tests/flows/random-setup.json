@@ -1,0 +1,9 @@
+[
+  {"name":"Initial random settings","screen":"scenario_selection","panel":"random"},
+  {"name":"Select small map","action":"setup:size:36","screen":"scenario_selection","panel":"random","field":"size","value":36},
+  {"name":"Select normal monsters","action":"setup:monsters:1","screen":"scenario_selection","panel":"random","field":"monsters","value":1},
+  {"name":"Restore strong monsters","action":"setup:monsters:2","screen":"scenario_selection","panel":"random","field":"monsters","value":2},
+  {"name":"Restore medium map","action":"setup:size:72","screen":"scenario_selection","panel":"random","field":"size","value":72},
+  {"name":"Open map list","action":"scenario:maps","screen":"scenario_selection","panel":"maps"},
+  {"name":"Return to generator","action":"scenario:random","screen":"scenario_selection","panel":"random"}
+]

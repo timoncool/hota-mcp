@@ -10,8 +10,14 @@
   <ItemGroup>
     <PackageReference Include="ModelContextProtocol.AspNetCore" Version="2.2.0" />
   </ItemGroup>
-  <ItemGroup Condition="Exists('../../native/game/build/v21/game-attach.exe')">
-    <Content Include="../../native/game/build/v21/game-attach.exe" Link="native/game-attach.exe" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
-    <Content Include="../../native/game/build/v21/hota_game_bridge.dll" Link="native/hota_game_bridge.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  <ItemGroup Condition="Exists('../../native/game/build/v27/game-attach.exe')">
+    <Content Include="../../native/game/build/v27/game-attach.exe" Link="native/game-attach.exe" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="../../native/game/build/v27/hota_game_bridge.dll" Link="native/hota_game_bridge.dll" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
+
+
+
+
+
+

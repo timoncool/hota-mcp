@@ -55,9 +55,9 @@ int __fastcall DeliverManagerCommand(void* self,void*,GameMessage* message){
 bool Dispatch(unsigned operation,int player,int argument) {
     if(player<0||player>7)return false;
     uintptr_t main=Read<uintptr_t>(0x699538);
-    if(operation!=20&&operation!=21&&operation!=22&&(Read<int>(0x69ccf4)!=player||Read<uintptr_t>(0x69ccfc)!=main+0x20ad0+player*0x168))return false;
+    if(operation!=20&&operation!=21&&operation!=22&&operation!=23&&operation!=24&&operation!=25&&(Read<int>(0x69ccf4)!=player||Read<uintptr_t>(0x69ccfc)!=main+0x20ad0+player*0x168))return false;
     uintptr_t manager=Read<uintptr_t>(0x6992d0),dialog=Read<uintptr_t>(manager+0x54);
-    uintptr_t expected=(operation==1||operation==3)?0x63a5e4:operation==2?0x642478:(operation==4||operation==9)?0x64373c:(operation==5||operation==10)?0x6437b0:(operation==6||operation==7)?0x643954:operation==20?0x63ff60:operation==21?0x63e6d8:operation==22?0x641cbc:0;
+    uintptr_t expected=(operation==1||operation==3)?0x63a5e4:operation==2?0x642478:(operation==4||operation==9)?0x64373c:(operation==5||operation==10)?0x6437b0:(operation==6||operation==7)?0x643954:operation==20?0x63ff60:operation==21?0x63e6d8:(operation==22||operation==23||operation==24||operation==25)?0x641cbc:(operation==26||operation==29||operation==30)?0x63db40:0;
     if(!expected||Read<uintptr_t>(dialog)!=expected)return false;
     if(operation==3){
         uintptr_t owner=Read<uintptr_t>(0x69ccfc);
@@ -83,18 +83,27 @@ bool Dispatch(unsigned operation,int player,int argument) {
         hall(reinterpret_cast<void*>(townManager));return true;
     }
     if(operation==5&&(argument<0||argument>=18))return false;
+    if(operation==24&&!((argument>=281&&argument<=284)||(argument>=287&&argument<=295)||(argument>=307&&argument<=315)||(argument>=326&&argument<=329)||(argument>=331&&argument<=334)||(argument>=3003&&argument<=3005)))return false;
+    if(operation==24&&Read<uint8_t>(dialog+0x37e)!=1)return false;
+    if(operation==23&&argument!=128&&argument!=129&&argument!=130)return false;
     if(operation==20&&argument!=101&&argument!=102)return false;
     if(operation==21&&argument!=100&&argument!=104)return false;
-    int itemId=operation==22?188:(operation==20||operation==21)?argument:operation==1?10:operation==5?600+argument:(operation==9||operation==10)?30720:operation==6?30721:30722;
+    int itemId=operation==29?30725:operation==30?30726:operation==25?186:operation==22?188:(operation==20||operation==21||operation==23||operation==24)?argument:operation==1?10:operation==5?600+argument:(operation==9||operation==10)?30720:operation==6?30721:30722;
     uintptr_t first=Read<uintptr_t>(dialog+0x34),last=Read<uintptr_t>(dialog+0x38);
     if(last<first||last-first>8192||(last-first)%4)return false;
     bool found=false;uintptr_t targetButton=0;
-    for(uintptr_t p=first;p<last;p+=4){
+    if(operation==26||operation==29||operation==30){
+        int count=0; for(uintptr_t item=Read<uintptr_t>(dialog+0x2c);item&&count++<2048;item=Read<uintptr_t>(item+8)){
+            if(Read<uintptr_t>(item+4)!=dialog)return false;
+            if(Read<uint16_t>(item+0x10)==itemId&&Read<uintptr_t>(item)==0x63bb54&&(Read<uint16_t>(item+0x16)&0x2e)==6&&Read<uint8_t>(item+0x44)==0){found=true;targetButton=item;break;}
+        }
+    }
+    for(uintptr_t p=first;!found&&p<last;p+=4){
         uintptr_t item=Read<uintptr_t>(p);
         if(Read<uint16_t>(item+0x10)!=itemId)continue;
-        if(Read<uintptr_t>(item+4)!=dialog||(operation!=5&&Read<uintptr_t>(item)!=0x63bb54)||
+        if(Read<uintptr_t>(item+4)!=dialog||(operation!=5&&Read<uintptr_t>(item)!=0x63bb54&&!(operation==23&&Read<uintptr_t>(item)==0x63bb88))||
             (Read<uint16_t>(item+0x16)&6)!=6)return false;
-        if((operation==6||operation==7||operation==10)&&(Read<uint16_t>(item+0x16)&0x28))return false;
+        if((operation==6||operation==7||operation==10||operation==23||operation==24||operation==25)&&(Read<uint16_t>(item+0x16)&0x28))return false;
         if((operation==6||operation==7||operation==10)&&Read<uint8_t>(item+0x44)!=1)return false;
         found=true;targetButton=item;break;
     }
@@ -120,7 +129,7 @@ bool Dispatch(unsigned operation,int player,int argument) {
         auto handler=reinterpret_cast<int(__thiscall*)(void*,GameMessage*)>(Read<uintptr_t>(0x63a678+8));
         handler(reinterpret_cast<void*>(adventure),&message);return true;
     }
-    if(operation==20||operation==21||operation==22){
+    if(operation==20||operation==21||operation==22||operation==23||operation==24||operation==25||operation==26||operation==29||operation==30){
         if(pendingButton)return false;
         buttonOriginal=Read<uintptr_t>(targetButton);
         for(int i=0;i<13;++i)buttonTable[i]=Read<uintptr_t>(buttonOriginal+i*4);
@@ -135,7 +144,7 @@ bool Dispatch(unsigned operation,int player,int argument) {
     originalTable=expected;
     for(int i=0;i<15;++i)dialogTable[i]=Read<uintptr_t>(expected+i*4);
     dialogTable[3]=reinterpret_cast<uintptr_t>(&DeliverDialogCommand);
-    pendingButtonExit=operation==6||operation==7||operation==10;
+    pendingButtonExit=operation==6||operation==7||operation==10||operation==26;
     pendingMessage=message;
     pendingDialog=dialog;
     *reinterpret_cast<uintptr_t*>(dialog)=reinterpret_cast<uintptr_t>(dialogTable);
@@ -170,3 +179,8 @@ extern "C" __declspec(dllexport) LRESULT CALLBACK GameHook(int code,WPARAM wp,LP
 BOOL WINAPI DllMain(HINSTANCE instance,DWORD reason,LPVOID){
     if(reason==DLL_PROCESS_ATTACH){module=instance;DisableThreadLibraryCalls(instance);}return TRUE;
 }
+
+
+
+
+

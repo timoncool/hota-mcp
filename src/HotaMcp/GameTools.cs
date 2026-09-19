@@ -6,6 +6,8 @@ namespace HotaMcp;
 [McpServerToolType]
 public sealed class GameTools(IGameEndpoint endpoint)
 {
+    [McpServerTool,Description("Explicit diagnostic: in one call read fair structured observation, save the game framebuffer PNG and matching JSON, and verify the observed revision is unchanged across capture. Returns observation and local file metadata, never inline images. Does not freeze animations. Use for UI mapping/debugging, not normal gameplay; no focus or input changes.")]
+    public Task<DebugSnapshot> DebugSnapshot(CancellationToken cancellationToken)=>endpoint.Snapshot(cancellationToken);
     [McpServerTool,Description("Start HotA using the existing host HD Launcher's Play action and saved settings. Does not activate windows or send mouse/keyboard input. Returns already_running or launch_pending on repeated requests; use game_status and observe to check readiness.")]
     public Task<object> StartGame(CancellationToken cancellationToken)=>endpoint.Start(cancellationToken);
     [McpServerTool,Description("Read HD Launcher renderer options, or select one exact returned renderer label for the next game launch. Pass null to read. Only change graphics when the user asks; does not activate windows or use mouse/keyboard input.")]
