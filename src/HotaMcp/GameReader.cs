@@ -81,7 +81,7 @@ internal sealed class GameReader(WindowsGame game,int player)
                 uint map=checked(game.U32(activeDialog+0x1054)+(uint)game.I32(activeDialog+0x374)*0xca4);
                 selectedMapProbe=new{name=game.Text(game.U32(map+0x2d4)),description=game.Text(game.U32(map+0x2e4)),dimension=game.I32(map+0x18),settings=Enumerable.Range(0,10).Select(i=>game.I32(activeDialog+0x1898+(uint)i*4)).ToArray()};
             }
-            catch(InvalidOperationException e){selectedMapProbe=new{error=e.Message};}
+            catch(Exception e) when(e is InvalidOperationException or OverflowException){selectedMapProbe=new{error=e.Message};}
             try{scenarioProbe=new{flags=game.Read(activeDialog+0x37c,3),vectors=Convert.ToHexString(game.Read(activeDialog+0x1050,20)),dimension=game.I32(activeDialog+0x3a4),name=game.Text(game.U32(activeDialog+0x660)),description=game.Text(game.U32(activeDialog+0x670)),top=game.I32(activeDialog+0x370),selected=game.I32(activeDialog+0x374),buttons=Enumerable.Range(0,(int)(uiLast-uiFirst)/4).Select(i=>game.U32(uiFirst+(uint)i*4)).Where(a=>game.U32(a) is 0x63bb54 or 0x63bb88).Select(a=>new{id=BitConverter.ToUInt16(game.Read(a+0x10,2)),frame=game.I32(a+0x34)}).ToArray()};}
             catch(InvalidOperationException e){scenarioProbe=new{error=e.Message};}
         }
@@ -134,7 +134,7 @@ internal sealed class GameReader(WindowsGame game,int player)
                 {PlannedDestination=[BitConverter.ToInt32(h,0x35),BitConverter.ToInt32(h,0x39),BitConverter.ToInt16(h,0x3d)]};
         }
         }
-        string screen=vtable switch {0x63d46c=>"battle_result",0x641ddc=>"spellbook",0x63d528=>"combat",0x63db40=>"message",0x63ff60=>"main_menu",0x63e6d8=>"game_type",0x641cbc=>"scenario_selection",0x63a5e4=>"adventure",0x642478=>"system_options",0x64373c=>"town",0x6437b0=>"town_hall",0x643954=>"building_confirmation",_=>"unsupported"};
+        string screen=vtable switch {0x640c5c=>"recruitment",0x643990=>"tavern",0x63d46c=>"battle_result",0x641ddc=>"spellbook",0x63d528=>"combat",0x63db40=>"message",0x63ff60=>"main_menu",0x63e6d8=>"game_type",0x641cbc=>"scenario_selection",0x63a5e4=>"adventure",0x642478=>"system_options",0x64373c=>"town",0x6437b0=>"town_hall",0x643954=>"building_confirmation",_=>"unsupported"};
         // Unvalidated dialog classes are not published to the player yet.
         if(screen=="unsupported") throw new InvalidOperationException("Current screen not supported by this adapter yet");
         uint surface=game.U32(manager+0x40);
@@ -146,7 +146,7 @@ internal sealed class GameReader(WindowsGame game,int player)
         if(start>end||end>cap||(end-start)%4!=0||end-start>8192) throw new InvalidOperationException("Invalid UI list");
         var items=new List<UiElement>();
         var controls=new List<uint>();
-        if(screen is "message" or "combat" or "spellbook" or "battle_result")
+        if(screen is "message" or "combat" or "spellbook" or "battle_result" or "tavern" or "recruitment")
         {
             var seen=new HashSet<uint>();
             for(uint item=game.U32(dlg+0x2c);item!=0;item=game.U32(item+8))
@@ -165,14 +165,15 @@ internal sealed class GameReader(WindowsGame game,int player)
             int iw=BitConverter.ToUInt16(b,0x1c),ih=BitConverter.ToUInt16(b,0x1e);
             if(iw==0||ih==0) continue;
             uint vt=BitConverter.ToUInt32(b);string? text=null,asset=null;
-            if(vt is 0x642dc0 or 0x642df8) text=game.Text(game.U32(a+0x34));
-            if(vt is 0x63bb54 or 0x63bb88||screen=="spellbook"&&vt==0x63ec48) asset=game.Text(game.U32(a+0x30)+4,16);
+            if(vt is 0x642dc0 or 0x642df8 or 0x642d50) text=game.Text(game.U32(a+0x34));
+            if(vt is 0x63bb54 or 0x63bb88||(screen=="spellbook"||screen=="adventure")&&vt==0x63ec48) asset=game.Text(game.U32(a+0x30)+4,16);
             if(vt==0x63bb88)text=game.Text(game.U32(a+0x5c));
-            bool interactive=(vt is 0x63bb54 or 0x63bb88||screen=="spellbook"&&vt==0x63ec48)&&(state&2)!=0&&(state&0x28)==0;
+            bool interactive=(vt is 0x63bb54 or 0x63bb88||(screen=="spellbook"||screen=="adventure")&&vt==0x63ec48)&&(state&2)!=0&&(state&0x28)==0;
             if(string.IsNullOrEmpty(text)&&asset==null) continue;
             items.Add(new($"ui:{controlIndex}",BitConverter.ToUInt16(b,0x10),text,asset,
                 dx+BitConverter.ToInt16(b,0x18),dy+BitConverter.ToInt16(b,0x1a),iw,ih,interactive));
         }
+        if(screen=="scenario_selection"&&items.Any(i=>i.Id==186&&i.Asset=="scnrsav.def"))screen="save_game";
         var towns=frontend?new List<TownView>():new TownReader(game,player).Read();
         var actions=new List<AvailableAction>();
         if(screen=="message"&&items.Count(i=>i.Interactive)==1&&items.Any(i=>i.Id==30722&&i.Asset=="iokay.def"&&i.Interactive))actions.Add(new("message:accept","Подтвердить прочитанное сообщение"));
@@ -196,6 +197,10 @@ internal sealed class GameReader(WindowsGame game,int player)
         if(screen=="adventure"&&items.Any(i=>i.Id==12&&i.Asset=="iam001.def"&&i.Interactive))actions.Add(new("turn:end","Закончить ход; игра может запросить подтверждение"));
         if(screen=="town")
         {
+            int townId=game.Read(game.U32(game.U32(0x69954c)+0x38),1)[0];
+            var currentTown=towns.Single(t=>t.Id==townId);
+            if(currentTown.Buildings.Contains(5))actions.Add(new("town:tavern","Открыть таверну"));
+            for(int level=0;level<7;level++)if(currentTown.Buildings.Contains(30+level))actions.Add(new($"town:recruit:{level}",$"Открыть найм существ уровня {level+1}"));
             actions.Add(new("town:construction","Открыть зал совета"));
             actions.Add(new("town:close","Вернуться на карту"));
         }
@@ -208,6 +213,19 @@ internal sealed class GameReader(WindowsGame game,int player)
         {
             if(items.Any(i=>i.Id==30722&&i.Interactive))actions.Add(new("building:buy","Построить указанное здание за показанную цену"));
             if(items.Any(i=>i.Id==30721&&i.Interactive))actions.Add(new("building:cancel","Отменить покупку"));
+        }
+        if(screen=="save_game")actions.Add(new("save:confirm","Сохранить игру; может открыться запрос имени"));
+        if(screen=="recruitment")
+        {
+            if(items.Any(i=>i.Id==532&&i.Interactive))actions.Add(new("recruit:max","Выбрать максимум доступных для найма существ"));
+            if(items.Any(i=>i.Id==30722&&i.Interactive))actions.Add(new("recruit:buy","Нанять выбранное количество за указанную цену"));
+            actions.Add(new("recruit:cancel","Отменить найм"));
+        }
+        if(screen=="system_options"&&items.Any(i=>i.Id==106&&i.Interactive))actions.Add(new("game:save","Открыть сохранение игры"));
+        if(screen=="tavern")
+        {
+            if(items.Any(i=>i.Id==12&&i.Interactive))actions.Add(new("tavern:hire","Нанять выбранного героя за указанную цену"));
+            actions.Add(new("tavern:close","Выйти из таверны"));
         }
         if(screen=="battle_result"&&items.Any(i=>i.Id==30722&&i.Interactive))actions.Add(new("battle:accept","Принять результат боя"));
         if(screen=="spellbook")

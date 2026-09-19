@@ -205,11 +205,15 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
                     _ when action.Key.StartsWith("spellbook:select:")=>(37,"combat"),
                     "spell:cancel"=>(36,"combat"),
                     "battle:accept"=>(39,"adventure"),
+                    "save:confirm"=>(44,"adventure"),"game:save"=>(43,"save_game"),"recruit:max"=>(42,"recruitment"),"recruit:buy"=>(41,"town"),"recruit:cancel"=>(36,"town"),
+                    "tavern:hire"=>(41,"town"),"tavern:close"=>(36,"town"),
                     _ when action.Key.StartsWith("spell:target:")=>(38,"combat"),
                     "combat:wait"=>(32,"combat"),"combat:defend"=>(33,"combat"),
                     _ when action.Key.StartsWith("combat:move:")||action.Key.StartsWith("combat:attack:")=>(34,"combat"),
                     _ when action.Key.StartsWith("setup:")=>(24,"scenario_selection"),
                     "town:construction"=>(4,"town_hall"),"town:close"=>(27,"adventure"),
+                    "town:tavern"=>(40,"tavern"),
+                    _ when action.Key.StartsWith("town:recruit:")=>(40,"recruitment"),
                     "construction:close"=>(10,"town"),"building:cancel"=>(6,"town_hall"),
                     "building:buy"=>(7,"town"),
                     _ when action.Key.StartsWith("town:open:")=>(3,"town"),
@@ -236,11 +240,35 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             var pending=new OperationResult("uncertain","Dispatch started; do not repeat using a new ID",null);
             operations.Add(request.OperationId,(request,pending));
             Record("operation_started",request);
-            if(nativeOperation==27)await game.KeyAsync(0x1b,0x01);
+            if(nativeOperation==3)
+            {
+                if(before.Towns.Count!=1||before.Towns[0].Id!=argument)throw new InvalidOperationException("Town sidebar selection currently verified for one owned town only");
+                var portrait=before.Elements.Single(e=>e.Id==32&&e.Asset=="itpa.def");
+                for(int i=0;i<2;i++)
+                {
+                    await game.MouseAsync(portrait.X+portrait.Width/2,portrait.Y+portrait.Height/2,before.Width,before.Height,true,CancellationToken.None);
+                    await Task.Delay(150,CancellationToken.None);
+                    if(reader.Observe().Screen=="town")break;
+                }
+            }
+            else if(nativeOperation==40)
+            {
+                int building=request.Element=="town:tavern"?5:30+int.Parse(request.Element.Split(':')[2]);
+                var point=new TownReader(game,player).BuildingPoint(building);
+                await game.MouseAsync(point.X,point.Y,before.Width,before.Height,true,CancellationToken.None);
+            }
+            else if(nativeOperation==27)await game.KeyAsync(0x1b,0x01);
             else if(nativeOperation==28)await game.KeyAsync(0x45,0x12);
             else if(nativeOperation==32)await game.KeyAsync(0x57,0x11);
             else if(nativeOperation==33)await game.KeyAsync(0x44,0x20);
-            else if(nativeOperation==39)await game.KeyAsync(0x0d,0x1c);
+                        else if(nativeOperation==44)
+            {
+                var button=before.Elements.Single(e=>e.Id==186&&e.Asset=="scnrsav.def"&&e.Interactive);
+                await game.MouseAsync(button.X+button.Width/2,button.Y+button.Height/2,before.Width,before.Height,true,CancellationToken.None);
+            }
+            else if(nativeOperation==43)await game.KeyAsync(0x53,0x1f);
+            else if(nativeOperation==42)await game.KeyAsync(0x4d,0x32);
+            else if(nativeOperation is 39 or 41)await game.KeyAsync(0x0d,0x1c);
             else if(nativeOperation==36)await game.KeyAsync(0x1b,0x01);
             else if(nativeOperation==37)
             {

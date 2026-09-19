@@ -5,6 +5,29 @@ public sealed record AvailableAction(string Key,string Label);
 
 internal sealed class TownReader(WindowsGame game,int player)
 {
+    public (int X,int Y) BuildingPoint(int building)
+    {
+        if(building<0||building>=44)throw new InvalidOperationException("Invalid building");
+        uint manager=game.U32(0x69954c),dlg=game.U32(manager+0x118),town=game.U32(manager+0x38);
+        if(game.U32(manager)!=0x643730||game.U32(dlg)!=0x64373c||game.Read(town+1,1)[0]!=player)throw new InvalidOperationException("Own town screen required");
+        ulong built=BitConverter.ToUInt64(game.Read(town+0x150,8));
+        if((built&(1UL<<building))==0)throw new InvalidOperationException("Building is not built");
+        uint mask=game.U32(dlg+0x50);
+        byte[] data=game.Read(mask,800*374*2);
+        int best=0,bx=-1,by=-1;
+        for(int y=1;y<373;y++)
+        {
+            int start=-1;
+            for(int x=0;x<=800;x++)
+            {
+                bool match=x<800&&BitConverter.ToUInt16(data,(y*800+x)*2)==building+1;
+                if(match){if(start<0)start=x;}
+                else if(start>=0){int length=x-start;if(length>best){best=length;bx=start+length/2;by=y;}start=-1;}
+            }
+        }
+        if(best<3||game.U32(dlg+0x50)!=mask)throw new InvalidOperationException("Building hit region unavailable");
+        return (bx,by);
+    }
     public List<TownView> Read()
     {
         uint main=game.U32(0x699538),owner=main+0x20ad0+(uint)player*0x168;

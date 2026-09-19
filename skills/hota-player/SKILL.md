@@ -43,3 +43,7 @@ Combat.Log contains the last24 entries of the actual game log with zero-based In
 Verified magic path: combat:spellbook opens the current book; read actual labels and mana costs. spellbook:select:ID selects a currently exposed icon. In target mode choose spell:target:STACK_ID; the game checks target validity. Stone Skin on own water elementals was verified (mana30→26, log and defence change). Current target-mode recognition is Russian-text-specific; pages, schools and spell descriptions are unfinished. Do not assume all visible stacks are valid spell targets.
 
 On battle_result read the result text and losses, then battle:accept. One victory and return to adventure were verified; the complete map is not finished.
+
+Updated town evidence: town:open uses the actual sidebar portrait, currently limited to one owned town. Repeated open/close and a market purchase survived. town:tavern reads selected hero and price; tavern:hire was verified for Brissa. town:recruit:LEVEL opens a built dwelling using the game's building hit map; recruit:max selects maximum, recruit:buy confirms displayed cost. Six water elementals bought for1800. Do not confuse the remaining-stock text with selected quantity.
+
+Saving: game:save from system_options opens save_game; save:confirm presses its game button. Read and accept the resulting message. Current name editing/reading and loading are unfinished. The first save exists; a request can still report uncertain because the message appears before adventure. Inspect, never repeat blindly.
