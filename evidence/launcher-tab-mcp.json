@@ -1,0 +1,618 @@
+[
+  {
+    "handle": 919666,
+    "class": "ComboLBox",
+    "id": 1000,
+    "visible": false,
+    "text": ""
+  },
+  {
+    "handle": 2361682,
+    "class": "#32770",
+    "id": 0,
+    "visible": true,
+    "text": "HoMM3 HD 5.8 R18 Launcher"
+  },
+  {
+    "handle": 1051106,
+    "class": "ComboLBox",
+    "id": 1000,
+    "visible": false,
+    "text": ""
+  },
+  {
+    "handle": 1706612,
+    "class": "ComboLBox",
+    "id": 1000,
+    "visible": false,
+    "text": ""
+  },
+  {
+    "handle": 2689664,
+    "class": "ComboLBox",
+    "id": 1000,
+    "visible": false,
+    "text": ""
+  },
+  {
+    "handle": 2623404,
+    "class": "ComboLBox",
+    "id": 1000,
+    "visible": false,
+    "text": ""
+  },
+  {
+    "handle": 1050754,
+    "class": "ComboLBox",
+    "id": 1000,
+    "visible": false,
+    "text": ""
+  },
+  {
+    "handle": 1509536,
+    "class": "ComboLBox",
+    "id": 1000,
+    "visible": false,
+    "text": ""
+  },
+  {
+    "handle": 3017590,
+    "class": "ComboLBox",
+    "id": 1000,
+    "visible": false,
+    "text": ""
+  },
+  {
+    "handle": 37750708,
+    "class": "MSCTFIME UI",
+    "id": 0,
+    "visible": false,
+    "text": "MSCTFIME UI"
+  },
+  {
+    "handle": 2099594,
+    "class": "IME",
+    "id": 0,
+    "visible": false,
+    "text": "Default IME"
+  },
+  {
+    "handle": 4721918,
+    "class": "HotAMcp.LauncherPage.v1",
+    "id": 0,
+    "visible": true,
+    "text": "MCP"
+  },
+  {
+    "handle": 8587410,
+    "class": "Static",
+    "id": 49000,
+    "visible": true,
+    "text": "HotA MCP"
+  },
+  {
+    "handle": 3868792,
+    "class": "Static",
+    "id": 49001,
+    "visible": true,
+    "text": "MCP-сервер: ещё не подключён\r\nHotA запущена, PID 30256\r\n\r\nВкладка подключена к существующему HD Launcher.\r\nДействия игры и MCP пока не доступны в этой сборке."
+  },
+  {
+    "handle": 3541624,
+    "class": "Button",
+    "id": 49002,
+    "visible": true,
+    "text": "Обновить состояние"
+  },
+  {
+    "handle": 789578,
+    "class": "#32770",
+    "id": 0,
+    "visible": false,
+    "text": ""
+  },
+  {
+    "handle": 5573880,
+    "class": "Button",
+    "id": 1066,
+    "visible": false,
+    "text": "Откатить последнее обновление"
+  },
+  {
+    "handle": 7343380,
+    "class": "Button",
+    "id": 1067,
+    "visible": false,
+    "text": "Удалить HoMM3 HD"
+  },
+  {
+    "handle": 3475430,
+    "class": "#32770",
+    "id": 0,
+    "visible": false,
+    "text": ""
+  },
+  {
+    "handle": 1838200,
+    "class": "SysLink",
+    "id": 1059,
+    "visible": false,
+    "text": "Cайт: <A HREF=\"https://sites.google.com/site/heroes3hd/rus/description\">sites.google.com/site/heroes3hd</A>\r\nКанал Youtube: <A HREF=\"https://www.youtube.com/user/baratorch/videos?view_as=public\">www.youtube.com/user/baratorch</A>\r\nФорумы: <A HREF=\"https://forum.df2.ru/index.php?showforum=147\">forum.df2.ru</A>, <A HREF=\"http://heroescommunity.com/viewthread.php3?TID=33708\">heroescommunity.com</A>\r\n\r\nАвтор: Александр Баринов (aka baratorсh)\r\ne-mail: <A ID=\"mail\" HREF=\"baratorch@gmail.com\">baratorch@gmail.com"
+  },
+  {
+    "handle": 5835288,
+    "class": "Static",
+    "id": 1063,
+    "visible": false,
+    "text": ""
+  },
+  {
+    "handle": 1117252,
+    "class": "SysLink",
+    "id": 1206,
+    "visible": false,
+    "text": "Также я являюсь автором проекта:"
+  },
+  {
+    "handle": 4917604,
+    "class": "Static",
+    "id": 1207,
+    "visible": false,
+    "text": ""
+  },
+  {
+    "handle": 2818078,
+    "class": "SysLink",
+    "id": -1,
+    "visible": false,
+    "text": ""
+  },
+  {
+    "handle": 1379330,
+    "class": "#32770",
+    "id": 0,
+    "visible": false,
+    "text": ""
+  },
+  {
+    "handle": 2362424,
+    "class": "Button",
+    "id": 1014,
+    "visible": false,
+    "text": "Закрывать после запуска игры"
+  },
+  {
+    "handle": 5703808,
+    "class": "#32770",
+    "id": 0,
+    "visible": false,
+    "text": ""
+  },
+  {
+    "handle": 657530,
+    "class": "Edit",
+    "id": 1048,
+    "visible": false,
+    "text": ""
+  },
+  {
+    "handle": 657516,
+    "class": "Button",
+    "id": 1050,
+    "visible": false,
+    "text": "Применить"
+  },
+  {
+    "handle": 854172,
+    "class": "Button",
+    "id": 1049,
+    "visible": false,
+    "text": "Отменить"
+  },
+  {
+    "handle": 17500094,
+    "class": "Button",
+    "id": 1026,
+    "visible": false,
+    "text": "По умолчанию"
+  },
+  {
+    "handle": 32966574,
+    "class": "SysLink",
+    "id": 1051,
+    "visible": false,
+    "text": "Не изменяйте, если не уверены!"
+  },
+  {
+    "handle": 2492412,
+    "class": "SysLink",
+    "id": 1052,
+    "visible": false,
+    "text": ""
+  },
+  {
+    "handle": 2623086,
+    "class": "Edit",
+    "id": 1069,
+    "visible": false,
+    "text": ""
+  },
+  {
+    "handle": 2100160,
+    "class": "Button",
+    "id": 1070,
+    "visible": false,
+    "text": "Найти далее"
+  },
+  {
+    "handle": 1116278,
+    "class": "#32770",
+    "id": 0,
+    "visible": false,
+    "text": ""
+  },
+  {
+    "handle": 788648,
+    "class": "ComboBox",
+    "id": 1030,
+    "visible": false,
+    "text": ""
+  },
+  {
+    "handle": 1247320,
+    "class": "ComboBox",
+    "id": 1031,
+    "visible": false,
+    "text": ""
+  },
+  {
+    "handle": 4261750,
+    "class": "ComboBox",
+    "id": 1027,
+    "visible": false,
+    "text": ""
+  },
+  {
+    "handle": 2623652,
+    "class": "Edit",
+    "id": 1001,
+    "visible": false,
+    "text": ""
+  },
+  {
+    "handle": 2033242,
+    "class": "ComboBox",
+    "id": 1033,
+    "visible": false,
+    "text": ""
+  },
+  {
+    "handle": 7342030,
+    "class": "ComboBox",
+    "id": 1072,
+    "visible": false,
+    "text": ""
+  },
+  {
+    "handle": 854160,
+    "class": "Button",
+    "id": 1073,
+    "visible": false,
+    "text": "Системные курсоры"
+  },
+  {
+    "handle": 855136,
+    "class": "Button",
+    "id": 1209,
+    "visible": false,
+    "text": "Развернутый режим"
+  },
+  {
+    "handle": 1576016,
+    "class": "Button",
+    "id": 1045,
+    "visible": false,
+    "text": "Полноэкранный режим"
+  },
+  {
+    "handle": 855068,
+    "class": "Button",
+    "id": 1212,
+    "visible": false,
+    "text": "Сворачивать по ALT+TAB в полноэкранном режиме"
+  },
+  {
+    "handle": 724030,
+    "class": "Button",
+    "id": 1043,
+    "visible": false,
+    "text": "Настройки графики по умолчанию (рекомендуются)"
+  },
+  {
+    "handle": 1051674,
+    "class": "Button",
+    "id": 1017,
+    "visible": false,
+    "text": "Проверять обновления при каждом запуске игры"
+  },
+  {
+    "handle": 920580,
+    "class": "Button",
+    "id": 1018,
+    "visible": false,
+    "text": "Обновить HoMM3 HD"
+  },
+  {
+    "handle": 4656090,
+    "class": "Button",
+    "id": 1037,
+    "visible": false,
+    "text": "HD+ "
+  },
+  {
+    "handle": 920560,
+    "class": "Button",
+    "id": 1032,
+    "visible": false,
+    "text": "Без CD/DVD"
+  },
+  {
+    "handle": 1182616,
+    "class": "ListBox",
+    "id": 1034,
+    "visible": false,
+    "text": ""
+  },
+  {
+    "handle": 8719278,
+    "class": "Button",
+    "id": 1020,
+    "visible": false,
+    "text": "Подключить"
+  },
+  {
+    "handle": 1182586,
+    "class": "Button",
+    "id": 1021,
+    "visible": false,
+    "text": "Отключить"
+  },
+  {
+    "handle": 920436,
+    "class": "Button",
+    "id": 1022,
+    "visible": false,
+    "text": "Вверх"
+  },
+  {
+    "handle": 985936,
+    "class": "Button",
+    "id": 1023,
+    "visible": false,
+    "text": "Вниз"
+  },
+  {
+    "handle": 789326,
+    "class": "Button",
+    "id": -1,
+    "visible": false,
+    "text": ""
+  },
+  {
+    "handle": 789308,
+    "class": "Static",
+    "id": 1013,
+    "visible": false,
+    "text": "Язык:"
+  },
+  {
+    "handle": 723768,
+    "class": "Static",
+    "id": 1006,
+    "visible": false,
+    "text": "Рендерер:"
+  },
+  {
+    "handle": 789292,
+    "class": "Static",
+    "id": 1010,
+    "visible": false,
+    "text": "Исходный размер:"
+  },
+  {
+    "handle": 789290,
+    "class": "Static",
+    "id": 1011,
+    "visible": false,
+    "text": "Масштабирование:"
+  },
+  {
+    "handle": 6032162,
+    "class": "Button",
+    "id": 1042,
+    "visible": false,
+    "text": "Графика"
+  },
+  {
+    "handle": 1051420,
+    "class": "Button",
+    "id": 1019,
+    "visible": false,
+    "text": "Плагины"
+  },
+  {
+    "handle": 920344,
+    "class": "Button",
+    "id": 1116,
+    "visible": false,
+    "text": ""
+  },
+  {
+    "handle": 527120,
+    "class": "Button",
+    "id": -1,
+    "visible": false,
+    "text": ""
+  },
+  {
+    "handle": 985848,
+    "class": "Button",
+    "id": 1210,
+    "visible": false,
+    "text": ""
+  },
+  {
+    "handle": 1182386,
+    "class": "Static",
+    "id": 1201,
+    "visible": false,
+    "text": "Потоков:"
+  },
+  {
+    "handle": 527020,
+    "class": "ComboBox",
+    "id": 1202,
+    "visible": false,
+    "text": ""
+  },
+  {
+    "handle": 6228484,
+    "class": "ComboBox",
+    "id": 1203,
+    "visible": false,
+    "text": ""
+  },
+  {
+    "handle": 1444312,
+    "class": "Button",
+    "id": 1205,
+    "visible": false,
+    "text": "Откатить"
+  },
+  {
+    "handle": 5900246,
+    "class": "Button",
+    "id": 1215,
+    "visible": false,
+    "text": "Очередь существ в битве"
+  },
+  {
+    "handle": 3672492,
+    "class": "Button",
+    "id": 1214,
+    "visible": false,
+    "text": "Полоски здоровья в битве"
+  },
+  {
+    "handle": 2623716,
+    "class": "Button",
+    "id": 1216,
+    "visible": false,
+    "text": "Hacky hack"
+  },
+  {
+    "handle": 1312958,
+    "class": "Button",
+    "id": 1115,
+    "visible": false,
+    "text": "Сохранять перед каждой битвой"
+  },
+  {
+    "handle": 723120,
+    "class": "Button",
+    "id": 1071,
+    "visible": false,
+    "text": "Сохранять все дни"
+  },
+  {
+    "handle": 1968564,
+    "class": "Button",
+    "id": 1008,
+    "visible": true,
+    "text": "Создать ярлык..."
+  },
+  {
+    "handle": 1312394,
+    "class": "Button",
+    "id": 1009,
+    "visible": true,
+    "text": "Создать HD exe"
+  },
+  {
+    "handle": 2951456,
+    "class": "Button",
+    "id": 1007,
+    "visible": true,
+    "text": "Играть"
+  },
+  {
+    "handle": 919684,
+    "class": "SysTabControl32",
+    "id": 1046,
+    "visible": true,
+    "text": ""
+  },
+  {
+    "handle": 2034160,
+    "class": "Button",
+    "id": 1002,
+    "visible": true,
+    "text": "Выход"
+  },
+  {
+    "handle": 526452,
+    "class": "Static",
+    "id": 1111,
+    "visible": false,
+    "text": ""
+  },
+  {
+    "handle": 4589818,
+    "class": "Static",
+    "id": 1112,
+    "visible": false,
+    "text": ""
+  },
+  {
+    "handle": 6752786,
+    "class": "Static",
+    "id": 1114,
+    "visible": true,
+    "text": ""
+  },
+  {
+    "handle": 591982,
+    "class": "ComboBoxEx32",
+    "id": 1058,
+    "visible": true,
+    "text": ""
+  },
+  {
+    "handle": 8784348,
+    "class": "ComboBox",
+    "id": 1058,
+    "visible": true,
+    "text": ""
+  },
+  {
+    "handle": 5048730,
+    "class": "Button",
+    "id": -1,
+    "visible": true,
+    "text": ""
+  },
+  {
+    "handle": 1116302,
+    "class": "Static",
+    "id": 1056,
+    "visible": false,
+    "text": ""
+  },
+  {
+    "handle": 657548,
+    "class": "Static",
+    "id": 1057,
+    "visible": true,
+    "text": ""
+  }
+]
