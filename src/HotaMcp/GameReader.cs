@@ -91,6 +91,38 @@ internal sealed class GameReader(WindowsGame game,int player)
         current=game.I32(0x69ccf4), other=game.I32(0x6995a4), active=game.U32(0x69ccfc),
         main=game.U32(0x699538), mode=game.I32(0x698a40),managers,inputCandidates
     };}
+    public object DiagnosticDialog()
+    {
+        // Developer-only structural dump of the active dialog: every control, its raw fields
+        // and the dialog header words used by the list widgets. No game-state writes.
+        uint manager=game.U32(0x6992d0),dlg=game.U32(manager+0x54);
+        if(dlg==0)return new{error="no active dialog"};
+        var controls=new List<object>();
+        var seen=new HashSet<uint>();
+        int dx=game.I32(dlg+0x18),dy=game.I32(dlg+0x1c);
+        for(uint item=game.U32(dlg+0x2c);item!=0&&seen.Add(item)&&controls.Count<4096;item=game.U32(item+8))
+        {
+            uint vt=game.U32(item);
+            var record=new Dictionary<string,object?>{{"address",item},{"vtable",vt},
+                {"id",(int)BitConverter.ToUInt16(game.Read(item+0x10,2))},
+                {"state",(int)BitConverter.ToUInt16(game.Read(item+0x16,2))},
+                {"parent",game.U32(item+4)},
+                {"x",dx+BitConverter.ToInt16(game.Read(item+0x18,2),0)},
+                {"y",dy+BitConverter.ToInt16(game.Read(item+0x1a,2),0)},
+                {"w",(int)BitConverter.ToUInt16(game.Read(item+0x1c,2))},
+                {"h",(int)BitConverter.ToUInt16(game.Read(item+0x1e,2))}};
+            if(vt is 0x642dc0 or 0x642df8 or 0x642d50)record["text"]=game.Text(game.U32(item+0x34));
+            if(vt is 0x63bb54 or 0x63bb88)
+            {
+                record["asset"]=game.Text(game.U32(item+0x30)+4,16);
+                try{record["caption"]=game.Text(game.U32(item+0x5c));}catch(InvalidOperationException){}
+            }
+            controls.Add(record);
+        }
+        return new{activeDialog=dlg,vtable=game.U32(dlg),controls,
+            header=Convert.ToHexString(game.Read(dlg,0x60)),
+            words=Enumerable.Range(0,0x40).Select(i=>new{i,value=game.I32(dlg+(uint)(i*4))}).Where(x=>x.value!=0).ToArray()};
+    }
     private int[] ReadButtonKeys(uint item)
     {
         uint first=game.U32(item+0x4c),last=game.U32(item+0x50);

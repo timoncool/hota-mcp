@@ -87,6 +87,17 @@ internal sealed class WindowsGame : IDisposable
         finally{PostMessageW(Window,0x101,key,(nint)((long)data|0xc0000000));}
         await Task.Delay(100);
     }
+    public async Task TextAsync(string text)
+    {
+        // Ordinary window character messages into the focused game edit control.
+        // No global input injection, no window activation.
+        foreach(char character in text)
+        {
+            if(!PostMessageW(Window,0x102,(nuint)character,1))throw new InvalidOperationException("Character dispatch failed");
+            await Task.Delay(40,CancellationToken.None);
+        }
+    }
+    public async Task ClickAsync(int gameX,int gameY,int width,int height,CancellationToken ct)=>await MouseAsync(gameX,gameY,width,height,true,ct);
     [StructLayout(LayoutKind.Sequential)] private struct Rect {public int Left,Top,Right,Bottom;}
     [DllImport("kernel32.dll",SetLastError=true)] private static extern SafeProcessHandle OpenProcess(uint access,bool inherit,int pid);
     [DllImport("kernel32.dll",SetLastError=true)] private static extern bool ReadProcessMemory(SafeProcessHandle process,nint address,byte[] buffer,nuint length,out nuint read);

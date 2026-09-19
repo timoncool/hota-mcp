@@ -10,6 +10,7 @@ public sealed record NearbyTargets(string Revision,int HeroId,int Movement,List<
 public sealed record TargetInspection(string Id,string Kind,RouteView Route,string Revision);
 public sealed record DebugSnapshot(Observation Observation,CaptureResult Capture,string ObservationPath);
 public sealed record MoveRequest(string OperationId,string Revision,string TargetId);
+public sealed record TextRequest(string Revision,string Element,string Text);
 
 internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) : IDisposable
 {
@@ -133,6 +134,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
         capabilities=new[]{"observe_own_hero","observe_adventure_ui","open_system_options","return_to_game","visible_targets","route_preview","own_towns","town_construction","journal","plan"},
         unavailable=new[]{"full_map_coverage","movement","town_recruitment","battle","hotseat","lan","installer"} };
     public object Diagnostic()=>reader.DiagnosticPointers();
+    public object RawUi()=>reader.DiagnosticDialog();
     public object MapDiagnostic()=>new MapReader(game,player).Diagnostic(reader.Observe());
     public async Task<MapView> ReadMap(int x,int y,int z,int radius,CancellationToken ct)
     {
@@ -235,6 +237,11 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
                 (nativeOperation,expected)=(before.Screen,item.Id,item.Asset) switch {
                     ("adventure",10,"iam009.def")=>(1,"system_options"),
                     ("system_options",30722,"soretrn.def")=>(2,"adventure"),
+                    ("system_options",102,"soload.def")=>(45,"message"),
+                    ("system_options",106,"sosave.def")=>(43,"save_game"),
+                    ("message",30722,"iokay.def")=>(26,"adventure"),
+                    ("message",30725,"iokay.def")=>(29,"adventure"),
+                    ("message",30726,"icancel.def")=>(30,"adventure"),
                     _=>throw new InvalidOperationException("Use an available semantic action")
                 };
             }
@@ -257,6 +264,13 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
                 int building=request.Element=="town:tavern"?5:30+int.Parse(request.Element.Split(':')[2]);
                 var point=new TownReader(game,player).BuildingPoint(building);
                 await game.MouseAsync(point.X,point.Y,before.Width,before.Height,true,CancellationToken.None);
+            }
+            else if(nativeOperation is 50 or 51 or 52)
+            {
+                // Ordinary window mouse event into the modal loop: the dialog reads its own
+                // pressed control and produces the real callback result.
+                var button=before.Elements.Single(e=>e.Key==request.Element);
+                await game.MouseAsync(button.X+button.Width/2,button.Y+button.Height/2,before.Width,before.Height,true,CancellationToken.None);
             }
             else if(nativeOperation==27)await game.KeyAsync(0x1b,0x01);
             else if(nativeOperation==28)await game.KeyAsync(0x45,0x12);
@@ -305,12 +319,15 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
                 bool logConfirmed=!logRequired||after?.Combat is not null&&after.Combat.LogCount>before.Combat!.LogCount;
                 if(nativeOperation==38)logConfirmed=logConfirmed&&after?.Hero?.Mana<before.Hero?.Mana;
                 bool combatConfirmed=nativeOperation is not (32 or 33 or 34)||after?.Combat?.OwnTurn==true&&(after.Combat.ActiveStack!=before.Combat?.ActiveStack||after.Combat.Round!=before.Combat?.Round);
-                if(after is not null&&(after.Screen==expected||nativeOperation==28&&after.Screen=="message")&&(nativeOperation is not (23 or 24)||after.Revision!=before.Revision)&&settingConfirmed&&turnConfirmed&&combatConfirmed&&logConfirmed)
+                // A screen change must be visible in the revision; screen equality alone is not evidence.
+                bool screenChanged=after is not null&&after.Screen!=before.Screen&&after.Revision!=before.Revision;
+                bool sameScreenDismissed=after is not null&&(after.Screen==before.Screen&&after.Screen is "message" or "system_options")&&nativeOperation is 50;
+                if(after is not null&&((screenChanged&&(after.Screen==expected||nativeOperation==28&&after.Screen=="message"))||sameScreenDismissed)&&settingConfirmed&&turnConfirmed&&combatConfirmed&&logConfirmed)
                 {
                     if(after.Combat is not null&&before.Combat is not null)
                         Record("combat_action_evidence",new{request.OperationId,Action=request.Element,BeforeLogCount=before.Combat.LogCount,AfterLogCount=after.Combat.LogCount,Entries=after.Combat.Log.Where(e=>e.Index>=before.Combat.LogCount).ToArray()});
-                    var result=new OperationResult("completed",logRequired?"Combat transition and new game log entries confirmed":"Expected screen confirmed",after);
-                    operations[request.OperationId]=(request,result);Record("operation_completed",new{request.OperationId,after.Revision,after.Screen});
+                    var result=new OperationResult("completed",screenChanged?"Screen transition confirmed by revision change":"Dialog dismissed; screen unchanged",after);
+                    operations[request.OperationId]=(request,result);Record("operation_completed",new{request.OperationId,after.Revision,after.Screen,BeforeScreen=before.Screen});
                     return result;
                 }
             }
@@ -318,8 +335,30 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
         }
         finally {gate.Release();}
     }
-    public async Task<object> GetJournal(int limit,CancellationToken ct)
+    public async Task<OperationResult> EnterText(TextRequest request,CancellationToken ct)
     {
+        await gate.WaitAsync(ct);
+        try
+        {
+            if(string.IsNullOrEmpty(request.Text)||request.Text.Length>64||request.Text.Any(c=>c<32||c=='\\'||c=='/'||c==':'||c=='*'||c=='?'||c=='"'||c=='<'||c=='>'||c=='|'))
+                throw new InvalidOperationException("Text must be 1-64 characters without path separators");
+            var before=reader.Observe();
+            if(before.Revision!=request.Revision)throw new InvalidOperationException("Observation is stale; observe again before acting");
+            var field=before.Elements.SingleOrDefault(e=>e.Key==request.Element);
+            if(field is null)throw new InvalidOperationException("Unknown edit control; observe again");
+            // Focus the ordinary edit control with a window mouse event, then type characters.
+            await game.MouseAsync(field.X+field.Width/2,field.Y+field.Height/2,before.Width,before.Height,true,CancellationToken.None);
+            await Task.Delay(200,CancellationToken.None);
+            await game.TextAsync(request.Text);
+            await Task.Delay(200,CancellationToken.None);
+            var after=reader.Observe();
+            if(after.Screen!=before.Screen)throw new InvalidOperationException("Screen changed while entering text");
+            Record("text_entered",new{request.Element,Length=request.Text.Length,Screen=before.Screen});
+            return new OperationResult("completed","Text entered into the addressed edit control; read it back before confirming",after);
+        }
+        finally{gate.Release();}
+    }
+    public async Task<object> GetJournal(int limit,CancellationToken ct)    {
         await gate.WaitAsync(ct);try{return journal.TakeLast(Math.Clamp(limit,1,100)).ToArray();}finally{gate.Release();}
     }
     public async Task<object> Plan(string? value,CancellationToken ct)
@@ -345,6 +384,7 @@ public interface IGameEndpoint
     Task<object> Status(CancellationToken ct);
     Task<Observation> Observe(CancellationToken ct);
     Task<OperationResult> Click(OperationRequest request,CancellationToken ct);
+    Task<OperationResult> EnterText(TextRequest request,CancellationToken ct);
     Task<object> Journal(int limit,CancellationToken ct);
     Task<object> Plan(string? value,CancellationToken ct);
     Task<MapView> ReadMap(int x,int y,int z,int radius,CancellationToken ct);
@@ -363,6 +403,7 @@ internal sealed class LocalEndpoint(Bridge bridge) : IGameEndpoint
     public Task<object> Status(CancellationToken ct)=>Task.FromResult(bridge.Status());
     public Task<Observation> Observe(CancellationToken ct)=>bridge.Observe(ct);
     public Task<OperationResult> Click(OperationRequest request,CancellationToken ct)=>bridge.Click(request,ct);
+    public Task<OperationResult> EnterText(TextRequest request,CancellationToken ct)=>bridge.EnterText(request,ct);
     public Task<object> Journal(int limit,CancellationToken ct)=>bridge.GetJournal(limit,ct);
     public Task<object> Plan(string? value,CancellationToken ct)=>bridge.Plan(value,ct);
     public Task<MapView> ReadMap(int x,int y,int z,int radius,CancellationToken ct)=>bridge.ReadMap(x,y,z,radius,ct);
@@ -387,6 +428,7 @@ internal sealed class RemoteEndpoint(HttpClient client) : IGameEndpoint
     public Task<object> Status(CancellationToken ct)=>Call<object>("bridge/status",new{},ct);
     public Task<Observation> Observe(CancellationToken ct)=>Call<Observation>("bridge/observe",new{},ct);
     public Task<OperationResult> Click(OperationRequest request,CancellationToken ct)=>Call<OperationResult>("bridge/click",request,ct);
+    public Task<OperationResult> EnterText(TextRequest request,CancellationToken ct)=>Call<OperationResult>("bridge/text",request,ct);
     public Task<object> Journal(int limit,CancellationToken ct)=>Call<object>("bridge/journal",new{limit},ct);
     public Task<object> Plan(string? value,CancellationToken ct)=>Call<object>("bridge/plan",new{value},ct);
     public Task<MapView> ReadMap(int x,int y,int z,int radius,CancellationToken ct)=>Call<MapView>("bridge/map",new{x,y,z,radius},ct);

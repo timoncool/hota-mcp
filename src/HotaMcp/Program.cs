@@ -44,6 +44,20 @@ if(diagnostic)
         }
         Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(bridge.MapDiagnostic()));return;
     }
+    if(args.Contains("--read"))
+    {
+        // Developer-only read-only code/data inspection; addresses are never exposed to the player.
+        uint address=Convert.ToUInt32(Value("--address")!.Replace("0x",""),16);
+        int length=int.Parse(Value("--length")??"256");
+        Console.WriteLine(Convert.ToHexString(game.Read(address,length)));
+        return;
+    }
+    if(args.Contains("--ui"))
+    {
+        // Developer-only raw dialog dump: every control of the active dialog with id, state and text pointer.
+        Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(bridge.RawUi()));
+        return;
+    }
     Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(bridge.Diagnostic()));
     try{Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(await bridge.Observe(CancellationToken.None)));}
     catch(Exception e){Console.Error.WriteLine(e.ToString());Environment.ExitCode=1;}
@@ -76,6 +90,7 @@ app.MapPost("/bridge/observe",(CancellationToken ct)=>session.Observe(ct));
 app.MapPost("/bridge/debug-capture",(CancellationToken ct)=>session.Capture(ct));
 app.MapPost("/bridge/debug-snapshot",(CancellationToken ct)=>session.Snapshot(ct));
 app.MapPost("/bridge/click",(OperationRequest request,CancellationToken ct)=>session.Click(request,ct));
+app.MapPost("/bridge/text",(TextRequest request,CancellationToken ct)=>session.EnterText(request,ct));
 app.MapPost("/bridge/move",(MoveRequest request,CancellationToken ct)=>session.Move(request,ct));
 app.MapPost("/bridge/journal",(JournalRequest request,CancellationToken ct)=>session.Journal(request.Limit,ct));
 app.MapPost("/bridge/plan",(PlanRequest request,CancellationToken ct)=>session.Plan(request.Value,ct));
@@ -95,3 +110,4 @@ record JournalRequest(int Limit);
 record PlanRequest(string? Value);
 record TargetRequest(string TargetId,string Revision);
 record GraphicsRequest(string? Renderer);
+

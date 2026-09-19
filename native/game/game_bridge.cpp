@@ -152,7 +152,12 @@ bool Dispatch(unsigned operation,int player,int argument) {
         buttonOriginal=Read<uintptr_t>(targetButton);
         for(int i=0;i<13;++i)buttonTable[i]=Read<uintptr_t>(buttonOriginal+i*4);
         buttonTable[2]=reinterpret_cast<uintptr_t>(&DeliverButtonCommand);
-        buttonMessage=message;pendingButton=targetButton;
+        buttonMessage=message;
+        // The ordinary modal button handler reports an activation only for subtype 0xa
+        // (mouse release); 0xd is swallowed by the control. Affirmative and turn
+        // confirmations therefore use 0xa; decline keeps the ordinary close subtype.
+        if(operation!=30)buttonMessage.subtype=0xa;
+        pendingButton=targetButton;
         *reinterpret_cast<uintptr_t*>(targetButton)=reinterpret_cast<uintptr_t>(buttonTable);
         return true;
     }
