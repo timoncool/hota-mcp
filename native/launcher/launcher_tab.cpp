@@ -14,14 +14,44 @@ constexpr UINT kRemove = WM_APP + 0x373;
 constexpr UINT_PTR kSubclass = 0x484D4350;
 constexpr int kStatus = 49001;
 constexpr int kRefresh = 49002;
+constexpr int kStart = 49003;
+constexpr int kStop = 49004;
 HMODULE module = nullptr;
 HWND root = nullptr, tabs = nullptr, page = nullptr;
 int tabIndex = -1;
 bool ours = false;
 std::vector<HWND> hiddenPages;
 
+std::wstring ServerCommand(const char* command) {
+    std::wstring name=L"\\\\.\\pipe\\hota-mcp-control-"+std::to_wstring(GetCurrentProcessId());
+    char response[2048]{}; DWORD received=0;
+    if(!CallNamedPipeW(name.c_str(),const_cast<char*>(command),static_cast<DWORD>(strlen(command)),
+        response,sizeof(response)-1,&received,100)) return {};
+    int count=MultiByteToWideChar(CP_UTF8,0,response,received,nullptr,0);
+    std::wstring result(count,L'\0');
+    MultiByteToWideChar(CP_UTF8,0,response,received,result.data(),count);
+    return result;
+}
+
+void StartServer() {
+    if(!ServerCommand("status").empty()){return;}
+    wchar_t file[32768]{}; GetModuleFileNameW(module,file,32768);
+    std::wstring dir(file);dir.resize(dir.find_last_of(L"\\/"));
+    std::wstring exe=dir+L"\\HotaMcp.exe";
+    std::wstring command=L"\""+exe+L"\" --launcher-pid "+std::to_wstring(GetCurrentProcessId());
+    STARTUPINFOW startup{};startup.cb=sizeof(startup);PROCESS_INFORMATION process{};
+    if(!CreateProcessW(exe.c_str(),command.data(),nullptr,nullptr,FALSE,CREATE_NO_WINDOW,
+        nullptr,dir.c_str(),&startup,&process)) {
+        SetDlgItemTextW(page,kStatus,L"Не удалось запустить MCP-сервер. Проверьте установку HotaMcp.exe.");return;
+    }
+    CloseHandle(process.hThread);CloseHandle(process.hProcess);
+    SetDlgItemTextW(page,kStatus,L"Запуск MCP-сервера...");
+}
+
 std::wstring GameStatus() {
-    std::wstring result = L"MCP-сервер: ещё не подключён\r\n";
+    auto server=ServerCommand("status");
+    if(!server.empty()) return server;
+    std::wstring result = L"MCP-сервер остановлен\r\n";
     HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
     if (snap == INVALID_HANDLE_VALUE) return result + L"Не удалось проверить процесс игры.";
     PROCESSENTRY32W entry{}; entry.dwSize = sizeof(entry);
@@ -31,8 +61,7 @@ std::wstring GameStatus() {
     } while (Process32NextW(snap, &entry));
     CloseHandle(snap);
     result += pid ? L"HotA запущена, PID " + std::to_wstring(pid) : L"HotA не запущена";
-    result += L"\r\n\r\nВкладка подключена к существующему HD Launcher.\r\n"
-              L"Действия игры и MCP пока не доступны в этой сборке.";
+    result += L"\r\n\r\nНажмите «Запустить MCP» для подключения агентов.";
     return result;
 }
 
@@ -47,12 +76,15 @@ HWND Control(const wchar_t* cls, const wchar_t* label, DWORD style,
 }
 
 LRESULT CALLBACK PageProc(HWND hwnd, UINT message, WPARAM wp, LPARAM lp) {
+    if (message == WM_COMMAND && LOWORD(wp) == kStart) { StartServer(); return 0; }
+    if (message == WM_COMMAND && LOWORD(wp) == kStop) { ServerCommand("stop"); return 0; }
     if (message == WM_COMMAND && LOWORD(wp) == kRefresh) { Refresh(); return 0; }
     if (message == WM_TIMER) { Refresh(); return 0; }
     return DefWindowProcW(hwnd, message, wp, lp);
 }
 
 void ShowPage() {
+    if (ours) { Refresh(); return; }
     hiddenPages.clear();
     for (HWND child = GetWindow(root, GW_CHILD); child; child = GetWindow(child, GW_HWNDNEXT)) {
         wchar_t cls[64]{}; GetClassNameW(child, cls, 64);
@@ -105,6 +137,7 @@ void RemovePage() {
     }
     TabCtrl_DeleteItem(tabs, tabIndex);
     KillTimer(page, 1); DestroyWindow(page); page = nullptr;
+    UnregisterClassW(L"HotAMcp.LauncherPage.v3", module);
     RemovePropW(root, kProperty);
     RemoveWindowSubclass(root, RootProc, kSubclass);
     root = nullptr;
@@ -119,7 +152,7 @@ bool Install(HWND hwnd) {
     if (count < 1 || count > 16) return false;
     root = hwnd; tabs = targetTabs;
     WNDCLASSW wc{}; wc.lpfnWndProc = PageProc; wc.hInstance = module;
-    wc.lpszClassName = L"HotAMcp.LauncherPage.v1";
+    wc.lpszClassName = L"HotAMcp.LauncherPage.v3";
     wc.hbrBackground = reinterpret_cast<HBRUSH>(COLOR_BTNFACE + 1);
     wc.hCursor = LoadCursorW(nullptr, IDC_ARROW);
     if (!RegisterClassW(&wc) && GetLastError() != ERROR_CLASS_ALREADY_EXISTS) return false;
@@ -130,11 +163,17 @@ bool Install(HWND hwnd) {
     Control(L"STATIC", L"", 0, 16, 52, 400, 150, kStatus);
     Control(L"BUTTON", L"Обновить состояние", WS_TABSTOP | BS_PUSHBUTTON,
         16, 220, 170, 28, kRefresh);
+    Control(L"BUTTON", L"Запустить MCP", WS_TABSTOP | BS_PUSHBUTTON,16,258,170,28,kStart);
+    Control(L"BUTTON", L"Остановить MCP", WS_TABSTOP | BS_PUSHBUTTON,200,258,170,28,kStop);
     if (!SetWindowSubclass(root, RootProc, kSubclass, 0)) { DestroyWindow(page); return false; }
     TCITEMW item{}; item.mask = TCIF_TEXT; item.pszText = const_cast<wchar_t*>(L"MCP");
     tabIndex = static_cast<int>(SendMessageW(tabs, TCM_INSERTITEMW, count, reinterpret_cast<LPARAM>(&item)));
     if (tabIndex < 0) { RemoveWindowSubclass(root, RootProc, kSubclass); DestroyWindow(page); return false; }
     SetPropW(root, kProperty, page);
+    // Window procedures must remain mapped even if the companion process exits.
+    HMODULE pinned = nullptr;
+    GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_PIN,
+        reinterpret_cast<LPCWSTR>(&PageProc), &pinned);
     SetTimer(page, 1, 2000, nullptr);
     Refresh();
     return true;

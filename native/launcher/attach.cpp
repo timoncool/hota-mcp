@@ -41,6 +41,18 @@ int wmain(int argc,wchar_t** argv) {
     }
     EnumWindows(Find,0);
     if(!target){std::cerr<<"Launcher tab control not found\n";CloseHandle(process);return 5;}
+    if(wcscmp(argv[2],L"--detach")==0){
+        DWORD_PTR result=0;
+        bool ok=SendMessageTimeoutW(target,kRemove,0,0,SMTO_ABORTIFHUNG,2000,&result)!=0;
+        CloseHandle(process);
+        std::cout<<(ok?"Detached\n":"Detach failed\n");return ok?0:10;
+    }
+    std::wstring launcherPath(path);
+    auto directory=launcherPath.substr(0,launcherPath.find_last_of(L"\\/"));
+    if(HashFile((directory+L"\\HD_LauncherNative.dll").c_str())!=
+       "89272F1327974B1462716E873FADF6E0137DB8CE76A9D5084725B0428BAF5488"){
+        std::cerr<<"Unsupported launcher native DLL\n";CloseHandle(process);return 4;
+    }
     if(GetPropW(target,L"HotAMcp.LauncherTab.v1")){std::cerr<<"Already attached\n";CloseHandle(process);return 6;}
     HMODULE dll=LoadLibraryW(argv[2]);
     if(!dll){std::cerr<<"DLL load failed: "<<GetLastError()<<"\n";CloseHandle(process);return 7;}
