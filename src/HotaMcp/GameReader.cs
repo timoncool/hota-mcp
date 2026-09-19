@@ -222,6 +222,7 @@ internal sealed class GameReader(WindowsGame game,int player)
             actions.Add(new("recruit:cancel","Отменить найм"));
         }
         if(screen=="system_options"&&items.Any(i=>i.Id==106&&i.Interactive))actions.Add(new("game:save","Открыть сохранение игры"));
+        if(screen=="system_options"&&items.Any(i=>i.Id==102&&i.Asset=="soload.def"&&i.Interactive))actions.Add(new("game:load","Открыть загрузку игры"));
         if(screen=="tavern")
         {
             if(items.Any(i=>i.Id==12&&i.Interactive))actions.Add(new("tavern:hire","Нанять выбранного героя за указанную цену"));

@@ -205,7 +205,8 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
                     _ when action.Key.StartsWith("spellbook:select:")=>(37,"combat"),
                     "spell:cancel"=>(36,"combat"),
                     "battle:accept"=>(39,"adventure"),
-                    "save:confirm"=>(44,"adventure"),"game:save"=>(43,"save_game"),"recruit:max"=>(42,"recruitment"),"recruit:buy"=>(41,"town"),"recruit:cancel"=>(36,"town"),
+                    "game:load"=>(45,"load_game"),
+                    "save:confirm"=>(44,"message"),"game:save"=>(43,"save_game"),"recruit:max"=>(42,"recruitment"),"recruit:buy"=>(41,"town"),"recruit:cancel"=>(36,"town"),
                     "tavern:hire"=>(41,"town"),"tavern:close"=>(36,"town"),
                     _ when action.Key.StartsWith("spell:target:")=>(38,"combat"),
                     "combat:wait"=>(32,"combat"),"combat:defend"=>(33,"combat"),
@@ -261,7 +262,10 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             else if(nativeOperation==28)await game.KeyAsync(0x45,0x12);
             else if(nativeOperation==32)await game.KeyAsync(0x57,0x11);
             else if(nativeOperation==33)await game.KeyAsync(0x44,0x20);
-                        else if(nativeOperation==44)
+            else if(nativeOperation is 26 or 29)await game.KeyAsync(0x0d,0x1c);
+            else if(nativeOperation==30)await game.KeyAsync(0x1b,0x01);
+            else if(nativeOperation==45)await game.KeyAsync(0x4c,0x26);
+            else if(nativeOperation==44)
             {
                 var button=before.Elements.Single(e=>e.Id==186&&e.Asset=="scnrsav.def"&&e.Interactive);
                 await game.MouseAsync(button.X+button.Width/2,button.Y+button.Height/2,before.Width,before.Height,true,CancellationToken.None);

@@ -1,6 +1,13 @@
 namespace HotaMcp;
 
-public sealed record TownView(int Id,string? Name,int Type,bool BuiltToday,int[] Buildings);
+public sealed record TownView(int Id,string? Name,int Type,bool BuiltToday,int[] Buildings)
+{
+    public int GarrisonHero {get;init;}
+    public int VisitingHero {get;init;}
+    public int[] GarrisonTypes {get;init;}=[];
+    public int[] GarrisonCounts {get;init;}=[];
+    public int[][] Recruitable {get;init;}=[];
+}
 public sealed record AvailableAction(string Key,string Label);
 
 internal sealed class TownReader(WindowsGame game,int player)
@@ -51,7 +58,13 @@ internal sealed class TownReader(WindowsGame game,int player)
             if(identity[0]!=id||identity[1]!=player)throw new InvalidOperationException("Town ownership changed");
             var town=game.Read(address,0x168);ulong mask=BitConverter.ToUInt64(town,0x150);
             result.Add(new(id,game.Text(BitConverter.ToUInt32(town,0xc8)),town[4],town[2]!=0,
-                Enumerable.Range(0,44).Where(b=>(mask&(1UL<<b))!=0).ToArray()));
+                Enumerable.Range(0,44).Where(b=>(mask&(1UL<<b))!=0).ToArray())
+            {
+                GarrisonHero=BitConverter.ToInt32(town,0xc),VisitingHero=BitConverter.ToInt32(town,0x10),
+                GarrisonTypes=Enumerable.Range(0,7).Select(s=>BitConverter.ToInt32(town,0xe0+s*4)).ToArray(),
+                GarrisonCounts=Enumerable.Range(0,7).Select(s=>BitConverter.ToInt32(town,0xfc+s*4)).ToArray(),
+                Recruitable=Enumerable.Range(0,2).Select(v=>Enumerable.Range(0,7).Select(s=>(int)BitConverter.ToInt16(town,0x16+(v*7+s)*2)).ToArray()).ToArray()
+            });
         }
         return result;
     }
