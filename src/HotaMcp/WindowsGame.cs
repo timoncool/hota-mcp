@@ -71,6 +71,7 @@ internal sealed class WindowsGame : IDisposable
         finally { if(!PostMessageW(Window,0x202,0,lp)) throw new InvalidOperationException("Mouse release failed"); }
     }
     public void Dispose(){handle.Dispose();Process.Dispose();}
+    public bool NativeReady=>GetPropW(Window,"HotAMcp.GameBridge.v1")!=0;
     public void NativeAction(int operation,int player,int argument=0)
     {
         if(operation is not (1 or 2 or 3 or 4 or 5 or 6 or 7 or 9 or 10 or 20 or 21 or 22)||player is <0 or >7||argument is <0 or >255)throw new InvalidOperationException("Unsupported native command");

@@ -123,8 +123,9 @@ internal sealed class GameReader(WindowsGame game,int player)
             if(iw==0||ih==0) continue;
             uint vt=BitConverter.ToUInt32(b);string? text=null,asset=null;
             if(vt is 0x642dc0 or 0x642df8) text=game.Text(game.U32(a+0x34));
-            if(vt==0x63bb54) asset=game.Text(game.U32(a+0x30)+4,16);
-            bool interactive=vt==0x63bb54&&(state&2)!=0&&(state&0x28)==0;
+            if(vt is 0x63bb54 or 0x63bb88) asset=game.Text(game.U32(a+0x30)+4,16);
+            if(vt==0x63bb88)text=game.Text(game.U32(a+0x5c));
+            bool interactive=(vt is 0x63bb54 or 0x63bb88)&&(state&2)!=0&&(state&0x28)==0;
             if(string.IsNullOrEmpty(text)&&asset==null) continue;
             items.Add(new($"ui:{(pos-start)/4}",BitConverter.ToUInt16(b,0x10),text,asset,
                 dx+BitConverter.ToInt16(b,0x18),dy+BitConverter.ToInt16(b,0x1a),iw,ih,interactive));

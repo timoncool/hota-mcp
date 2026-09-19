@@ -18,6 +18,12 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
     private string plan="";
     private readonly Dictionary<string,MapObject> targets=new();
     private readonly Dictionary<MapObject,string> targetIds=new();
+    public async Task<CaptureResult> Capture(CancellationToken ct)
+    {
+        await gate.WaitAsync(ct);
+        try{return DebugCapture.Save(game,player,Path.Combine(stateDirectory,"captures"));}
+        finally{gate.Release();}
+    }
     public async Task<NearbyTargets> Nearby(CancellationToken ct)
     {
         await gate.WaitAsync(ct);
@@ -180,6 +186,9 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
 
 public interface IGameEndpoint
 {
+    Task<object> Start(CancellationToken ct);
+    Task<object> Graphics(string? renderer,CancellationToken ct);
+    Task<CaptureResult> Capture(CancellationToken ct);
     Task<object> Status(CancellationToken ct);
     Task<Observation> Observe(CancellationToken ct);
     Task<OperationResult> Click(OperationRequest request,CancellationToken ct);
@@ -193,6 +202,9 @@ public interface IGameEndpoint
 
 internal sealed class LocalEndpoint(Bridge bridge) : IGameEndpoint
 {
+    public Task<object> Start(CancellationToken ct)=>throw new InvalidOperationException("Game is already attached");
+    public Task<object> Graphics(string? renderer,CancellationToken ct)=>throw new InvalidOperationException("Launcher host required");
+    public Task<CaptureResult> Capture(CancellationToken ct)=>bridge.Capture(ct);
     public Task<object> Status(CancellationToken ct)=>Task.FromResult(bridge.Status());
     public Task<Observation> Observe(CancellationToken ct)=>bridge.Observe(ct);
     public Task<OperationResult> Click(OperationRequest request,CancellationToken ct)=>bridge.Click(request,ct);
@@ -206,6 +218,9 @@ internal sealed class LocalEndpoint(Bridge bridge) : IGameEndpoint
 
 internal sealed class RemoteEndpoint(HttpClient client) : IGameEndpoint
 {
+    public Task<object> Start(CancellationToken ct)=>Call<object>("bridge/start",new{},ct);
+    public Task<object> Graphics(string? renderer,CancellationToken ct)=>Call<object>("bridge/graphics",new{renderer},ct);
+    public Task<CaptureResult> Capture(CancellationToken ct)=>Call<CaptureResult>("bridge/debug-capture",new{},ct);
     private async Task<T> Call<T>(string route,object body,CancellationToken ct)
     {
         using var response=await client.PostAsJsonAsync(route,body,ct);

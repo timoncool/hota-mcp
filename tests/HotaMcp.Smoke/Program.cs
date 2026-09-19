@@ -24,6 +24,19 @@ async Task<T> Call<T>(string tool,Dictionary<string,object?> parameters)
 }
 var before=await Call<Observation>("observe",new());
 Console.WriteLine($"OBSERVE {before.Screen} hero={before.Hero?.Id} movement={before.Hero?.Movement}");
+if(args.Contains("--capture"))
+{
+    var result=await client.CallToolAsync("debug_capture",new Dictionary<string,object?>(),cancellationToken:timeout.Token);
+    if(result.IsError==true||result.Content.Any(c=>c is not TextContentBlock))throw new Exception("Capture must return metadata, not an inline image");
+    var capture=JsonSerializer.Deserialize<CaptureResult>(string.Join("\n",result.Content.OfType<TextContentBlock>().Select(c=>c.Text)),jsonOptions)!;
+    byte[] png=await File.ReadAllBytesAsync(capture.Path,timeout.Token);
+    if(!png.AsSpan(0,8).SequenceEqual(new byte[]{137,80,78,71,13,10,26,10}))throw new Exception("PNG signature invalid");
+    if(System.Buffers.Binary.BinaryPrimitives.ReadInt32BigEndian(png.AsSpan(16,4))!=before.Width||System.Buffers.Binary.BinaryPrimitives.ReadInt32BigEndian(png.AsSpan(20,4))!=before.Height)throw new Exception("Capture dimensions mismatch");
+    var after=await Call<Observation>("observe",new());
+    if(after.Revision!=before.Revision)throw new Exception("Capture changed game observation");
+    Console.WriteLine($"PASS explicit MCP capture: {capture.Width}x{capture.Height}, metadata only, observation unchanged; {capture.Path}");
+    return;
+}
 if(args.Contains("--menus"))
 {
     async Task<Observation> Menu(Observation state,string action,string expected)

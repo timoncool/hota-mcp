@@ -4,12 +4,56 @@ using System.Diagnostics;
 namespace HotaMcp;
 
 // Owns attachment separately from the server: the launcher can start before the game.
-internal sealed class GameSession(int? requestedPid,int player,string directory) : IGameEndpoint, IDisposable
+internal sealed class GameSession(int? requestedPid,int player,string directory,int? launcherPid=null) : IGameEndpoint, IDisposable
 {
     private readonly SemaphoreSlim gate=new(1,1);
     private WindowsGame? game;
     private Bridge? bridge;
+    private Process? adapter;
+    private DateTime launchRequested;
     private string state="waiting_for_game",detail="Start HotA to connect";
+    public async Task<object> Graphics(string? renderer,CancellationToken ct)
+    {
+        await gate.WaitAsync(ct);
+        try{return LauncherActions.Graphics(launcherPid??throw new InvalidOperationException("HD Launcher host required"),renderer);}
+        finally{gate.Release();}
+    }
+    public async Task<object> Start(CancellationToken ct)
+    {
+        await gate.WaitAsync(ct);
+        try
+        {
+            Refresh();
+            if(game is not null)return new{state="already_running",gamePid=game.Process.Id};
+            if(state!="waiting_for_game")throw new InvalidOperationException(detail);
+            if(launcherPid is null)throw new InvalidOperationException("Server must be hosted by HD Launcher to start the game");
+            if(DateTime.UtcNow-launchRequested<TimeSpan.FromSeconds(30))return new{state="launch_pending"};
+            LauncherActions.Play(launcherPid.Value);launchRequested=DateTime.UtcNow;
+            return new{state="launch_requested"};
+        }
+        finally{gate.Release();}
+    }
+    private async Task EnsureAdapter(CancellationToken ct)
+    {
+        if(game!.NativeReady)return;
+        if(adapter is null||adapter.HasExited)
+        {
+            adapter?.Dispose();
+            string root=Path.Combine(AppContext.BaseDirectory,"native");
+            string exe=Path.Combine(root,"game-attach.exe"),dll=Path.Combine(root,"hota_game_bridge.dll");
+            if(!File.Exists(exe)||!File.Exists(dll))throw new InvalidOperationException("Packaged native adapter missing");
+            var start=new ProcessStartInfo(exe){UseShellExecute=false,CreateNoWindow=true,WorkingDirectory=root};
+            start.ArgumentList.Add(game.Process.Id.ToString());start.ArgumentList.Add(dll);
+            adapter=Process.Start(start)??throw new InvalidOperationException("Cannot start native adapter");
+        }
+        for(int i=0;i<60;i++)
+        {
+            if(game.NativeReady)return;
+            if(adapter.HasExited)throw new InvalidOperationException($"Native adapter failed: {adapter.ExitCode}");
+            await Task.Delay(50,ct);
+        }
+        throw new InvalidOperationException("Native adapter is not ready yet");
+    }
 
     private void Refresh()
     {
@@ -63,12 +107,13 @@ internal sealed class GameSession(int? requestedPid,int player,string directory)
         finally{gate.Release();}
     }
     public Task<Observation> Observe(CancellationToken ct)=>WithGame(b=>b.Observe(ct),ct);
-    public Task<OperationResult> Click(OperationRequest request,CancellationToken ct)=>WithGame(b=>b.Click(request,ct),ct);
+    public Task<CaptureResult> Capture(CancellationToken ct)=>WithGame(b=>b.Capture(ct),ct);
+    public Task<OperationResult> Click(OperationRequest request,CancellationToken ct)=>WithGame(async b=>{await EnsureAdapter(ct);return await b.Click(request,ct);},ct);
     public Task<object> Journal(int limit,CancellationToken ct)=>WithGame(b=>b.GetJournal(limit,ct),ct);
     public Task<object> Plan(string? value,CancellationToken ct)=>WithGame(b=>b.Plan(value,ct),ct);
     public Task<MapView> ReadMap(int x,int y,int z,int radius,CancellationToken ct)=>WithGame(b=>b.ReadMap(x,y,z,radius,ct),ct);
     public Task<TileInspection> InspectTile(int x,int y,int z,string revision,CancellationToken ct)=>WithGame(b=>b.InspectTile(x,y,z,revision,ct),ct);
     public Task<NearbyTargets> Nearby(CancellationToken ct)=>WithGame(b=>b.Nearby(ct),ct);
     public Task<TargetInspection> InspectTarget(string targetId,string revision,CancellationToken ct)=>WithGame(b=>b.InspectTarget(targetId,revision,ct),ct);
-    public void Dispose(){bridge?.Dispose();gate.Dispose();}
+    public void Dispose(){bridge?.Dispose();adapter?.Dispose();gate.Dispose();}
 }

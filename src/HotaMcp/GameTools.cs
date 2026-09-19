@@ -6,6 +6,12 @@ namespace HotaMcp;
 [McpServerToolType]
 public sealed class GameTools(IGameEndpoint endpoint)
 {
+    [McpServerTool,Description("Start HotA using the existing host HD Launcher's Play action and saved settings. Does not activate windows or send mouse/keyboard input. Returns already_running or launch_pending on repeated requests; use game_status and observe to check readiness.")]
+    public Task<object> StartGame(CancellationToken cancellationToken)=>endpoint.Start(cancellationToken);
+    [McpServerTool,Description("Read HD Launcher renderer options, or select one exact returned renderer label for the next game launch. Pass null to read. Only change graphics when the user asks; does not activate windows or use mouse/keyboard input.")]
+    public Task<object> LauncherGraphics(string? renderer,CancellationToken cancellationToken)=>endpoint.Graphics(renderer,cancellationToken);
+    [McpServerTool,Description("Explicit developer diagnostic only: save the game's current rendered framebuffer as a local PNG without window activation, cursor movement, keyboard input or desktop capture. Returns file metadata only, never inline image data. Do not use in normal gameplay loops; observe provides economical structured game state.")]
+    public Task<CaptureResult> DebugCapture(CancellationToken cancellationToken)=>endpoint.Capture(cancellationToken);
     [McpServerTool,Description("Read recognized visible destinations by target ID and available game route data. Reads game memory without UI input. No hidden objects, terrain-rule explanations or strategic recommendations. Object coverage and route support are incomplete.")]
     public Task<NearbyTargets> NearbyTargets(CancellationToken cancellationToken)=>endpoint.Nearby(cancellationToken);
 

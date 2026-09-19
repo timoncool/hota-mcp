@@ -51,7 +51,8 @@ if(diagnostic)
 }
 Directory.CreateDirectory(directory);
 using var serviceLock=new FileStream(Path.Combine(directory,"service.lock"),FileMode.OpenOrCreate,FileAccess.ReadWrite,FileShare.None);
-using var session=new GameSession(pid,player,directory);
+int? hostLauncherPid=int.TryParse(Value("--launcher-pid"),out int parsedLauncherPid)?parsedLauncherPid:null;
+using var session=new GameSession(pid,player,directory,hostLauncherPid);
 string secret=Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
 // Starts as an owner-local development service; per-player credentials are added with hotseat.
 var builder=WebApplication.CreateBuilder();
@@ -69,7 +70,10 @@ app.Use(async(context,next)=>{
 });
 app.MapMcp("/mcp");
 app.MapPost("/bridge/status",(CancellationToken ct)=>session.Status(ct));
+app.MapPost("/bridge/start",(CancellationToken ct)=>session.Start(ct));
+app.MapPost("/bridge/graphics",(GraphicsRequest request,CancellationToken ct)=>session.Graphics(request.Renderer,ct));
 app.MapPost("/bridge/observe",(CancellationToken ct)=>session.Observe(ct));
+app.MapPost("/bridge/debug-capture",(CancellationToken ct)=>session.Capture(ct));
 app.MapPost("/bridge/click",(OperationRequest request,CancellationToken ct)=>session.Click(request,ct));
 app.MapPost("/bridge/journal",(JournalRequest request,CancellationToken ct)=>session.Journal(request.Limit,ct));
 app.MapPost("/bridge/plan",(PlanRequest request,CancellationToken ct)=>session.Plan(request.Value,ct));
@@ -82,9 +86,10 @@ if(int.TryParse(Value("--launcher-pid"),out int launcherPid))
     app.Lifetime.ApplicationStarted.Register(()=>_ = LauncherControl.Run(launcherPid,session,endpoint,app.Lifetime));
 }
 app.Urls.Add(endpoint);
-await app.StartAsync();
 File.WriteAllText(tokenFile,secret);
+await app.StartAsync();
 await app.WaitForShutdownAsync();
 record JournalRequest(int Limit);
 record PlanRequest(string? Value);
 record TargetRequest(string TargetId,string Revision);
+record GraphicsRequest(string? Renderer);
