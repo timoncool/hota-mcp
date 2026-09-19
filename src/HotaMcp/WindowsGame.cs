@@ -71,6 +71,21 @@ internal sealed class WindowsGame : IDisposable
         finally { if(!PostMessageW(Window,0x202,0,lp)) throw new InvalidOperationException("Mouse release failed"); }
     }
     public void Dispose(){handle.Dispose();Process.Dispose();}
+    public void NativeAction(int operation,int player,int argument=0)
+    {
+        if(operation is not (1 or 2 or 3 or 4 or 5 or 6 or 7 or 9 or 10)||player is <0 or >7||argument is <0 or >255)throw new InvalidOperationException("Unsupported native command");
+        if(GetPropW(Window,"HotAMcp.GameBridge.v1")==0)throw new InvalidOperationException("Native game adapter is not attached");
+        if(!PostMessageW(Window,0x8392,(nuint)operation,(nint)(player|(argument<<8))))throw new InvalidOperationException("Native command dispatch failed");
+    }
+    [DllImport("user32.dll",CharSet=CharSet.Unicode)] private static extern nint GetPropW(nint window,string name);
+    public async Task KeyAsync(ushort key,ushort scan)
+    {
+        nint data=(nint)((scan<<16)|1);
+        if(!PostMessageW(Window,0x100,key,data))throw new InvalidOperationException("Key dispatch failed");
+        try{await Task.Delay(60);}
+        finally{PostMessageW(Window,0x101,key,(nint)((long)data|0xc0000000));}
+        await Task.Delay(100);
+    }
     [StructLayout(LayoutKind.Sequential)] private struct Rect {public int Left,Top,Right,Bottom;}
     [DllImport("kernel32.dll",SetLastError=true)] private static extern SafeProcessHandle OpenProcess(uint access,bool inherit,int pid);
     [DllImport("kernel32.dll",SetLastError=true)] private static extern bool ReadProcessMemory(SafeProcessHandle process,nint address,byte[] buffer,nuint length,out nuint read);

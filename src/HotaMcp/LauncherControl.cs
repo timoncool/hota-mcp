@@ -5,7 +5,7 @@ namespace HotaMcp;
 
 internal static class LauncherControl
 {
-    public static async Task Run(int launcherPid,int gamePid,string endpoint,IHostApplicationLifetime lifetime)
+    public static async Task Run(int launcherPid,GameSession session,string endpoint,IHostApplicationLifetime lifetime)
     {
         while(!lifetime.ApplicationStopping.IsCancellationRequested)
         {
@@ -21,7 +21,7 @@ internal static class LauncherControl
                 string command=Encoding.UTF8.GetString(request,0,length).TrimEnd('\0','\r','\n');
                 bool stop=command=="stop";
                 string response=command is "status" or "stop"
-                    ? (stop?"Остановка MCP-сервера...":$"MCP-сервер работает, PID {Environment.ProcessId}\r\nHotA: PID {gamePid}\r\n{endpoint}/mcp\r\n\r\nДоступно: наблюдение, системные опции, журнал, план.\r\nКарта, город и бой ещё в разработке.")
+                    ? (stop?"Остановка MCP-сервера...":$"MCP-сервер работает, PID {Environment.ProcessId}\r\n{endpoint}/mcp\r\n\r\n{await session.LauncherStatus(deadline.Token)}")
                     : "Неизвестная команда";
                 await pipe.WriteAsync(Encoding.UTF8.GetBytes(response),deadline.Token);
                 await pipe.FlushAsync(deadline.Token);

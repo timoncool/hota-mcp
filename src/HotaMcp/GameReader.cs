@@ -6,7 +6,11 @@ namespace HotaMcp;
 
 public record UiElement(string Key,int Id,string? Text,string? Asset,int X,int Y,int Width,int Height,bool Interactive);
 public record HeroView(int Id,string Name,int[] Position,int Mana,int Movement,int MaxMovement,int[] Primary,int[] ArmyTypes,int[] ArmyCounts);
-public record Observation(string Revision,int Player,int[] Date,int[] Resources,HeroView? Hero,string Screen,int Width,int Height,List<UiElement> Elements);
+public record Observation(string Revision,int Player,int[] Date,int[] Resources,HeroView? Hero,string Screen,int Width,int Height,List<UiElement> Elements)
+{
+    public List<TownView> Towns {get;init;}=[];
+    public List<AvailableAction> Actions {get;init;}=[];
+}
 
 internal sealed class GameReader(WindowsGame game,int player)
 {
@@ -19,10 +23,33 @@ internal sealed class GameReader(WindowsGame game,int player)
         if(first.Revision!=second.Revision) throw new InvalidOperationException("State changing; observe again");
         return second;
     }
-    public object DiagnosticPointers() => new {
+    public object DiagnosticPointers() {
+        uint executive=game.U32(0x699550),current=game.U32(executive);
+        var managers=new List<object>();var seen=new HashSet<uint>();
+        while(current!=0&&seen.Add(current)&&managers.Count<32){
+            managers.Add(new{address=current,vtable=game.U32(current),type=game.I32(current+12),status=game.I32(current+0x34),name=game.Text(current+0x14,28)});
+            current=game.U32(current+4);
+        }
+        var inputCandidates=new List<object>();
+        for(uint address=0x699000;address<0x699800;address+=4){
+            uint candidate=game.U32(address);
+            if(candidate<0x10000)continue;
+            try{if(game.U32(candidate)==0x63fe10)inputCandidates.Add(new{address,candidate,name=game.Text(candidate+0x14,28),head=game.I32(candidate+0x838),tail=game.I32(candidate+0x83c)});}
+            catch(InvalidOperationException){}
+        }
+        uint activeDialog=game.U32(game.U32(0x6992d0)+0x54);
+        uint uiFirst=game.U32(activeDialog+0x34),uiLast=game.U32(activeDialog+0x38);
+        var rawUi=new List<object>();
+        if(uiLast>=uiFirst&&uiLast-uiFirst<=8192)
+            for(uint slot=uiFirst;slot<uiLast;slot+=4){
+                uint item=game.U32(slot);
+                rawUi.Add(new{address=item,vtable=game.U32(item),id=BitConverter.ToUInt16(game.Read(item+0x10,2)),state=BitConverter.ToUInt16(game.Read(item+0x16,2)),text=game.U32(item) is 0x642dc0 or 0x642df8?game.Text(game.U32(item+0x34)):null,closeButton=game.U32(item)==0x63bb54?game.Read(item+0x44,1)[0]:-1,asset=game.U32(item)==0x63bb54?game.Text(game.U32(item+0x30)+4,16):null});
+            }
+        return new {
+        activeDialog,dialogVtable=game.U32(activeDialog),rawUi,townScroll=game.I32(activeDialog+0x68),ownedTowns=game.U32(0x69ccfc)>=0x10000?game.Read(game.U32(0x69ccfc)+0x3e,4).Select(b=>(int)b).ToArray():[],
         current=game.I32(0x69ccf4), other=game.I32(0x6995a4), active=game.U32(0x69ccfc),
-        main=game.U32(0x699538), mode=game.I32(0x698a40)
-    };
+        main=game.U32(0x699538), mode=game.I32(0x698a40),managers,inputCandidates
+    };}
     private Observation ReadOnce()
     {
         if(player is <0 or >7) throw new InvalidOperationException("Player configuration invalid");
@@ -53,7 +80,7 @@ internal sealed class GameReader(WindowsGame game,int player)
         }
         uint manager=game.U32(0x6992d0), dlg=game.U32(manager+0x54);
         uint vtable=game.U32(dlg);
-        string screen=vtable switch {0x63a5e4=>"adventure",0x642478=>"system_options",_=>"unsupported"};
+        string screen=vtable switch {0x63a5e4=>"adventure",0x642478=>"system_options",0x64373c=>"town",0x6437b0=>"town_hall",0x643954=>"building_confirmation",_=>"unsupported"};
         // Unvalidated dialog classes are not published to the player yet.
         if(screen=="unsupported") throw new InvalidOperationException("Current screen not supported by this adapter yet");
         uint surface=game.U32(manager+0x40);
@@ -75,12 +102,30 @@ internal sealed class GameReader(WindowsGame game,int player)
             uint vt=BitConverter.ToUInt32(b);string? text=null,asset=null;
             if(vt is 0x642dc0 or 0x642df8) text=game.Text(game.U32(a+0x34));
             if(vt==0x63bb54) asset=game.Text(game.U32(a+0x30)+4,16);
-            bool interactive=vt==0x63bb54&&(state&2)!=0;
+            bool interactive=vt==0x63bb54&&(state&2)!=0&&(state&0x28)==0;
             if(string.IsNullOrEmpty(text)&&asset==null) continue;
             items.Add(new($"ui:{(pos-start)/4}",BitConverter.ToUInt16(b,0x10),text,asset,
                 dx+BitConverter.ToInt16(b,0x18),dy+BitConverter.ToInt16(b,0x1a),iw,ih,interactive));
         }
-        var result=new Observation("",player,date,resources,hero,screen,width,height,items);
+        var towns=new TownReader(game,player).Read();
+        var actions=new List<AvailableAction>();
+        if(screen=="adventure")foreach(var town in towns)actions.Add(new($"town:open:{town.Id}",$"Открыть город: {town.Name}"));
+        if(screen=="town")
+        {
+            actions.Add(new("town:construction","Открыть зал совета"));
+            actions.Add(new("town:close","Вернуться на карту"));
+        }
+        if(screen=="town_hall")
+        {
+            foreach(var item in items.Where(i=>i.Id>=600&&i.Id<618))actions.Add(new($"building:inspect:{item.Id-600}",item.Text??"Описание здания"));
+            actions.Add(new("construction:close","Вернуться в город"));
+        }
+        if(screen=="building_confirmation")
+        {
+            if(items.Any(i=>i.Id==30722&&i.Interactive))actions.Add(new("building:buy","Построить указанное здание за показанную цену"));
+            if(items.Any(i=>i.Id==30721&&i.Interactive))actions.Add(new("building:cancel","Отменить покупку"));
+        }
+        var result=new Observation("",player,date,resources,hero,screen,width,height,items){Towns=towns,Actions=actions};
         string revision=Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(epoch+JsonSerializer.Serialize(result))))[..24];
         return result with {Revision=revision};
     }

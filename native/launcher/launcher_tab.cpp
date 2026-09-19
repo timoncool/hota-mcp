@@ -16,10 +16,13 @@ constexpr int kStatus = 49001;
 constexpr int kRefresh = 49002;
 constexpr int kStart = 49003;
 constexpr int kStop = 49004;
+constexpr int kAutostart = 49005;
 HMODULE module = nullptr;
 HWND root = nullptr, tabs = nullptr, page = nullptr;
 int tabIndex = -1;
 bool ours = false;
+HANDLE serverProcess = nullptr;
+std::wstring settingsPath;
 std::vector<HWND> hiddenPages;
 
 std::wstring ServerCommand(const char* command) {
@@ -35,6 +38,10 @@ std::wstring ServerCommand(const char* command) {
 
 void StartServer() {
     if(!ServerCommand("status").empty()){return;}
+    if(serverProcess) {
+        if(WaitForSingleObject(serverProcess,0)==WAIT_TIMEOUT)return;
+        CloseHandle(serverProcess);serverProcess=nullptr;
+    }
     wchar_t file[32768]{}; GetModuleFileNameW(module,file,32768);
     std::wstring dir(file);dir.resize(dir.find_last_of(L"\\/"));
     std::wstring exe=dir+L"\\HotaMcp.exe";
@@ -44,13 +51,19 @@ void StartServer() {
         nullptr,dir.c_str(),&startup,&process)) {
         SetDlgItemTextW(page,kStatus,L"Не удалось запустить MCP-сервер. Проверьте установку HotaMcp.exe.");return;
     }
-    CloseHandle(process.hThread);CloseHandle(process.hProcess);
+    CloseHandle(process.hThread);serverProcess=process.hProcess;
     SetDlgItemTextW(page,kStatus,L"Запуск MCP-сервера...");
 }
 
 std::wstring GameStatus() {
     auto server=ServerCommand("status");
     if(!server.empty()) return server;
+    if(serverProcess) {
+        DWORD code=0;
+        if(GetExitCodeProcess(serverProcess,&code) && code==STILL_ACTIVE)return L"MCP-сервер запускается...";
+        CloseHandle(serverProcess);serverProcess=nullptr;
+        if(code!=0)return L"MCP-сервер завершился с ошибкой "+std::to_wstring(code)+L". Проверьте журнал сервера.";
+    }
     std::wstring result = L"MCP-сервер остановлен\r\n";
     HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
     if (snap == INVALID_HANDLE_VALUE) return result + L"Не удалось проверить процесс игры.";
@@ -76,6 +89,12 @@ HWND Control(const wchar_t* cls, const wchar_t* label, DWORD style,
 }
 
 LRESULT CALLBACK PageProc(HWND hwnd, UINT message, WPARAM wp, LPARAM lp) {
+    if (message == WM_COMMAND && LOWORD(wp) == kAutostart) {
+        bool enabled=IsDlgButtonChecked(page,kAutostart)==BST_CHECKED;
+        if(!WritePrivateProfileStringW(L"MCP",L"Autostart",enabled?L"1":L"0",settingsPath.c_str()))
+            SetDlgItemTextW(page,kStatus,L"Не удалось сохранить настройку автозапуска.");
+        return 0;
+    }
     if (message == WM_COMMAND && LOWORD(wp) == kStart) { StartServer(); return 0; }
     if (message == WM_COMMAND && LOWORD(wp) == kStop) { ServerCommand("stop"); return 0; }
     if (message == WM_COMMAND && LOWORD(wp) == kRefresh) { Refresh(); return 0; }
@@ -120,6 +139,7 @@ LRESULT CALLBACK RootProc(HWND hwnd, UINT message, WPARAM wp, LPARAM lp, UINT_PT
         }
     }
     if (message == WM_NCDESTROY) {
+        if(serverProcess){CloseHandle(serverProcess);serverProcess=nullptr;}
         RemovePropW(hwnd, kProperty);
         RemoveWindowSubclass(hwnd, RootProc, kSubclass);
         root = nullptr; page = nullptr;
@@ -137,7 +157,8 @@ void RemovePage() {
     }
     TabCtrl_DeleteItem(tabs, tabIndex);
     KillTimer(page, 1); DestroyWindow(page); page = nullptr;
-    UnregisterClassW(L"HotAMcp.LauncherPage.v3", module);
+    UnregisterClassW(L"HotAMcp.LauncherPage.v4", module);
+    if(serverProcess){CloseHandle(serverProcess);serverProcess=nullptr;}
     RemovePropW(root, kProperty);
     RemoveWindowSubclass(root, RootProc, kSubclass);
     root = nullptr;
@@ -152,7 +173,7 @@ bool Install(HWND hwnd) {
     if (count < 1 || count > 16) return false;
     root = hwnd; tabs = targetTabs;
     WNDCLASSW wc{}; wc.lpfnWndProc = PageProc; wc.hInstance = module;
-    wc.lpszClassName = L"HotAMcp.LauncherPage.v3";
+    wc.lpszClassName = L"HotAMcp.LauncherPage.v4";
     wc.hbrBackground = reinterpret_cast<HBRUSH>(COLOR_BTNFACE + 1);
     wc.hCursor = LoadCursorW(nullptr, IDC_ARROW);
     if (!RegisterClassW(&wc) && GetLastError() != ERROR_CLASS_ALREADY_EXISTS) return false;
@@ -165,6 +186,14 @@ bool Install(HWND hwnd) {
         16, 220, 170, 28, kRefresh);
     Control(L"BUTTON", L"Запустить MCP", WS_TABSTOP | BS_PUSHBUTTON,16,258,170,28,kStart);
     Control(L"BUTTON", L"Остановить MCP", WS_TABSTOP | BS_PUSHBUTTON,200,258,170,28,kStop);
+    Control(L"BUTTON", L"Запускать MCP вместе с лаунчером", WS_TABSTOP | BS_AUTOCHECKBOX,16,296,390,26,kAutostart);
+    wchar_t localAppData[32768]{};
+    GetEnvironmentVariableW(L"LOCALAPPDATA",localAppData,32768);
+    std::wstring settingsDirectory=std::wstring(localAppData)+L"\\HotaMcp";
+    CreateDirectoryW(settingsDirectory.c_str(),nullptr);
+    settingsPath=settingsDirectory+L"\\launcher.ini";
+    bool autostart=GetPrivateProfileIntW(L"MCP",L"Autostart",1,settingsPath.c_str())!=0;
+    CheckDlgButton(page,kAutostart,autostart?BST_CHECKED:BST_UNCHECKED);
     if (!SetWindowSubclass(root, RootProc, kSubclass, 0)) { DestroyWindow(page); return false; }
     TCITEMW item{}; item.mask = TCIF_TEXT; item.pszText = const_cast<wchar_t*>(L"MCP");
     tabIndex = static_cast<int>(SendMessageW(tabs, TCM_INSERTITEMW, count, reinterpret_cast<LPARAM>(&item)));
@@ -176,6 +205,7 @@ bool Install(HWND hwnd) {
         reinterpret_cast<LPCWSTR>(&PageProc), &pinned);
     SetTimer(page, 1, 2000, nullptr);
     Refresh();
+    if(autostart)StartServer();
     return true;
 }
 }

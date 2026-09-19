@@ -27,26 +27,37 @@ if(stdio)
     await host.Build().RunAsync();return;
 }
 
-int pid=int.TryParse(Value("--game-pid"),out int configuredPid)?configuredPid:
-    Process.GetProcessesByName("h3hota HD").Single().Id;
+int? pid=int.TryParse(Value("--game-pid"),out int configuredPid)?configuredPid:null;
 int player=int.TryParse(Value("--player"),out int configuredPlayer)?configuredPlayer:0;
-using var game=new WindowsGame(pid);
-using var bridge=new Bridge(game,player,Path.Combine(directory,"sessions",DateTime.UtcNow.ToString("yyyyMMdd-HHmmss")));
 if(diagnostic)
 {
+    var game=new WindowsGame(pid??Process.GetProcessesByName("h3hota HD").Single().Id);
+    using var bridge=new Bridge(game,player,Path.Combine(directory,"diagnostic"));
+    if(args.Contains("--center-hero"))await game.KeyAsync(0x48,0x23);
+    if(args.Contains("--map"))
+    {
+        if(int.TryParse(Value("--hover-x"),out int hx)&&int.TryParse(Value("--hover-y"),out int hy))
+        {
+            var observation=await bridge.Observe(CancellationToken.None);
+            await game.MouseAsync(hx,hy,observation.Width,observation.Height,false,CancellationToken.None);
+            await Task.Delay(150);
+        }
+        Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(bridge.MapDiagnostic()));return;
+    }
     Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(bridge.Diagnostic()));
     try{Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(await bridge.Observe(CancellationToken.None)));}
-    catch(Exception e){Console.Error.WriteLine(e.Message);Environment.ExitCode=1;}
+    catch(Exception e){Console.Error.WriteLine(e.ToString());Environment.ExitCode=1;}
     return;
 }
 Directory.CreateDirectory(directory);
 using var serviceLock=new FileStream(Path.Combine(directory,"service.lock"),FileMode.OpenOrCreate,FileAccess.ReadWrite,FileShare.None);
+using var session=new GameSession(pid,player,directory);
 string secret=Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
 // Starts as an owner-local development service; per-player credentials are added with hotseat.
 var builder=WebApplication.CreateBuilder();
 builder.Configuration["AllowedHosts"]="127.0.0.1;localhost;[::1]";
 builder.Logging.ClearProviders();builder.Logging.AddConsole(o=>o.LogToStandardErrorThreshold=LogLevel.Trace);
-builder.Services.AddSingleton<IGameEndpoint>(new LocalEndpoint(bridge));
+builder.Services.AddSingleton<IGameEndpoint>(session);
 builder.Services.AddMcpServer().WithHttpTransport(o=>o.SessionMode=HttpServerSessionMode.StatefulForInitializeClients).WithTools<GameTools>();
 var app=builder.Build();
 app.Use(async(context,next)=>{
@@ -57,16 +68,18 @@ app.Use(async(context,next)=>{
     catch(InvalidOperationException e){context.Response.StatusCode=409;await context.Response.WriteAsJsonAsync(new{error=e.Message});}
 });
 app.MapMcp("/mcp");
-app.MapPost("/bridge/status",()=>bridge.Status());
-app.MapPost("/bridge/observe",(CancellationToken ct)=>bridge.Observe(ct));
-app.MapPost("/bridge/click",(OperationRequest request,CancellationToken ct)=>bridge.Click(request,ct));
-app.MapPost("/bridge/journal",(JournalRequest request,CancellationToken ct)=>bridge.GetJournal(request.Limit,ct));
-app.MapPost("/bridge/plan",(PlanRequest request,CancellationToken ct)=>bridge.Plan(request.Value,ct));
+app.MapPost("/bridge/status",(CancellationToken ct)=>session.Status(ct));
+app.MapPost("/bridge/observe",(CancellationToken ct)=>session.Observe(ct));
+app.MapPost("/bridge/click",(OperationRequest request,CancellationToken ct)=>session.Click(request,ct));
+app.MapPost("/bridge/journal",(JournalRequest request,CancellationToken ct)=>session.Journal(request.Limit,ct));
+app.MapPost("/bridge/plan",(PlanRequest request,CancellationToken ct)=>session.Plan(request.Value,ct));
+app.MapPost("/bridge/nearby",(CancellationToken ct)=>session.Nearby(ct));
+app.MapPost("/bridge/target",(TargetRequest request,CancellationToken ct)=>session.InspectTarget(request.TargetId,request.Revision,ct));
 if(int.TryParse(Value("--launcher-pid"),out int launcherPid))
 {
     var launcher=Process.GetProcessById(launcherPid);
     _=Task.Run(async()=>{await launcher.WaitForExitAsync();app.Lifetime.StopApplication();});
-    app.Lifetime.ApplicationStarted.Register(()=>_ = LauncherControl.Run(launcherPid,pid,endpoint,app.Lifetime));
+    app.Lifetime.ApplicationStarted.Register(()=>_ = LauncherControl.Run(launcherPid,session,endpoint,app.Lifetime));
 }
 app.Urls.Add(endpoint);
 await app.StartAsync();
@@ -74,3 +87,4 @@ File.WriteAllText(tokenFile,secret);
 await app.WaitForShutdownAsync();
 record JournalRequest(int Limit);
 record PlanRequest(string? Value);
+record TargetRequest(string TargetId,string Revision);

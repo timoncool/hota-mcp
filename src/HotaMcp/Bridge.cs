@@ -5,6 +5,9 @@ namespace HotaMcp;
 public sealed record OperationRequest(string OperationId,string Revision,string Element);
 public sealed record OperationResult(string Status,string Message,Observation? Observation);
 public sealed record JournalEntry(long Sequence,DateTimeOffset Time,string Kind,object Data);
+public sealed record TargetView(string Id,string Kind,RouteView Route);
+public sealed record NearbyTargets(string Revision,int HeroId,int Movement,List<TargetView> Targets,string Coverage);
+public sealed record TargetInspection(string Id,string Kind,RouteView Route,string Revision);
 
 internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) : IDisposable
 {
@@ -13,10 +16,76 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
     private readonly Dictionary<string,(OperationRequest Request,OperationResult Result)> operations=new();
     private readonly List<JournalEntry> journal=[];
     private string plan="";
+    private readonly Dictionary<string,MapObject> targets=new();
+    private readonly Dictionary<MapObject,string> targetIds=new();
+    public async Task<NearbyTargets> Nearby(CancellationToken ct)
+    {
+        await gate.WaitAsync(ct);
+        try
+        {
+            var observation=reader.Observe();var hero=observation.Hero??throw new InvalidOperationException("Select a hero first");
+            var region=new MapReader(game,player).Read(observation,hero.Position[0],hero.Position[1],hero.Position[2],12);
+            var list=new List<TargetView>();
+            foreach(var target in region.Objects)
+            {
+                if(!targetIds.TryGetValue(target,out var id)){id="target_"+Guid.NewGuid().ToString("N")[..12];targetIds.Add(target,id);targets.Add(id,target);}
+                list.Add(new(id,target.Kind,new RouteReader(game,player).Read(observation,target)));
+            }
+            if(reader.Observe().Revision!=observation.Revision)throw new InvalidOperationException("State changed; request targets again");
+            return new(observation.Revision,hero.Id,hero.Movement,list,"Recognized visible objects near selected hero; list is not exhaustive");
+        }
+        finally{gate.Release();}
+    }
+    public async Task<TargetInspection> InspectTarget(string targetId,string revision,CancellationToken ct)
+    {
+        await gate.WaitAsync(ct);
+        try
+        {
+            if(!targets.TryGetValue(targetId,out var target))throw new InvalidOperationException("Unknown target; request nearby_targets first");
+            var before=reader.Observe();
+            if(before.Revision!=revision)throw new InvalidOperationException("State changed; request nearby_targets again");
+            var map=new MapReader(game,player);map.ValidateTarget(before,target);
+            var route=new RouteReader(game,player).Read(before,target);
+            var after=reader.Observe();
+            if(after.Revision!=before.Revision)throw new InvalidOperationException("State changed while reading target");
+            return new(targetId,target.Kind,route,after.Revision);
+        }
+        finally{gate.Release();}
+    }
     public object Status() => new { phase="development", player, gamePid=game.Process.Id,
-        capabilities=new[]{"observe_own_hero","observe_adventure_ui","open_system_options","return_to_game","journal","plan"},
-        unavailable=new[]{"map","movement","town","battle","hotseat","lan","installer"} };
+        capabilities=new[]{"observe_own_hero","observe_adventure_ui","open_system_options","return_to_game","visible_targets","route_preview","own_towns","town_construction","journal","plan"},
+        unavailable=new[]{"full_map_coverage","movement","town_recruitment","battle","hotseat","lan","installer"} };
     public object Diagnostic()=>reader.DiagnosticPointers();
+    public object MapDiagnostic()=>new MapReader(game,player).Diagnostic(reader.Observe());
+    public async Task<MapView> ReadMap(int x,int y,int z,int radius,CancellationToken ct)
+    {
+        await gate.WaitAsync(ct);
+        try
+        {
+            var before=reader.Observe();var map=new MapReader(game,player);
+            var first=map.Read(before,x,y,z,radius);var second=map.Read(before,x,y,z,radius);
+            if(JsonSerializer.Serialize(first)!=JsonSerializer.Serialize(second)||reader.Observe().Revision!=before.Revision)
+                throw new InvalidOperationException("Map changed while reading; observe again");
+            return second;
+        }
+        finally{gate.Release();}
+    }
+    public async Task<TileInspection> InspectTile(int x,int y,int z,string revision,CancellationToken ct)
+    {
+        await gate.WaitAsync(ct);
+        try
+        {
+            var before=reader.Observe();
+            if(before.Revision!=revision)throw new InvalidOperationException("Observation is stale; observe again");
+            var map=new MapReader(game,player);var point=map.ScreenPoint(before,x,y,z);
+            await game.MouseAsync(point.X,point.Y,before.Width,before.Height,false,ct);
+            await Task.Delay(150,ct);map.VerifyMouse(x,y,z);
+            var after=reader.Observe();
+            if(after.Screen!="adventure")throw new InvalidOperationException("Screen changed during inspection");
+            return new(x,y,z,after.Elements.SingleOrDefault(e=>e.Id==200)?.Text,after);
+        }
+        finally{gate.Release();}
+    }
     private void Record(string kind,object data)
     {
         Directory.CreateDirectory(stateDirectory);
@@ -43,17 +112,34 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             }
             var before=reader.Observe();
             if(before.Revision!=request.Revision) throw new InvalidOperationException("Observation is stale; observe again before acting");
-            var item=before.Elements.SingleOrDefault(e=>e.Key==request.Element);
-            if(item is null || !item.Interactive) throw new InvalidOperationException("Element is not an available action");
-            string expected=(before.Screen,item.Id,item.Asset) switch {
-                ("adventure",10,"iam009.def")=>"system_options",
-                ("system_options",30722,"soretrn.def")=>"adventure",
-                _=>throw new InvalidOperationException("This UI action has not been validated yet")
-            };
+            int nativeOperation,argument=0;string expected;
+            var action=before.Actions.SingleOrDefault(a=>a.Key==request.Element);
+            if(action is not null)
+            {
+                (nativeOperation,expected)=action.Key switch {
+                    "town:construction"=>(4,"town_hall"),"town:close"=>(9,"adventure"),
+                    "construction:close"=>(10,"town"),"building:cancel"=>(6,"town_hall"),
+                    "building:buy"=>(7,"town"),
+                    _ when action.Key.StartsWith("town:open:")=>(3,"town"),
+                    _ when action.Key.StartsWith("building:inspect:")=>(5,"building_confirmation"),
+                    _=>throw new InvalidOperationException("Action not implemented")
+                };
+                if(nativeOperation is 3 or 5)argument=int.Parse(action.Key.Split(':')[2]);
+            }
+            else
+            {
+                var item=before.Elements.SingleOrDefault(e=>e.Key==request.Element);
+                if(item is null||!item.Interactive)throw new InvalidOperationException("Action unavailable");
+                (nativeOperation,expected)=(before.Screen,item.Id,item.Asset) switch {
+                    ("adventure",10,"iam009.def")=>(1,"system_options"),
+                    ("system_options",30722,"soretrn.def")=>(2,"adventure"),
+                    _=>throw new InvalidOperationException("Use an available semantic action")
+                };
+            }
             var pending=new OperationResult("uncertain","Dispatch started; do not repeat using a new ID",null);
             operations.Add(request.OperationId,(request,pending));
             Record("operation_started",request);
-            await game.MouseAsync(item.X+item.Width/2,item.Y+item.Height/2,before.Width,before.Height,true,ct);
+            game.NativeAction(nativeOperation,player,argument);
             var deadline=DateTime.UtcNow.AddSeconds(3);
             while(DateTime.UtcNow<deadline)
             {
@@ -95,6 +181,10 @@ public interface IGameEndpoint
     Task<OperationResult> Click(OperationRequest request,CancellationToken ct);
     Task<object> Journal(int limit,CancellationToken ct);
     Task<object> Plan(string? value,CancellationToken ct);
+    Task<MapView> ReadMap(int x,int y,int z,int radius,CancellationToken ct);
+    Task<TileInspection> InspectTile(int x,int y,int z,string revision,CancellationToken ct);
+    Task<NearbyTargets> Nearby(CancellationToken ct);
+    Task<TargetInspection> InspectTarget(string targetId,string revision,CancellationToken ct);
 }
 
 internal sealed class LocalEndpoint(Bridge bridge) : IGameEndpoint
@@ -104,6 +194,10 @@ internal sealed class LocalEndpoint(Bridge bridge) : IGameEndpoint
     public Task<OperationResult> Click(OperationRequest request,CancellationToken ct)=>bridge.Click(request,ct);
     public Task<object> Journal(int limit,CancellationToken ct)=>bridge.GetJournal(limit,ct);
     public Task<object> Plan(string? value,CancellationToken ct)=>bridge.Plan(value,ct);
+    public Task<MapView> ReadMap(int x,int y,int z,int radius,CancellationToken ct)=>bridge.ReadMap(x,y,z,radius,ct);
+    public Task<TileInspection> InspectTile(int x,int y,int z,string revision,CancellationToken ct)=>bridge.InspectTile(x,y,z,revision,ct);
+    public Task<NearbyTargets> Nearby(CancellationToken ct)=>bridge.Nearby(ct);
+    public Task<TargetInspection> InspectTarget(string targetId,string revision,CancellationToken ct)=>bridge.InspectTarget(targetId,revision,ct);
 }
 
 internal sealed class RemoteEndpoint(HttpClient client) : IGameEndpoint
@@ -119,4 +213,8 @@ internal sealed class RemoteEndpoint(HttpClient client) : IGameEndpoint
     public Task<OperationResult> Click(OperationRequest request,CancellationToken ct)=>Call<OperationResult>("bridge/click",request,ct);
     public Task<object> Journal(int limit,CancellationToken ct)=>Call<object>("bridge/journal",new{limit},ct);
     public Task<object> Plan(string? value,CancellationToken ct)=>Call<object>("bridge/plan",new{value},ct);
+    public Task<MapView> ReadMap(int x,int y,int z,int radius,CancellationToken ct)=>Call<MapView>("bridge/map",new{x,y,z,radius},ct);
+    public Task<TileInspection> InspectTile(int x,int y,int z,string revision,CancellationToken ct)=>Call<TileInspection>("bridge/inspect",new{x,y,z,revision},ct);
+    public Task<NearbyTargets> Nearby(CancellationToken ct)=>Call<NearbyTargets>("bridge/nearby",new{},ct);
+    public Task<TargetInspection> InspectTarget(string targetId,string revision,CancellationToken ct)=>Call<TargetInspection>("bridge/target",new{targetId,revision},ct);
 }

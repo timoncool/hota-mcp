@@ -3,7 +3,9 @@ using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
 using System.Text.Json;
 
+if(args.Contains("--lifetime-parent")){await Task.Delay(Timeout.Infinite);return;}
 var root=Path.GetFullPath(args[0]);
+if(args.Contains("--lifecycle")){await LifecycleTest.Run(root);return;}
 int stateIndex=Array.IndexOf(args,"--state-dir");
 string stateDirectory=stateIndex>=0?Path.GetFullPath(args[stateIndex+1]):Path.Combine(root,"build/state");
 var transport=new StdioClientTransport(new(){Name="hota-smoke",Command="dotnet",
@@ -22,6 +24,43 @@ async Task<T> Call<T>(string tool,Dictionary<string,object?> parameters)
 }
 var before=await Call<Observation>("observe",new());
 Console.WriteLine($"OBSERVE {before.Screen} hero={before.Hero?.Id} movement={before.Hero?.Movement}");
+if(args.Contains("--targets"))
+{
+    var nearby=await Call<NearbyTargets>("nearby_targets",new());
+    if(nearby.Targets.Count==0)throw new Exception("No visible targets returned");
+    using var targetJson=JsonDocument.Parse(JsonSerializer.Serialize(nearby.Targets));
+    foreach(var target in targetJson.RootElement.EnumerateArray())
+        if(target.EnumerateObject().Any(p=>p.Name is not ("Id" or "Kind" or "Route")))throw new Exception("Target response contains extra knowledge");
+    var fountain=nearby.Targets.Single(t=>t.Kind=="fountain_of_fortune");
+    var inspected=await Call<TargetInspection>("inspect_target",new(){{"targetId",fountain.Id},{"revision",nearby.Revision}});
+    if(inspected.Kind!="fountain_of_fortune")throw new Exception("Target identity mismatch");
+    var after=await Call<Observation>("observe",new());
+    if(after.Hero?.Movement!=before.Hero?.Movement||!after.Hero!.Position.SequenceEqual(before.Hero!.Position))throw new Exception("Inspect moved hero");
+    if(after.Revision!=before.Revision)throw new Exception("Read-only target tools altered the observation");
+    Console.WriteLine($"PASS {nearby.Targets.Count} targets read directly; observation unchanged; route: {JsonSerializer.Serialize(inspected.Route)}");
+    before=after;
+}
+if(args.Contains("--towns"))
+{
+    var initial=before;
+    async Task<Observation> Act(Observation state,string key,string expected)
+    {
+        if(!state.Actions.Any(a=>a.Key==key))throw new Exception($"Action missing: {key}");
+        var result=await Call<OperationResult>("act",new(){{"operationId",Guid.NewGuid().ToString("N")},{"revision",state.Revision},{"action",key}});
+        if(result.Status!="completed"||result.Observation?.Screen!=expected)throw new Exception($"Action failed: {key} {result.Status}");
+        return result.Observation;
+    }
+    int townId=before.Towns.First().Id;
+    before=await Act(before,$"town:open:{townId}","town");
+    before=await Act(before,"town:construction","town_hall");
+    before=await Act(before,"building:inspect:11","building_confirmation");
+    if(initial.Towns.First().BuiltToday&&before.Actions.Any(a=>a.Key=="building:buy"))throw new Exception("Daily building limit is not reflected");
+    before=await Act(before,"building:cancel","town_hall");
+    before=await Act(before,"construction:close","town");
+    before=await Act(before,"town:close","adventure");
+    if(!before.Resources.SequenceEqual(initial.Resources)||before.Hero?.Movement!=initial.Hero?.Movement)throw new Exception("Town browsing changed resources/movement");
+    Console.WriteLine("PASS native MCP town -> construction -> building information -> cancel -> town -> adventure; unavailable purchase omitted");
+}
 if(!args.Contains("--actions"))return;
 var open=before.Elements.Single(x=>x.Id==10&&x.Asset=="iam009.def");
 string operationId=Guid.NewGuid().ToString("N");
