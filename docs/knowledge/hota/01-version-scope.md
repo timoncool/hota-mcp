@@ -6,7 +6,12 @@ topics: [versions, changelog, compatibility, Complete]
 sources: [hota.download, hota.changelog, local.complete.readme, local.installed.build]
 verification_status: "installed 1.8.0 verified by in-game UI; online 1.8.1 verified separately"
 checked_at: "2026-09-19"
+type: reference
+layer: official
+updated: "2026-09-20"
 ---
+# HotA версии и границы совместимости
+
 
 ## Факты
 

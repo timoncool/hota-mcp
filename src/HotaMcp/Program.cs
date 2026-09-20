@@ -73,7 +73,7 @@ var builder=WebApplication.CreateBuilder();
 builder.Configuration["AllowedHosts"]="127.0.0.1;localhost;[::1]";
 builder.Logging.ClearProviders();builder.Logging.AddConsole(o=>o.LogToStandardErrorThreshold=LogLevel.Trace);
 builder.Services.AddSingleton<IGameEndpoint>(session);
-builder.Services.AddMcpServer().WithHttpTransport(o=>o.SessionMode=HttpServerSessionMode.StatefulForInitializeClients).WithTools<GameTools>();
+builder.Services.AddMcpServer().WithHttpTransport(o=>o.SessionMode=HttpServerSessionMode.StatefulForInitializeClients).WithTools<GameTools>().WithResources<GameResources>();
 var app=builder.Build();
 app.Use(async(context,next)=>{
     string supplied=context.Request.Headers.Authorization.ToString();
@@ -93,6 +93,9 @@ app.MapPost("/bridge/click",(OperationRequest request,CancellationToken ct)=>ses
 app.MapPost("/bridge/text",(TextRequest request,CancellationToken ct)=>session.EnterText(request,ct));
 app.MapPost("/bridge/move",(MoveRequest request,CancellationToken ct)=>session.Move(request,ct));
 app.MapPost("/bridge/move-tile",(TileMoveRequest request,CancellationToken ct)=>session.MoveToTile(request,ct));
+app.MapPost("/bridge/docs",(DocsRequest request,CancellationToken ct)=>session.Docs(request,ct));
+app.MapPost("/bridge/docs-catalog",(CancellationToken ct)=>session.DocsCatalog(ct));
+app.MapPost("/bridge/docs-read",(DocsReadRequest request,CancellationToken ct)=>session.DocsRead(request.Path,request.Heading,ct));
 app.MapPost("/bridge/journal",(JournalRequest request,CancellationToken ct)=>session.Journal(request.Limit,ct));
 app.MapPost("/bridge/plan",(PlanRequest request,CancellationToken ct)=>session.Plan(request.Value,ct));
 app.MapPost("/bridge/nearby",(CancellationToken ct)=>session.Nearby(ct));
@@ -107,8 +110,8 @@ app.Urls.Add(endpoint);
 File.WriteAllText(tokenFile,secret);
 await app.StartAsync();
 await app.WaitForShutdownAsync();
-record JournalRequest(int Limit);
-record PlanRequest(string? Value);
+record JournalRequest(int Limit);record PlanRequest(string? Value);
 record TargetRequest(string TargetId,string Revision);
 record GraphicsRequest(string? Renderer);
+record DocsReadRequest(string Path,string? Heading);
 

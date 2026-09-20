@@ -6,6 +6,9 @@ topics: [versioning, retrieval, scope]
 sources: [hota.sources]
 verification_status: "installed HotA 1.8.0 verified from in-game UI; online 1.8.1 separately verified"
 checked_at: "2026-09-19"
+type: reference
+layer: official
+updated: "2026-09-20"
 ---
 
 # Назначение

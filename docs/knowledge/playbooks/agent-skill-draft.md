@@ -5,6 +5,9 @@ topics: [agent-loop, capability-discovery, stale, uncertain, mcp]
 version: 2026-09-19
 sources: [../../../src/HotaMcp/GameTools.cs, ../../../TZ.md, ../sources/bot-algorithms.md]
 status: draft
+type: how-to
+layer: agent
+updated: "2026-09-20"
 ---
 
 # Черновик

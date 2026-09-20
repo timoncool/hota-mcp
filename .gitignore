@@ -15,7 +15,9 @@ venv/
 *.dll
 probe_deps/
 logs/
-build/
+build/*
+!build/*.py
+!build/*.ps1
 bin/
 obj/
 *.obj

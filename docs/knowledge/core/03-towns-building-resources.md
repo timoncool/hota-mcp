@@ -9,7 +9,12 @@ source_urls:
   - https://heroes3wog.net/download/%5BHeroes%203%5D%20Armageddons%20Blade%20Manual.pdf
   - https://h3hota.com/en/documentation
   - https://h3hota.com/en/download
+type: explanation
+layer: agent
+updated: "2026-09-20"
 ---
+# Города, строительство и ресурсы
+
 
 Город — экран управления зданиями, наймом и гарнизоном. В Complete за один день в каждом городе можно построить не более одной постройки (руководство RoE, раздел **Towns**, печатная стр. 50; [копия страницы 50](https://www.manualshelf.com/manual/games-pc/heroes-of-might-and-magic-iii/user-guide-english/page-50.html)). Доступность определяется уже построенными зданиями, ресурсами и правилами сценария. Постройки дают доход, открывают жилища, магическую гильдию, защиту или другие функции. Город можно захватить, после чего его принадлежность и доступные действия меняются.
 

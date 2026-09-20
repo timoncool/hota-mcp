@@ -8,7 +8,12 @@ source_urls:
   - https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/297000/manuals/BONUS_Heroes_of_Might_and_Magic_III_HDEdition_OldManual1999_EN.pdf
   - https://heroes.thelazy.net/index.php/Tutorial_Manual
   - https://h3hota.com/en/documentation
+type: reference
+layer: agent
+updated: "2026-09-20"
 ---
+# Карта приключений, движение и местность
+
 
 Герой перемещается по клеточной карте и расходует запас движения за день. В базовом руководстве дальность определяется скоростью самого медленного существа в армии и измеряется в клетках (раздел **Movement Allowance**, стр. 15). Дороги ускоряют перемещение, трудная местность его замедляет, а Pathfinding уменьшает штраф (раздел **Terrain and Roads**, стр. 16). Вход в воду, посадка и высадка требуют подходящего объекта/корабля; посадка или высадка забирает остаток движения дня (стр. 16).
 

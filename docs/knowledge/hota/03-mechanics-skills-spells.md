@@ -6,7 +6,12 @@ topics: [spell research, Interference, Runes, skills, balance, combat]
 sources: [hota.documentation, hota.changelog]
 verification_status: "official documentation/changelog verified; use build-specific values"
 checked_at: "2026-09-19"
+type: reference
+layer: official
+updated: "2026-09-20"
 ---
+# Механики, навыки и заклинания HotA
+
 
 ## Факты
 

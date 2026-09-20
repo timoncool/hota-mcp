@@ -17,6 +17,9 @@ sources:
   - https://github.com/modelcontextprotocol/csharp-sdk/blob/main/docs/concepts/prompts/prompts.md
   - https://github.com/modelcontextprotocol/csharp-sdk/blob/main/docs/concepts/tools/tools.md
 status: researched
+type: reference
+layer: agent
+updated: "2026-09-20"
 ---
 
 # Проверка

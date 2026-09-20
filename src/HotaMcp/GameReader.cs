@@ -92,8 +92,25 @@ internal sealed class GameReader(WindowsGame game,int player)
         current=game.I32(0x69ccf4), other=game.I32(0x6995a4), active=game.U32(0x69ccfc),
         main=game.U32(0x699538), mode=game.I32(0x698a40),managers,inputCandidates
     };}
-    public object DiagnosticDialog()
+    public (int X,int Y)? FindControl(int x,int y,int w,int h)
     {
+        // Locate one dialog control by its exact reported rectangle and return its centre.
+        // Used where the game's own slot widgets must be addressed: the town garrison row.
+        uint manager=game.U32(0x6992d0),dlg=game.U32(manager+0x54);
+        if(dlg==0)return null;
+        int dx=game.I32(dlg+0x18),dy=game.I32(dlg+0x1c);
+        (int X,int Y)? found=null;
+        var seen=new HashSet<uint>();
+        for(uint item=game.U32(dlg+0x2c);item!=0&&seen.Add(item);item=game.U32(item+8))
+        {
+            int ix=dx+BitConverter.ToInt16(game.Read(item+0x18,2),0),iy=dy+BitConverter.ToInt16(game.Read(item+0x1a,2),0);
+            int iw=BitConverter.ToUInt16(game.Read(item+0x1c,2)),ih=BitConverter.ToUInt16(game.Read(item+0x1e,2));
+            if(ix!=x||iy!=y||iw!=w||ih!=h)continue;
+            found??=(ix+iw/2,iy+ih/2);
+        }
+        return found;
+    }
+    public object DiagnosticDialog()    {
         // Developer-only structural dump of the active dialog: every control, its raw fields
         // and the dialog header words used by the list widgets. No game-state writes.
         uint manager=game.U32(0x6992d0),dlg=game.U32(manager+0x54);
@@ -169,7 +186,7 @@ internal sealed class GameReader(WindowsGame game,int player)
                 {PlannedDestination=[BitConverter.ToInt32(h,0x35),BitConverter.ToInt32(h,0x39),BitConverter.ToInt16(h,0x3d)]};
         }
         }
-        string screen=vtable switch {0x640c5c=>"recruitment",0x643990=>"tavern",0x63d46c=>"battle_result",0x641ddc=>"spellbook",0x63d528=>"combat",0x63db40=>"message",0x63ff60=>"main_menu",0x63e6d8=>"game_type",0x641cbc=>"scenario_selection",0x63a5e4=>"adventure",0x642478=>"system_options",0x64373c=>"town",0x6437b0=>"town_hall",0x643954=>"building_confirmation",_=>"unsupported"};
+        string screen=vtable switch {0x640c5c=>"recruitment",0x643990=>"tavern",0x63d46c=>"battle_result",0x641ddc=>"spellbook",0x63d528=>"combat",0x63db40=>"message",0x63ff60=>"main_menu",0x63e6d8=>"game_type",0x641cbc=>"scenario_selection",0x63a5e4=>"adventure",0x642478=>"system_options",0x64373c=>"town",0x6437b0=>"town_hall",0x643954=>"building_confirmation",0x643c24=>"split_stack",_=>"unsupported"};
         // Unvalidated dialog classes are not published to the player yet.
         if(screen=="unsupported") throw new InvalidOperationException("Current screen not supported by this adapter yet");
         uint surface=game.U32(manager+0x40);
@@ -181,7 +198,7 @@ internal sealed class GameReader(WindowsGame game,int player)
         if(start>end||end>cap||(end-start)%4!=0||end-start>8192) throw new InvalidOperationException("Invalid UI list");
         var items=new List<UiElement>();
         var controls=new List<uint>();
-        if(screen is "message" or "combat" or "spellbook" or "battle_result" or "tavern" or "recruitment")
+        if(screen is "message" or "combat" or "spellbook" or "battle_result" or "tavern" or "recruitment" or "split_stack")
         {
             var seen=new HashSet<uint>();
             for(uint item=game.U32(dlg+0x2c);item!=0;item=game.U32(item+8))
@@ -222,6 +239,7 @@ internal sealed class GameReader(WindowsGame game,int player)
         if(screen=="message"&&items.Count(i=>i.Interactive)==1&&items.Any(i=>i.Id==30722&&i.Asset=="iokay.def"&&i.Interactive))actions.Add(new("message:accept","Подтвердить прочитанное сообщение"));
         if(screen=="message"&&items.Count(i=>i.Interactive)==2&&items.Any(i=>i.Id==30725&&i.Asset=="iokay.def"&&i.Interactive)&&items.Any(i=>i.Id==30726&&i.Asset=="icancel.def"&&i.Interactive))actions.Add(new("message:confirm","Согласиться с вопросом текущего диалога"));
         if(actions.Any(a=>a.Key=="message:confirm"))actions.Add(new("message:decline","Отказаться от действия в текущем диалоге"));
+        if(screen=="split_stack")actions.Add(new("split:cancel","Закрыть окно отряда (Esc)"));
         if(screen=="main_menu")
         {
             if(items.Any(i=>i.Id==101&&i.Interactive))actions.Add(new("menu:new","Новая игра"));
@@ -247,6 +265,11 @@ internal sealed class GameReader(WindowsGame game,int player)
             for(int level=0;level<7;level++)if(currentTown.Buildings.Contains(30+level))actions.Add(new($"town:recruit:{level}",$"Открыть найм существ уровня {level+1}"));
             actions.Add(new("town:construction","Открыть зал совета"));
             actions.Add(new("town:close","Вернуться на карту"));
+            if(currentTown is not null)actions.Add(new("town:lead","Соединить армию героя с гарнизоном: портрет, затем знамя"));
+            if(currentTown is not null)actions.Add(new("town:banner","Клик по знамени гарнизона (переключить гарнизонного героя)"));
+            if(currentTown is not null)for(int slot=0;slot<7;slot++)
+                if(currentTown.GarrisonCounts.Length>slot&&currentTown.GarrisonCounts[slot]>0)
+                    actions.Add(new($"town:take:{slot}",$"Передать отряд из гарнизона герою: {currentTown.GarrisonCounts[slot]} существ в слоте {slot+1}"));
         }
         if(screen=="town_hall")
         {

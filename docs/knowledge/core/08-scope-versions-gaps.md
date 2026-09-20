@@ -8,7 +8,12 @@ source_urls:
   - https://h3hota.com/en/download
   - https://h3hota.com/en/documentation
   - https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/297000/manuals/BONUS_Heroes_of_Might_and_Magic_III_HDEdition_OldManual1999_EN.pdf
+type: reference
+layer: agent
+updated: "2026-09-20"
 ---
+# Границы справки и проверка версии
+
 
 Эта база — рабочая начальная справка для retrieval, а не исчерпывающий rulebook. Базовая линия — Heroes III Complete с официальными дополнениями; HotA — отдельный слой поверх игры. HD Mod меняет прежде всего запуск и интерфейс, но конкретную сборку нужно фиксировать отдельно.
 

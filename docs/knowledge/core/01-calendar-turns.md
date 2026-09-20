@@ -7,7 +7,12 @@ verification_status: verified_against_manual; version_specific_details_unverifie
 source_urls:
   - https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/297000/manuals/BONUS_Heroes_of_Might_and_Magic_III_HDEdition_OldManual1999_EN.pdf
   - https://h3hota.com/en/documentation
+type: reference
+layer: agent
+updated: "2026-09-20"
 ---
+# Календарь партии: ходы, дни, недели
+
 
 ## Базовое правило
 

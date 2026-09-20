@@ -6,7 +6,12 @@ topics: [RMG, templates, water, zones, objects, multiplayer templates]
 sources: [hota.documentation, hota.changelog, local.hota.templates]
 verification_status: "official RMG rules plus local template files verified; local templates are not proof of installed game version"
 checked_at: "2026-09-19"
+type: reference
+layer: official
+updated: "2026-09-20"
 ---
+# Случайные карты и шаблоны HotA
+
 
 ## Факты
 

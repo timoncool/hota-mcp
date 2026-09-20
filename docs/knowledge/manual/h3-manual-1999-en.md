@@ -1,4 +1,6 @@
 ®
+> **type:** reference · **layer:** official · **source:** Справка и мануал игры · **updated:** 2026-09-20
+
 
 # Player Manual
 

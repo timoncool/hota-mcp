@@ -6,7 +6,12 @@ topics: [hotseat, LAN, online, simultaneous turns, HD Mod, interface]
 sources: [hota.documentation, hota.faq, hdmod.community, hota.changelog]
 verification_status: "official HotA multiplayer constraints verified; HD feature list partly secondary and must be probed locally"
 checked_at: "2026-09-19"
+type: reference
+layer: official
+updated: "2026-09-20"
 ---
+# Hotseat, LAN и HD Mod
+
 
 ## Факты
 

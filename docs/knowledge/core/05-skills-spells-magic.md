@@ -8,7 +8,12 @@ source_urls:
   - https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/297000/manuals/BONUS_Heroes_of_Might_and_Magic_III_HDEdition_OldManual1999_EN.pdf
   - https://manualzz.com/doc/28894522/ubisoft-heroes-of-might-and-magic-iii-video-game-user-manual
   - https://h3hota.com/en/documentation
+type: reference
+layer: agent
+updated: "2026-09-20"
 ---
+# Навыки, заклинания и магия
+
 
 Вторичные навыки имеют уровни освоения и меняют конкретные действия героя, армии или карты. Навык выбирается при повышении уровня из предложенных игрой вариантов; агент не должен предполагать, что любой навык доступен любому герою.
 

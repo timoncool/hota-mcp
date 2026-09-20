@@ -5,6 +5,9 @@ topics: [end-turn, revision, idempotency, journal]
 version: 2026-09-19
 sources: [../../../TZ.md, ../../../src/HotaMcp/GameTools.cs]
 status: draft-research
+type: how-to
+layer: agent
+updated: "2026-09-20"
 ---
 
 # Цикл завершения

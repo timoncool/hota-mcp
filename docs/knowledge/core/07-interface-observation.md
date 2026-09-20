@@ -8,7 +8,12 @@ source_urls:
   - https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/297000/manuals/BONUS_Heroes_of_Might_and_Magic_III_HDEdition_OldManual1999_EN.pdf
   - https://heroes.thelazy.net/index.php/Tutorial_Manual
   - https://h3hota.com/en/faq
+type: reference
+layer: agent
+updated: "2026-09-20"
 ---
+# Игровой интерфейс и доступные наблюдения
+
 
 Основные экраны — карта приключений, город, бой, книга заклинаний и модальные диалоги. Руководство перечисляет на HUD дату, ресурсную панель, город, героя, шахту, свободный ресурс и панель статуса (раздел **Adventure Map View**, стр. 14). В городе видны доход, доступные существа, гарнизон и армия посещающего героя (стр. 15); в бою — поле, стеки и кнопки действий.
 

@@ -7,6 +7,7 @@ public sealed record OperationResult(string Status,string Message,Observation? O
 public sealed record JournalEntry(long Sequence,DateTimeOffset Time,string Kind,object Data);
 public sealed record TargetView(string Id,string Kind,RouteView Route);
 public sealed record NearbyTargets(string Revision,int HeroId,int Movement,List<TargetView> Targets,string Coverage);
+public sealed record DocsRequest(string Query,int Limit);
 public sealed record TargetInspection(string Id,string Kind,RouteView Route,string Revision);
 public sealed record DebugSnapshot(Observation Observation,CaptureResult Capture,string ObservationPath);
 public sealed record MoveRequest(string OperationId,string Revision,string TargetId);
@@ -273,6 +274,10 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
                     _ when action.Key.StartsWith("combat:move:")||action.Key.StartsWith("combat:attack:")=>(34,"combat"),
                     _ when action.Key.StartsWith("setup:")=>(24,"scenario_selection"),
                     "town:construction"=>(4,"town_hall"),"town:close"=>(27,"adventure"),
+                    "split:cancel"=>(59,"town"),
+                    "town:lead"=>(60,"town"),
+                    "town:banner"=>(61,"town"),
+                    _ when action.Key.StartsWith("town:take:")=>(57,"town"),
                     "town:tavern"=>(40,"tavern"),
                     _ when action.Key.StartsWith("town:recruit:")=>(40,"recruitment"),
                     "construction:close"=>(10,"town"),"building:cancel"=>(6,"town_hall"),
@@ -401,7 +406,36 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
                 var button=before.Elements.Single(e=>e.Id==wanted&&e.Interactive);
                 await game.MouseAsync(button.X+button.Width/2,button.Y+button.Height/2,before.Width,before.Height,true,CancellationToken.None);
             }
+            else if(nativeOperation==57)
+            {
+                // Town garrison slot: the slot widget itself receives an addressed left press, the
+                // same event the game raises for the player's own click, and hands the stack to the
+                // visiting hero. Slots are the reported garrison row of the town dialog.
+                int slot=int.Parse(request.Element["town:take:".Length..]);
+                if(slot<0||slot>6)throw new InvalidOperationException("Garrison slot outside supported range");
+                var point=reader.FindControl(305+62*slot,387,58,64)??throw new InvalidOperationException("Garrison slot control not found in the town dialog");
+                await game.MouseAsync(point.X,point.Y,before.Width,before.Height,true,CancellationToken.None);
+            }
             else if(nativeOperation==27)await game.KeyAsync(0x1b,0x01);
+            else if(nativeOperation==59)await game.KeyAsync(0x1b,0x01);
+            else if(nativeOperation==60)
+            {
+                // Manual (Town Garrison): "click on the hero's portrait to highlight it, and then
+                // click on the banner to the left of the first garrison troop slot" - the game then
+                // combines the hero's army with the town garrison and the hero leads it.
+                var portrait=reader.FindControl(241,483,58,64)??throw new InvalidOperationException("Hero portrait control not found in the town dialog");
+                var banner=reader.FindControl(241,387,58,64)??throw new InvalidOperationException("Garrison banner control not found in the town dialog");
+                await game.MouseAsync(portrait.X,portrait.Y,before.Width,before.Height,true,CancellationToken.None);
+                await Task.Delay(700,CancellationToken.None);
+                await game.MouseAsync(banner.X,banner.Y,before.Width,before.Height,true,CancellationToken.None);
+            }
+            else if(nativeOperation==61)
+            {
+                // Single click on the banner left of the first garrison slot: toggles the garrison
+                // hero (manual: heroes are swapped by highlighting one and clicking the other).
+                var cell=reader.FindControl(241,387,58,64)??throw new InvalidOperationException("Garrison banner control not found in the town dialog");
+                await game.MouseAsync(cell.X,cell.Y,before.Width,before.Height,true,CancellationToken.None);
+            }
             else if(nativeOperation==28)await game.KeyAsync(0x45,0x12);
             else if(nativeOperation==32)await game.KeyAsync(0x57,0x11);
             else if(nativeOperation==33)await game.KeyAsync(0x44,0x20);
@@ -520,6 +554,9 @@ public interface IGameEndpoint
     Task<MapView> ReadMap(int x,int y,int z,int radius,CancellationToken ct);
     Task<TileInspection> InspectTile(int x,int y,int z,string revision,CancellationToken ct);
     Task<NearbyTargets> Nearby(CancellationToken ct);
+    Task<DocsAnswer> Docs(DocsRequest request,CancellationToken ct);
+    Task<DocsCatalog> DocsCatalog(CancellationToken ct);
+    Task<DocText> DocsRead(string path,string? heading,CancellationToken ct);
     Task<TargetInspection> InspectTarget(string targetId,string revision,CancellationToken ct);
 }
 
@@ -540,6 +577,10 @@ internal sealed class LocalEndpoint(Bridge bridge) : IGameEndpoint
     public Task<MapView> ReadMap(int x,int y,int z,int radius,CancellationToken ct)=>bridge.ReadMap(x,y,z,radius,ct);
     public Task<TileInspection> InspectTile(int x,int y,int z,string revision,CancellationToken ct)=>bridge.InspectTile(x,y,z,revision,ct);
     public Task<NearbyTargets> Nearby(CancellationToken ct)=>bridge.Nearby(ct);
+    private readonly DocsIndex docs=new();
+    public Task<DocsAnswer> Docs(DocsRequest request,CancellationToken ct)=>Task.FromResult(docs.Search(request.Query,request.Limit));
+    public Task<DocsCatalog> DocsCatalog(CancellationToken ct)=>Task.FromResult(docs.Catalog());
+    public Task<DocText> DocsRead(string path,string? heading,CancellationToken ct)=>Task.FromResult(docs.Read(path,heading));
     public Task<TargetInspection> InspectTarget(string targetId,string revision,CancellationToken ct)=>bridge.InspectTarget(targetId,revision,ct);
 }
 
@@ -566,6 +607,9 @@ internal sealed class RemoteEndpoint(HttpClient client) : IGameEndpoint
     public Task<MapView> ReadMap(int x,int y,int z,int radius,CancellationToken ct)=>Call<MapView>("bridge/map",new{x,y,z,radius},ct);
     public Task<TileInspection> InspectTile(int x,int y,int z,string revision,CancellationToken ct)=>Call<TileInspection>("bridge/inspect",new{x,y,z,revision},ct);
     public Task<NearbyTargets> Nearby(CancellationToken ct)=>Call<NearbyTargets>("bridge/nearby",new{},ct);
+    public Task<DocsAnswer> Docs(DocsRequest request,CancellationToken ct)=>Call<DocsAnswer>("bridge/docs",request,ct);
+    public Task<DocsCatalog> DocsCatalog(CancellationToken ct)=>Call<DocsCatalog>("bridge/docs-catalog",new{},ct);
+    public Task<DocText> DocsRead(string path,string? heading,CancellationToken ct)=>Call<DocText>("bridge/docs-read",new{path,heading},ct);
     public Task<TargetInspection> InspectTarget(string targetId,string revision,CancellationToken ct)=>Call<TargetInspection>("bridge/target",new{targetId,revision},ct);
 }
 

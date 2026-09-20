@@ -6,7 +6,12 @@ topics: [sources, provenance, verification]
 sources: [hota.download, hota.documentation, hota.changelog, hota.faq, hdmod.community, local.complete.readme, local.hota.templates, local.installed.build, TZ]
 verification_status: "registry checked 2026-09-19"
 checked_at: "2026-09-19"
+type: explanation
+layer: agent
+updated: "2026-09-20"
 ---
+# HotA knowledge source registry
+
 
 | ID | Источник | Роль | Область | Статус |
 |---|---|---|---|---|

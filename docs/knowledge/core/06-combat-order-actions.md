@@ -8,7 +8,12 @@ source_urls:
   - https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/297000/manuals/BONUS_Heroes_of_Might_and_Magic_III_HDEdition_OldManual1999_EN.pdf
   - https://manualmachine.com/gamespc/heroesofmightandmagiciii/1119554-user-manual/
   - https://h3hota.com/en/documentation
+type: reference
+layer: agent
+updated: "2026-09-20"
 ---
+# Бой, порядок ходов и действия
+
 
 Столкновение на карте запускает экран боя. В бою участвуют стеки существ; герой командует и может применять навыки/заклинания, но не является отдельной боевой клеткой. Поле зависит от места столкновения: открытая местность, осада и корабельный бой имеют разные препятствия и зоны.
 

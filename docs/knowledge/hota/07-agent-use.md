@@ -6,7 +6,12 @@ topics: [MCP, facts, advice, visibility, version gating]
 sources: [hota.index, hota.version-scope, hota.documentation, TZ]
 verification_status: "project policy and source-backed guidance"
 checked_at: "2026-09-19"
+type: reference
+layer: official
+updated: "2026-09-20"
 ---
+# Как агенту пользоваться справкой HotA
+
 
 ## Факты
 

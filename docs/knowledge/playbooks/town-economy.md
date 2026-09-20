@@ -5,6 +5,9 @@ topics: [town, economy, building, recruitment]
 version: 2026-09-20
 sources: [../sources/bot-algorithms.md, ../../TASKS.md, ../../../TZ.md]
 status: verified-partial
+type: how-to
+layer: agent
+updated: "2026-09-20"
 ---
 
 # Что уже работает в мосте

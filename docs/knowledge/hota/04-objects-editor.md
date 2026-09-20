@@ -6,7 +6,12 @@ topics: [objects, artifacts, map editor, quests, event system]
 sources: [hota.documentation, hota.changelog]
 verification_status: "official documentation verified"
 checked_at: "2026-09-19"
+type: reference
+layer: official
+updated: "2026-09-20"
 ---
+# Новые объекты, артефакты и редактор карт HotA
+
 
 ## Факты
 

@@ -9,6 +9,9 @@ sources:
   - https://github.com/vcmi/vcmi/tree/develop/AI/Nullkiller2
   - https://github.com/vcmi/vcmi/tree/develop/AI/BattleAI
 status: researched
+type: explanation
+layer: agent
+updated: "2026-09-20"
 ---
 
 # Что действительно подтверждено открытым кодом

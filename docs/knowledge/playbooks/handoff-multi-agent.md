@@ -5,6 +5,9 @@ topics: [handoff, human, hotseat, lan, isolation]
 version: 2026-09-19
 sources: [../../../TZ.md, ../../../src/HotaMcp/GameTools.cs, ../sources/bot-algorithms.md]
 status: design-gap
+type: how-to
+layer: agent
+updated: "2026-09-20"
 ---
 
 # Передача

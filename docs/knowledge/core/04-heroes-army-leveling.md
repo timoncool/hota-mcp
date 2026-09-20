@@ -8,7 +8,12 @@ source_urls:
   - https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/297000/manuals/BONUS_Heroes_of_Might_and_Magic_III_HDEdition_OldManual1999_EN.pdf
   - https://heroes.thelazy.net/index.php/Tutorial_Manual
   - https://h3hota.com/en/documentation
+type: reference
+layer: agent
+updated: "2026-09-20"
 ---
+# Герои, армия и развитие
+
 
 Герой — носитель армии и источник первичных/вторичных навыков, артефактов и заклинаний. Герои получают опыт за доступные игровые события и при повышении уровня выбирают один из предложенных навыков. Первичные параметры героя влияют на армию и применение магии; точные формулы зависят от механики и версии.
 

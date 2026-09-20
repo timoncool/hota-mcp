@@ -5,6 +5,9 @@ topics: [save, load, browser, recover, verification]
 version: 2026-09-20
 sources: [../hota/07-agent-use.md, ../../STATE.md, ../../skills/hota-player/SKILL.md]
 status: verified-on-this-machine
+type: how-to
+layer: agent
+updated: "2026-09-20"
 ---
 
 # Зачем этот playbook

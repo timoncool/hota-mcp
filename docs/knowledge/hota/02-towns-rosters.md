@@ -6,7 +6,12 @@ topics: [Cove, Factory, Bulwark, creatures, heroes, terrain]
 sources: [hota.documentation, hota.faq, hota.changelog]
 verification_status: "official documentation verified; exact availability remains map/template/version dependent"
 checked_at: "2026-09-19"
+type: reference
+layer: official
+updated: "2026-09-20"
 ---
+# Новые города, существа и герои HotA
+
 
 ## Факты
 

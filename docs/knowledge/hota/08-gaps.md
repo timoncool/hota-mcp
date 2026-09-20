@@ -6,7 +6,12 @@ topics: [gaps, verification, local build, HD Mod]
 sources: [hota.sources, TZ, local.complete.readme]
 verification_status: "open items explicitly recorded"
 checked_at: "2026-09-19"
+type: reference
+layer: official
+updated: "2026-09-20"
 ---
+# Пробелы и неопределённости HotA knowledge
+
 
 ## Не установлено
 
