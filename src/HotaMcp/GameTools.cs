@@ -6,6 +6,9 @@ namespace HotaMcp;
 [McpServerToolType]
 public sealed class GameTools(IGameEndpoint endpoint)
 {
+    [McpServerTool,Description("Move the selected own hero onto a visible creature stack and start the battle deliberately. Use only after observing the situation; the ordinary move_to now refuses creature cells, because stepping there fights. The game decides the outcome; uncertain is not permission to retry under another operation ID.")]
+    public Task<OperationResult> AttackTarget(string operationId,string revision,string targetId,CancellationToken cancellationToken)=>endpoint.Attack(new(operationId,revision,targetId),cancellationToken);
+
     [McpServerTool,Description("Move the selected own hero toward a currently visible target ID from nearby_targets using the ordinary game route and move handlers. May collect the resource, open a dialog or encounter enemies. Experimental incomplete adapter: uncertain is not permission to retry under another operation ID. No coordinates or hidden data required.")]
     public Task<OperationResult> MoveTo(string operationId,string revision,string targetId,CancellationToken cancellationToken)=>endpoint.Move(new(operationId,revision,targetId),cancellationToken);
     [McpServerTool,Description("Move the selected own hero to an explicit map cell (x,y,z) using the game's own route planning and move command. Use for exploration and for reaching cells without a known object, for example revealed terrain or a town seen on the map. The game plans the path itself; if it cannot, the result stays uncertain and nothing moves. Hero stops when daily movement runs out.")]

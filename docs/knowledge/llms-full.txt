@@ -280,8 +280,6 @@ Resource — справочный документ, который клиент 
 <!-- ===== agent/01-tools.md ===== -->
 
 # Инструменты моста (сгенерировано из живого MCP)
-> **type:** reference · **layer:** agent · **source:** Материалы для агента · **updated:** 2026-09-20
-
 
 Файл собран командой `python build/gen-tools-doc.py`: список берётся прямо у работающего моста (MCP `tools/list`, `resources/list`), поэтому всегда соответствует текущей сборке.
 
@@ -290,6 +288,7 @@ Resource — справочный документ, который клиент 
 | Инструмент | Что делает |
 | --- | --- |
 | `act` | Execute an available semantic action key from observe.Actions, with the current revision. Construction spends normal game resources. Keep operationId unchanged for retries; uncertain means observe before making another decision. |
+| `attack_target` | Move the selected own hero onto a visible creature stack and start the battle deliberately. Use only after observing the situation; the ordinary move_to now refuses creature cells, because stepping there fights. The game decides the outcome; uncertain is not permission to retry under another operation ID. |
 | `click_ui` | Click a validated UI action from the latest observation. Accepts a key from observation Actions or validated system-option buttons. Includes own towns, construction cards and purchase/cancel. Game enforces costs and daily construction limits. Use the SAME operationId for retries; never retry an uncertain action with a new ID. |
 | `debug_capture` | Explicit developer diagnostic only: save the game's current rendered framebuffer as a local PNG without window activation, cursor movement, keyboard input or desktop capture. Returns file metadata only, never inline image data. Do not use in normal gameplay loops; observe provides economical structured game state. |
 | `debug_snapshot` | Explicit diagnostic: in one call read fair structured observation, save the game framebuffer PNG and matching JSON, and verify the observed revision is unchanged across capture. Returns observation and local file metadata, never inline images. Does not freeze animations. Use for UI mapping/debugging, not normal gameplay; no focus or input changes. |

@@ -23,13 +23,15 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
     private string plan="";
     private readonly Dictionary<string,MapObject> targets=new();
     private readonly Dictionary<MapObject,string> targetIds=new();
-    public async Task<OperationResult> Move(MoveRequest request,CancellationToken ct)
+    public Task<OperationResult> Move(MoveRequest request,CancellationToken ct)=>MoveCore(request,false,ct);
+    public Task<OperationResult> Attack(MoveRequest request,CancellationToken ct)=>MoveCore(request,true,ct);
+    private async Task<OperationResult> MoveCore(MoveRequest request,bool attack,CancellationToken ct)
     {
         await gate.WaitAsync(ct);
         try
         {
             if(string.IsNullOrWhiteSpace(request.OperationId)||request.OperationId.Length>100)throw new InvalidOperationException("Invalid operation ID");
-            var identity=new OperationRequest(request.OperationId,request.Revision,"move:"+request.TargetId);
+            var identity=new OperationRequest(request.OperationId,request.Revision,(attack?"attack:":"move:")+request.TargetId);
             if(operations.TryGetValue(request.OperationId,out var prior))
             {
                 if(prior.Request!=identity)throw new InvalidOperationException("Operation ID reused with different arguments");
@@ -39,6 +41,8 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             var before=reader.Observe();
             if(before.Revision!=request.Revision||before.Screen!="adventure"||before.Hero is null)throw new InvalidOperationException("Fresh own-hero adventure observation required");
             new MapReader(game,player).ValidateTarget(before,target);
+            if(!attack&&string.Equals(target.Kind,"creatures",StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("Danger: this cell holds a creature stack, and moving onto it starts a battle. Approach a neighbouring cell with move_to_tile, or use attack_target to fight deliberately");
             var pending=new OperationResult("uncertain","Movement preparation started; inspect state before any retry with a new ID",null);
             operations.Add(request.OperationId,(identity,pending));Record("move_started",request);
             if(!before.Hero.PlannedDestination.SequenceEqual(new[]{target.X,target.Y,target.Z}))game.NativeAction(31,player,target.X|(target.Y<<8)|(target.Z<<16));
@@ -93,6 +97,15 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             if(before.Revision!=request.Revision||before.Screen!="adventure"||before.Hero is null)throw new InvalidOperationException("Fresh own-hero adventure observation required");
             if(request.X<0||request.Y<0||request.X>255||request.Y>255||request.Z<0||request.Z>1)throw new InvalidOperationException("Cell outside supported map bounds");
             int[] destination=[request.X,request.Y,request.Z];
+            try
+            {
+                var look=new MapReader(game,player).Read(before,request.X,request.Y,request.Z,1);
+                var creature=look.Objects.FirstOrDefault(o=>o.X==request.X&&o.Y==request.Y&&o.Z==request.Z&&string.Equals(o.Kind,"creatures",StringComparison.OrdinalIgnoreCase));
+                if(creature is not null)
+                    throw new InvalidOperationException("Danger: this cell holds a creature stack, and stepping there starts a battle. Approach a neighbouring cell instead, or use attack_target when the fight is intended");
+            }
+            catch(InvalidOperationException ex) when(ex.Message.StartsWith("Danger:")){throw;}
+            catch(InvalidOperationException){}
             var pending=new OperationResult("uncertain","Movement preparation started; inspect state before any retry with a new ID",null);
             operations.Add(request.OperationId,(identity,pending));Record("move_tile_started",request);
             if(!before.Hero.PlannedDestination.SequenceEqual(destination))game.NativeAction(31,player,request.X|(request.Y<<8)|(request.Z<<16));
@@ -540,6 +553,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
 public interface IGameEndpoint
 {
     Task<OperationResult> Move(MoveRequest request,CancellationToken ct);
+    Task<OperationResult> Attack(MoveRequest request,CancellationToken ct);
     Task<OperationResult> MoveToTile(TileMoveRequest request,CancellationToken ct);
     Task<DebugSnapshot> Snapshot(CancellationToken ct);
     Task<object> Start(CancellationToken ct);
@@ -563,6 +577,7 @@ public interface IGameEndpoint
 internal sealed class LocalEndpoint(Bridge bridge) : IGameEndpoint
 {
     public Task<OperationResult> Move(MoveRequest request,CancellationToken ct)=>bridge.Move(request,ct);
+    public Task<OperationResult> Attack(MoveRequest request,CancellationToken ct)=>bridge.Attack(request,ct);
     public Task<OperationResult> MoveToTile(TileMoveRequest request,CancellationToken ct)=>bridge.MoveToTile(request,ct);
     public Task<DebugSnapshot> Snapshot(CancellationToken ct)=>bridge.Snapshot(ct);
     public Task<object> Start(CancellationToken ct)=>throw new InvalidOperationException("Game is already attached");
@@ -587,6 +602,7 @@ internal sealed class LocalEndpoint(Bridge bridge) : IGameEndpoint
 internal sealed class RemoteEndpoint(HttpClient client) : IGameEndpoint
 {
     public Task<OperationResult> Move(MoveRequest request,CancellationToken ct)=>Call<OperationResult>("bridge/move",request,ct);
+    public Task<OperationResult> Attack(MoveRequest request,CancellationToken ct)=>Call<OperationResult>("bridge/attack",request,ct);
     public Task<OperationResult> MoveToTile(TileMoveRequest request,CancellationToken ct)=>Call<OperationResult>("bridge/move-tile",request,ct);
     public Task<DebugSnapshot> Snapshot(CancellationToken ct)=>Call<DebugSnapshot>("bridge/debug-snapshot",new{},ct);
     public Task<object> Start(CancellationToken ct)=>Call<object>("bridge/start",new{},ct);
