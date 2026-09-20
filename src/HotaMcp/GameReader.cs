@@ -237,6 +237,7 @@ internal sealed class GameReader(WindowsGame game,int player)
                 if(items.Any(i=>i.Id==id&&i.Interactive))actions.Add(new(key,items.Single(i=>i.Id==id).Text!));
         }
         if(screen=="adventure")foreach(var town in towns)actions.Add(new($"town:open:{town.Id}",$"Открыть город: {town.Name}"));
+        if(screen=="adventure"&&hero is null)actions.Add(new("hero:select","Выбрать своего героя на карте (штатная клавиша H)"));
         if(screen=="adventure"&&items.Any(i=>i.Id==12&&i.Asset=="iam001.def"&&i.Interactive))actions.Add(new("turn:end","Закончить ход; игра может запросить подтверждение"));
         if(screen=="town")
         {
@@ -308,6 +309,8 @@ internal sealed class GameReader(WindowsGame game,int player)
             if(items.Any(i=>i.Id==2008&&i.Interactive))actions.Add(new("combat:spellbook","Открыть книгу заклинаний"));
             if(items.Any(i=>i.Id==2009&&i.Interactive))actions.Add(new("combat:wait","Ждать"));
             if(items.Any(i=>i.Id==2010&&i.Interactive))actions.Add(new("combat:defend","Защищаться"));
+            if(items.Any(i=>i.Id==2002&&i.Interactive))actions.Add(new("combat:retreat","Отступить: сохранить героя, потерять армию"));
+            if(items.Any(i=>i.Id==2004&&i.Interactive))actions.Add(new("combat:auto","Автобой: игра сама разыгрывает бой за обе стороны"));
             foreach(int hex in combat.ReachableHexes)actions.Add(new($"combat:move:{hex}",$"Переместиться на клетку {hex}"));
             foreach(string id in combat.AttackableTargets)actions.Add(new("combat:attack:"+id,"Атаковать: "+combat.Stacks.Single(s=>s.Id==id).Name));
             }

@@ -212,10 +212,12 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
                     _ when action.Key.StartsWith("load:select:")=>(46,"load_game"),
                     _ when action.Key.StartsWith("load:open:")=>(46,"load_game"),
                     "game:main_menu"=>(49,"main_menu"),
+                    "hero:select"=>(54,"adventure"),
                     "save:confirm"=>(44,"message"),"game:save"=>(43,"save_game"),"recruit:max"=>(42,"recruitment"),"recruit:buy"=>(41,"town"),"recruit:cancel"=>(36,"town"),
                     "tavern:hire"=>(41,"town"),"tavern:close"=>(36,"town"),
                     _ when action.Key.StartsWith("spell:target:")=>(38,"combat"),
                     "combat:wait"=>(32,"combat"),"combat:defend"=>(33,"combat"),
+                    "combat:retreat"=>(55,"combat"),"combat:auto"=>(56,"combat"),
                     _ when action.Key.StartsWith("combat:move:")||action.Key.StartsWith("combat:attack:")=>(34,"combat"),
                     _ when action.Key.StartsWith("setup:")=>(24,"scenario_selection"),
                     "town:construction"=>(4,"town_hall"),"town:close"=>(27,"adventure"),
@@ -325,6 +327,26 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             {
                 // Browser exit button of the load/save browser, addressed by its own control bounds.
                 var button=before.Elements.Single(e=>e.Id==188&&(e.Asset=="scnrback.def"||e.Asset=="gspexit.def")&&e.Interactive);
+                await game.MouseAsync(button.X+button.Width/2,button.Y+button.Height/2,before.Width,before.Height,true,CancellationToken.None);
+            }
+            else if(nativeOperation==54)
+            {
+                // Own hero selection: the ordinary game hotkey H cycles through the player's
+                // heroes and centers the view. Needed after screens that drop the selection.
+                for(int i=0;i<8;i++)
+                {
+                    await game.KeyAsync(0x48,0x23);
+                    await Task.Delay(300,CancellationToken.None);
+                    if(reader.Observe().Hero is not null)break;
+                }
+            }
+            else if(nativeOperation is 55 or 56)
+            {
+                // Combat bar buttons are ordinary dialog controls: the retreat button (icm002) and
+                // the auto-combat button (icm004) are pressed by an addressed window mouse event
+                // in the bounds the dialog reports, exactly like a player's own press.
+                int wanted=nativeOperation==55?2002:2004;
+                var button=before.Elements.Single(e=>e.Id==wanted&&e.Interactive);
                 await game.MouseAsync(button.X+button.Width/2,button.Y+button.Height/2,before.Width,before.Height,true,CancellationToken.None);
             }
             else if(nativeOperation==27)await game.KeyAsync(0x1b,0x01);
