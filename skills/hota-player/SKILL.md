@@ -16,6 +16,16 @@ Use the connected server's tool names as exposed by the harness; a harness may p
 
 Normal play uses structured data only. Do not call `debug_capture` or `debug_snapshot` in the gameplay loop. Those are optional developer diagnostics and explicit user-requested illustrations; screenshots/OCR are not prerequisites for understanding or operating the game.
 
+`move_to` outcomes: `completed` with a position/inventory change is real movement. `uncertain` with no position change, no movement spending and no date change means the target is not reachable from here — record it and pick another target instead of retrying with a new operation ID. Objects that hand out a bonus (campfire, garden of revelation, fountain) open a notice whose effect line is in the dialog text (`+1 Знания`); a repeat visit may answer that the bonus is granted only once, which is the game's own state, not a bridge error.
+
+## Buttons and dialogs (verified 2026-09-20)
+
+Every dialog button (options, browsers, questions) is an ordinary dialog control. Activate it with an **addressed window mouse event inside the control's own reported bounds** — the adapter computes the point from the UI structures, the agent never marks up a picture. This is the mechanism that works for `somain.def`108, `scnrlod.def`186, `scnrsav.def`186, `gspexit.def`/`scnrback.def`188 and the question buttons `iokay.def`30722/30725, `icancel.def`30726.
+
+Do not use vtable-substitution delivery for these buttons: for HD Mod custom dialogs it closes the dialog without running the action (main menu button) or makes the game crash during map initialisation after a "load" (load browser button). Do not use Enter/Escape for question dialogs either: Enter on the main-menu question closed it without doing anything. Details and history: `docs/knowledge/playbooks/save-load-cycle.md`.
+
+Verified live: load of `AUTOSAVE.GM1` from the main-menu browser produced the save's own party (Лабета 139 at 66,37, day 1, gold 10000) with the game left alive; the market build deducted 5 wood and 500 gold and set `builtToday`; leaving the town returned to adventure without terminating the game.
+
 ## Verified partial flows
 
 - `start_game` asks the existing host launcher to launch HotA. Poll `game_status` for attachment. Starting the launcher itself and automatic intro skipping are not implemented yet.
@@ -46,4 +56,7 @@ On battle_result read the result text and losses, then battle:accept. One victor
 
 Updated town evidence: town:open uses the actual sidebar portrait, currently limited to one owned town. Repeated open/close and a market purchase survived. town:tavern reads selected hero and price; tavern:hire was verified for Brissa. town:recruit:LEVEL opens a built dwelling using the game's building hit map; recruit:max selects maximum, recruit:buy confirms displayed cost. Six water elementals bought for1800. Do not confuse the remaining-stock text with selected quantity.
 
-Saving: game:save from system_options opens save_game; save:confirm presses its game button. Read and accept the resulting message. Current name editing/reading and loading are unfinished. The first save exists; a request can still report uncertain because the message appears before adventure. Inspect, never repeat blindly.
+Saving: `game:save` from system_options opens save_game; `save:confirm` presses its game button. Read and accept the resulting message. The browser remembers its last folder: opened in-game it showed `Games\Превосходство в воздухе` with `..`, `111`, `111ы`, so read the selected row in `Saves` before confirming — confirming writes into the selected name and `111.GM1`/`111ы.GM1` must not be overwritten. Name editing/reading is still unfinished.
+
+Loading: `menu:load` → `menu:single` from the main menu opens the load browser; `load:open:INDEX` enters a folder row, `load:select:INDEX` selects a file row, `load:confirm` presses ЗАГРУЗИТЬ. Then verify the loaded party by date/resources/hero, never by "the screen changed" — an instant load of the current state looks like nothing happened. The in-game `game:load` question still returns to the party without a browser; the working cycle is the main-menu one.
+

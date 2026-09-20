@@ -15,6 +15,7 @@ public record Observation(string Revision,int Player,int[] Date,int[] Resources,
     public List<AvailableAction> Actions {get;init;}=[];
     public ScenarioSetup? Setup {get;init;}
     public CombatView? Combat {get;init;}
+    public SaveList? Saves {get;init;}
 }
 
 internal sealed class GameReader(WindowsGame game,int player)
@@ -208,6 +209,14 @@ internal sealed class GameReader(WindowsGame game,int player)
                 dx+BitConverter.ToInt16(b,0x18),dy+BitConverter.ToInt16(b,0x1a),iw,ih,interactive));
         }
         if(screen=="scenario_selection"&&items.Any(i=>i.Id==186&&i.Asset=="scnrsav.def"))screen="save_game";
+        SaveList? saves=null;
+        if((screen=="scenario_selection"||screen=="save_game")&&items.Any(i=>i.Id==186&&i.Asset=="scnrlod.def"))screen="load_game";
+        if(screen is "save_game" or "load_game")
+        {
+            // Own save files are visible to the player here; the adapter only reports them.
+            try {saves=new SaveListReader(game).Read(dlg,screen=="save_game"?"save":"load");}
+            catch(InvalidOperationException e){saves=new(screen=="save_game"?"save":"load",[],-1,"Save list unavailable: "+e.Message);}
+        }
         var towns=frontend?new List<TownView>():new TownReader(game,player).Read();
         var actions=new List<AvailableAction>();
         if(screen=="message"&&items.Count(i=>i.Interactive)==1&&items.Any(i=>i.Id==30722&&i.Asset=="iokay.def"&&i.Interactive))actions.Add(new("message:accept","Подтвердить прочитанное сообщение"));
@@ -249,6 +258,20 @@ internal sealed class GameReader(WindowsGame game,int player)
             if(items.Any(i=>i.Id==30721&&i.Interactive))actions.Add(new("building:cancel","Отменить покупку"));
         }
         if(screen=="save_game")actions.Add(new("save:confirm","Сохранить игру; может открыться запрос имени"));
+        if(screen=="load_game"&&saves is not null)
+        {
+            foreach(var entry in saves.Entries)
+            {
+                if(entry.Folder)
+                {
+                    if(entry.Width>0)actions.Add(new($"load:open:{entry.Index}",$"Открыть папку сохранений: {entry.Name}"));
+                    continue;
+                }
+                actions.Add(new($"load:select:{entry.Index}",$"Выбрать сохранение: {entry.Name}"));
+            }
+            if(items.Any(i=>i.Id==186&&i.Asset=="scnrlod.def"&&i.Interactive))actions.Add(new("load:confirm","Загрузить выбранное сохранение"));
+            if(items.Any(i=>i.Id==188&&i.Interactive))actions.Add(new("load:back","Выйти в главное меню"));
+        }
         if(screen=="recruitment")
         {
             if(items.Any(i=>i.Id==532&&i.Interactive))actions.Add(new("recruit:max","Выбрать максимум доступных для найма существ"));
@@ -289,7 +312,7 @@ internal sealed class GameReader(WindowsGame game,int player)
             foreach(string id in combat.AttackableTargets)actions.Add(new("combat:attack:"+id,"Атаковать: "+combat.Stacks.Single(s=>s.Id==id).Name));
             }
         }
-        var result=new Observation("",player,date,resources,hero,screen,width,height,items){Towns=towns,Actions=actions,Setup=setup,Combat=combat};
+        var result=new Observation("",player,date,resources,hero,screen,width,height,items){Towns=towns,Actions=actions,Setup=setup,Combat=combat,Saves=saves};
         string revision=Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(epoch+JsonSerializer.Serialize(result))))[..24];
         return result with {Revision=revision};
     }

@@ -131,8 +131,8 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
         finally{gate.Release();}
     }
     public object Status() => new { phase="development", player, gamePid=game.Process.Id,
-        capabilities=new[]{"observe_own_hero","observe_adventure_ui","open_system_options","return_to_game","visible_targets","route_preview","own_towns","town_construction","journal","plan"},
-        unavailable=new[]{"full_map_coverage","movement","town_recruitment","battle","hotseat","lan","installer"} };
+        capabilities=new[]{"observe_own_hero","observe_adventure_ui","open_system_options","return_to_game","visible_targets","route_preview","move_to_target","own_towns","town_construction","town_recruitment","tavern_hero","combat_actions","battle_result","spellbook","save_game","save_list_and_load"},
+        unavailable=new[]{"full_map_coverage","in_game_load_browser","creature_and_spell_cards","full_scenario_setup","hotseat","lan","installer","cost_measurement"} };
     public object Diagnostic()=>reader.DiagnosticPointers();
     public object RawUi()=>reader.DiagnosticDialog();
     public object MapDiagnostic()=>new MapReader(game,player).Diagnostic(reader.Observe());
@@ -208,7 +208,10 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
                     "spell:cancel"=>(36,"combat"),
                     "battle:accept"=>(39,"adventure"),
                     "game:load"=>(45,"message"),
-                    "game:main_menu"=>(25,"main_menu"),
+                    "load:confirm"=>(48,"adventure"),"load:back"=>(53,"main_menu"),
+                    _ when action.Key.StartsWith("load:select:")=>(46,"load_game"),
+                    _ when action.Key.StartsWith("load:open:")=>(46,"load_game"),
+                    "game:main_menu"=>(49,"main_menu"),
                     "save:confirm"=>(44,"message"),"game:save"=>(43,"save_game"),"recruit:max"=>(42,"recruitment"),"recruit:buy"=>(41,"town"),"recruit:cancel"=>(36,"town"),
                     "tavern:hire"=>(41,"town"),"tavern:close"=>(36,"town"),
                     _ when action.Key.StartsWith("spell:target:")=>(38,"combat"),
@@ -238,6 +241,8 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
                 (nativeOperation,expected)=(before.Screen,item.Id,item.Asset) switch {
                     ("adventure",10,"iam009.def")=>(1,"system_options"),
                     ("system_options",30722,"soretrn.def")=>(2,"adventure"),
+                    ("save_game",188,"gspexit.def")=>(50,"system_options"),
+                    ("load_game",188,"scnrback.def")=>(50,"main_menu"),
                     ("system_options",102,"soload.def")=>(45,"message"),
                     ("system_options",106,"sosave.def")=>(43,"save_game"),
                     ("message",30722,"iokay.def")=>(26,"adventure"),
@@ -280,12 +285,52 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
                 var button=before.Elements.Single(e=>e.Key==request.Element);
                 await game.MouseAsync(button.X+button.Width/2,button.Y+button.Height/2,before.Width,before.Height,true,CancellationToken.None);
             }
+            else if(nativeOperation==46)
+            {
+                // Own save browser: a file or folder row is an ordinary dialog control of the
+                // browser, clicked in its own reported bounds. The game keeps its own list state.
+                int index=int.Parse(request.Element.Split(':')[2]);
+                var entry=before.Saves?.Entries.SingleOrDefault(e=>e.Index==index)
+                    ??throw new InvalidOperationException("Unknown save entry; observe the browser again");
+                bool folder=request.Element.StartsWith("load:open:");
+                if(entry.Folder!=folder||entry.Width<1||entry.Height<1)throw new InvalidOperationException("Save row is not selectable in the visible window");
+                await game.MouseAsync(entry.X+entry.Width/2,entry.Y+entry.Height/2,before.Width,before.Height,true,CancellationToken.None);
+            }
+            else if(nativeOperation==48)
+            {
+                // The verified save path activates its browser button with an addressed window
+                // mouse event at the control's own reported bounds. The load browser button uses
+                // the same ordinary mechanism, so the dialog runs its own close/result path.
+                var button=before.Elements.Single(e=>e.Id==186&&e.Asset=="scnrlod.def"&&e.Interactive);
+                await game.MouseAsync(button.X+button.Width/2,button.Y+button.Height/2,before.Width,before.Height,true,CancellationToken.None);
+            }
+            else if(nativeOperation==49)
+            {
+                // System options "Main menu": the same addressed window mouse event used by the
+                // verified save/load browser buttons; the vtable hook left this dialog open.
+                var button=before.Elements.Single(e=>e.Id==108&&e.Asset=="somain.def"&&e.Interactive);
+                await game.MouseAsync(button.X+button.Width/2,button.Y+button.Height/2,before.Width,before.Height,true,CancellationToken.None);
+            }
+            else if(nativeOperation is 26 or 29 or 30)
+            {
+                // Modal question buttons are ordinary dialog controls addressed by their own
+                // reported id/asset; an ordinary window mouse event runs the dialog's real
+                // result path. The earlier keyboard experiment left questions unanswered.
+                int wanted=nativeOperation==30?30726:nativeOperation==29?30725:30722;
+                string asset=nativeOperation==30?"icancel.def":"iokay.def";
+                var button=before.Elements.Single(e=>e.Id==wanted&&e.Asset==asset&&e.Interactive);
+                await game.MouseAsync(button.X+button.Width/2,button.Y+button.Height/2,before.Width,before.Height,true,CancellationToken.None);
+            }
+            else if(nativeOperation==53)
+            {
+                // Browser exit button of the load/save browser, addressed by its own control bounds.
+                var button=before.Elements.Single(e=>e.Id==188&&(e.Asset=="scnrback.def"||e.Asset=="gspexit.def")&&e.Interactive);
+                await game.MouseAsync(button.X+button.Width/2,button.Y+button.Height/2,before.Width,before.Height,true,CancellationToken.None);
+            }
             else if(nativeOperation==27)await game.KeyAsync(0x1b,0x01);
             else if(nativeOperation==28)await game.KeyAsync(0x45,0x12);
             else if(nativeOperation==32)await game.KeyAsync(0x57,0x11);
             else if(nativeOperation==33)await game.KeyAsync(0x44,0x20);
-            else if(nativeOperation is 26 or 29)await game.KeyAsync(0x0d,0x1c);
-            else if(nativeOperation==30)await game.KeyAsync(0x1b,0x01);
             else if(nativeOperation==45)await game.KeyAsync(0x4c,0x26);
             else if(nativeOperation==44)
             {
@@ -327,10 +372,12 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
                 bool logConfirmed=!logRequired||after?.Combat is not null&&after.Combat.LogCount>before.Combat!.LogCount;
                 if(nativeOperation==38)logConfirmed=logConfirmed&&after?.Hero?.Mana<before.Hero?.Mana;
                 bool combatConfirmed=nativeOperation is not (32 or 33 or 34)||after?.Combat?.OwnTurn==true&&(after.Combat.ActiveStack!=before.Combat?.ActiveStack||after.Combat.Round!=before.Combat?.Round);
+                // Loading a saved game must produce a real party, not only a screen change.
+                bool loadConfirmed=nativeOperation!=48||request.Element!="load:confirm"||(after?.Hero is not null&&after.Date.Length>0);
                 // A screen change must be visible in the revision; screen equality alone is not evidence.
                 bool screenChanged=after is not null&&after.Screen!=before.Screen&&after.Revision!=before.Revision;
                 bool sameScreenReset=after is not null&&after.Screen==before.Screen&&after.Revision!=before.Revision;
-                if(after is not null&&((screenChanged&&(after.Screen==expected||nativeOperation==28&&after.Screen=="message"))||sameScreenReset)&&settingConfirmed&&turnConfirmed&&combatConfirmed&&logConfirmed)
+                if(after is not null&&((screenChanged&&(after.Screen==expected||nativeOperation==28&&after.Screen=="message"))||sameScreenReset)&&settingConfirmed&&turnConfirmed&&combatConfirmed&&logConfirmed&&loadConfirmed)
                 {
                     if(after.Combat is not null&&before.Combat is not null)
                         Record("combat_action_evidence",new{request.OperationId,Action=request.Element,BeforeLogCount=before.Combat.LogCount,AfterLogCount=after.Combat.LogCount,Entries=after.Combat.Log.Where(e=>e.Index>=before.Combat.LogCount).ToArray()});
