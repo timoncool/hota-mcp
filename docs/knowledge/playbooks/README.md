@@ -4,6 +4,7 @@
 
 | Файл | Тип | Заголовок | О чём |
 | --- | --- | --- | --- |
+| `00-situations.md` | how-to | Ситуации и как в них быть (короткие правила для агента) | Это прямой ответ на вопрос «что мне делать сейчас». Каждый раздел — одна ситуация и одно решение. |
 | `agent-skill-draft.md` | how-to | Черновик | topics: [agent-loop, capability-discovery, stale, uncertain, mcp] |
 | `battle-cycle.md` | how-to | Подготовка | topics: [battle, tactics, simulation, uncertainty] |
 | `game-start.md` | how-to | Цель | topics: [startup, session, capabilities, visibility] |
