@@ -76,6 +76,11 @@ def cmd_move(args):
     summary(r)
 
 
+def cmd_mapclick(args):
+    r = call('map-click', {'x': int(args[0]), 'y': int(args[1])})
+    summary(r)
+
+
 def cmd_attack(args):
     o = call('observe'); revision = o.get('revision')
     import uuid
@@ -121,7 +126,7 @@ def cmd_docs(args):
         print(h['text'][:900])
 
 
-COMMANDS = {'observe': cmd_observe, 'click': cmd_click, 'nearby': cmd_nearby, 'move': cmd_move, 'attack': cmd_attack, 'movetile': cmd_movetile,
+COMMANDS = {'observe': cmd_observe, 'click': cmd_click, 'nearby': cmd_nearby, 'move': cmd_move, 'attack': cmd_attack, 'mapclick': cmd_mapclick, 'movetile': cmd_movetile,
             'status': cmd_status, 'raw': cmd_raw, 'journal': cmd_journal, 'snapshot': cmd_snapshot, 'docs': cmd_docs}
 
 if __name__ == '__main__':

@@ -109,6 +109,7 @@ internal sealed class GameSession(int? requestedPid,int player,string directory,
     public Task<Observation> Observe(CancellationToken ct)=>WithGame(b=>b.Observe(ct),ct);
     public Task<OperationResult> Move(MoveRequest request,CancellationToken ct)=>WithGame(async b=>{await EnsureAdapter(ct);return await b.Move(request,ct);},ct);
     public Task<OperationResult> Attack(MoveRequest request,CancellationToken ct)=>WithGame(async b=>{await EnsureAdapter(ct);return await b.Attack(request,ct);},ct);
+    public Task<OperationResult> MapClick(MapClickRequest request,CancellationToken ct)=>WithGame(async b=>{await EnsureAdapter(ct);return await b.MapClick(request,ct);},ct);
     public Task<OperationResult> MoveToTile(TileMoveRequest request,CancellationToken ct)=>WithGame(async b=>{await EnsureAdapter(ct);return await b.MoveToTile(request,ct);},ct);
     public Task<DebugSnapshot> Snapshot(CancellationToken ct)=>WithGame(b=>b.Snapshot(ct),ct);
     public Task<CaptureResult> Capture(CancellationToken ct)=>WithGame(b=>b.Capture(ct),ct);

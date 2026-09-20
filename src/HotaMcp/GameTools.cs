@@ -6,6 +6,9 @@ namespace HotaMcp;
 [McpServerToolType]
 public sealed class GameTools(IGameEndpoint endpoint)
 {
+    [McpServerTool,Description("Click a point on the adventure map surface (game pixel coordinates). This is the game's own way to make it compute routes: after such a click the route cache exists and nearby_targets starts reporting reachable routes. Use the centre of the map area to reach the hero's own tile without ordering a move.")]
+    public Task<OperationResult> MapClick(int x,int y,CancellationToken cancellationToken)=>endpoint.MapClick(new(x,y),cancellationToken);
+
     [McpServerTool,Description("Move the selected own hero onto a visible creature stack and start the battle deliberately. Use only after observing the situation; the ordinary move_to now refuses creature cells, because stepping there fights. The game decides the outcome; uncertain is not permission to retry under another operation ID.")]
     public Task<OperationResult> AttackTarget(string operationId,string revision,string targetId,CancellationToken cancellationToken)=>endpoint.Attack(new(operationId,revision,targetId),cancellationToken);
 

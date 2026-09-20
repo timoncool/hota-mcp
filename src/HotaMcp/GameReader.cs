@@ -221,7 +221,7 @@ internal sealed class GameReader(WindowsGame game,int player)
             if(vt is 0x63bb54 or 0x63bb88||(screen=="spellbook"||screen=="adventure")&&vt==0x63ec48) asset=game.Text(game.U32(a+0x30)+4,16);
             if(vt==0x63bb88)text=game.Text(game.U32(a+0x5c));
             bool interactive=(vt is 0x63bb54 or 0x63bb88||(screen=="spellbook"||screen=="adventure")&&vt==0x63ec48)&&(state&2)!=0&&(state&0x28)==0;
-            if(string.IsNullOrEmpty(text)&&asset==null) continue;
+            if(string.IsNullOrEmpty(text)&&asset==null&&!(screen=="message"&&(state&2)!=0)) continue;
             items.Add(new($"ui:{controlIndex}",BitConverter.ToUInt16(b,0x10),text,asset,
                 dx+BitConverter.ToInt16(b,0x18),dy+BitConverter.ToInt16(b,0x1a),iw,ih,interactive));
         }
@@ -257,6 +257,7 @@ internal sealed class GameReader(WindowsGame game,int player)
         }
         if(screen=="adventure")foreach(var town in towns)actions.Add(new($"town:open:{town.Id}",$"Открыть город: {town.Name}"));
         if(screen=="adventure"&&hero is null)actions.Add(new("hero:select","Выбрать своего героя на карте (штатная клавиша H)"));
+        if(screen=="adventure"&&hero is not null)actions.Add(new("hero:move","Переместить героя по проложенному пути (штатная клавиша M)"));
         if(screen=="adventure"&&items.Any(i=>i.Id==12&&i.Asset=="iam001.def"&&i.Interactive))actions.Add(new("turn:end","Закончить ход; игра может запросить подтверждение"));
         if(screen=="town")
         {

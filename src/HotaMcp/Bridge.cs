@@ -5,13 +5,14 @@ namespace HotaMcp;
 public sealed record OperationRequest(string OperationId,string Revision,string Element);
 public sealed record OperationResult(string Status,string Message,Observation? Observation);
 public sealed record JournalEntry(long Sequence,DateTimeOffset Time,string Kind,object Data);
-public sealed record TargetView(string Id,string Kind,RouteView Route);
+public sealed record TargetView(string Id,string Kind,RouteView Route,int X=0,int Y=0,int Z=0);
 public sealed record NearbyTargets(string Revision,int HeroId,int Movement,List<TargetView> Targets,string Coverage);
 public sealed record DocsRequest(string Query,int Limit);
 public sealed record TargetInspection(string Id,string Kind,RouteView Route,string Revision);
 public sealed record DebugSnapshot(Observation Observation,CaptureResult Capture,string ObservationPath);
 public sealed record MoveRequest(string OperationId,string Revision,string TargetId);
 public sealed record TileMoveRequest(string OperationId,string Revision,int X,int Y,int Z);
+public sealed record MapClickRequest(int X,int Y);
 public sealed record TextRequest(string Revision,string Element,string Text);
 
 internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) : IDisposable
@@ -25,7 +26,22 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
     private readonly Dictionary<MapObject,string> targetIds=new();
     public Task<OperationResult> Move(MoveRequest request,CancellationToken ct)=>MoveCore(request,false,ct);
     public Task<OperationResult> Attack(MoveRequest request,CancellationToken ct)=>MoveCore(request,true,ct);
-    private async Task<OperationResult> MoveCore(MoveRequest request,bool attack,CancellationToken ct)
+    public async Task<OperationResult> MapClick(MapClickRequest request,CancellationToken ct)
+    {
+        await gate.WaitAsync(ct);
+        try
+        {
+            var before=reader.Observe();
+            if(before.Screen!="adventure")throw new InvalidOperationException("Adventure map required");
+            if(request.X<0||request.Y<0||request.X>=before.Width||request.Y>=before.Height)throw new InvalidOperationException("Point is outside the game surface");
+            await game.MouseAsync(request.X,request.Y,before.Width,before.Height,true,CancellationToken.None);
+            await Task.Delay(400,CancellationToken.None);
+            Record("map_click",request);
+            return new("completed","Map point clicked",null);
+        }
+        finally{gate.Release();}
+    }
+    public async Task<OperationResult> MoveCore(MoveRequest request,bool attack,CancellationToken ct)
     {
         await gate.WaitAsync(ct);
         try
@@ -181,7 +197,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             foreach(var target in region.Objects)
             {
                 if(!targetIds.TryGetValue(target,out var id)){id="target_"+Guid.NewGuid().ToString("N")[..12];targetIds.Add(target,id);targets.Add(id,target);}
-                list.Add(new(id,target.Kind,new RouteReader(game,player).Read(observation,target)));
+                list.Add(new(id,target.Kind,new RouteReader(game,player).Read(observation,target),target.X,target.Y,target.Z));
             }
             if(reader.Observe().Revision!=observation.Revision)throw new InvalidOperationException("State changed; request targets again");
             return new(observation.Revision,hero.Id,hero.Movement,list,"Recognized visible objects near selected hero; list is not exhaustive");
@@ -299,6 +315,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
                     "town:lead"=>(60,"town"),
                     "town:banner"=>(61,"town"),
                     "hero:switch"=>(62,"town"),
+                    "hero:move"=>(65,"adventure"),
                     "hero:out"=>(63,"town"),
                     "hero:close"=>(64,"hero_screen"),
                     _ when action.Key.StartsWith("town:take:")=>(57,"town"),
@@ -320,7 +337,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             else
             {
                 var item=before.Elements.SingleOrDefault(e=>e.Key==request.Element);
-                if(item is null||!item.Interactive)throw new InvalidOperationException("Action unavailable");
+                if(item is null||(!item.Interactive&&before.Screen!="message"))throw new InvalidOperationException("Action unavailable");
                 (nativeOperation,expected)=(before.Screen,item.Id,item.Asset) switch {
                     ("adventure",10,"iam009.def")=>(1,"system_options"),
                     ("system_options",30722,"soretrn.def")=>(2,"adventure"),
@@ -331,6 +348,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
                     ("message",30722,"iokay.def")=>(26,"adventure"),
                     ("message",30725,"iokay.def")=>(29,"adventure"),
                     ("message",30726,"icancel.def")=>(30,"adventure"),
+                    _ when before.Screen=="message"=>(68,"message"),
                     _=>throw new InvalidOperationException("Use an available semantic action")
                 };
             }
@@ -443,6 +461,19 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             else if(nativeOperation==27)await game.KeyAsync(0x1b,0x01);
             else if(nativeOperation==59)await game.KeyAsync(0x1b,0x01);
             else if(nativeOperation==64)await game.KeyAsync(0x1b,0x01);
+            else if(nativeOperation==65)
+            {
+                // Manual, Section IV: "M - Moves current hero". The route is planned by a map click
+                // (the game's own route preview); M then sends the hero along that planned path.
+                await game.KeyAsync(0x4d,0x32);
+            }
+            else if(nativeOperation==68)
+            {
+                // Ordinary window mouse event on a message-dialog control published by the adapter
+                // (for example the gold / experience choice inside a treasure chest dialog).
+                var button=before.Elements.Single(e=>e.Key==request.Element);
+                await game.MouseAsync(button.X+button.Width/2,button.Y+button.Height/2,before.Width,before.Height,true,CancellationToken.None);
+            }
             else if(nativeOperation==62)
             {
                 // Manual, Section IV: on the town screen "Space - Switches visiting/garrison heroes".
@@ -582,6 +613,7 @@ public interface IGameEndpoint
 {
     Task<OperationResult> Move(MoveRequest request,CancellationToken ct);
     Task<OperationResult> Attack(MoveRequest request,CancellationToken ct);
+    Task<OperationResult> MapClick(MapClickRequest request,CancellationToken ct);
     Task<OperationResult> MoveToTile(TileMoveRequest request,CancellationToken ct);
     Task<DebugSnapshot> Snapshot(CancellationToken ct);
     Task<object> Start(CancellationToken ct);
@@ -606,6 +638,7 @@ internal sealed class LocalEndpoint(Bridge bridge) : IGameEndpoint
 {
     public Task<OperationResult> Move(MoveRequest request,CancellationToken ct)=>bridge.Move(request,ct);
     public Task<OperationResult> Attack(MoveRequest request,CancellationToken ct)=>bridge.Attack(request,ct);
+    public Task<OperationResult> MapClick(MapClickRequest request,CancellationToken ct)=>bridge.MapClick(request,ct);
     public Task<OperationResult> MoveToTile(TileMoveRequest request,CancellationToken ct)=>bridge.MoveToTile(request,ct);
     public Task<DebugSnapshot> Snapshot(CancellationToken ct)=>bridge.Snapshot(ct);
     public Task<object> Start(CancellationToken ct)=>throw new InvalidOperationException("Game is already attached");
@@ -631,6 +664,7 @@ internal sealed class RemoteEndpoint(HttpClient client) : IGameEndpoint
 {
     public Task<OperationResult> Move(MoveRequest request,CancellationToken ct)=>Call<OperationResult>("bridge/move",request,ct);
     public Task<OperationResult> Attack(MoveRequest request,CancellationToken ct)=>Call<OperationResult>("bridge/attack",request,ct);
+    public Task<OperationResult> MapClick(MapClickRequest request,CancellationToken ct)=>Call<OperationResult>("bridge/map-click",request,ct);
     public Task<OperationResult> MoveToTile(TileMoveRequest request,CancellationToken ct)=>Call<OperationResult>("bridge/move-tile",request,ct);
     public Task<DebugSnapshot> Snapshot(CancellationToken ct)=>Call<DebugSnapshot>("bridge/debug-snapshot",new{},ct);
     public Task<object> Start(CancellationToken ct)=>Call<object>("bridge/start",new{},ct);
