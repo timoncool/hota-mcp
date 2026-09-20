@@ -10,6 +10,7 @@ public sealed record NearbyTargets(string Revision,int HeroId,int Movement,List<
 public sealed record TargetInspection(string Id,string Kind,RouteView Route,string Revision);
 public sealed record DebugSnapshot(Observation Observation,CaptureResult Capture,string ObservationPath);
 public sealed record MoveRequest(string OperationId,string Revision,string TargetId);
+public sealed record TileMoveRequest(string OperationId,string Revision,int X,int Y,int Z);
 public sealed record TextRequest(string Revision,string Element,string Text);
 
 internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) : IDisposable
@@ -72,6 +73,57 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
                 }
             }
             Record("move_uncertain",request);return pending;
+        }
+        finally{gate.Release();}
+    }
+    public async Task<OperationResult> MoveToTile(TileMoveRequest request,CancellationToken ct)
+    {
+        await gate.WaitAsync(ct);
+        try
+        {
+            if(string.IsNullOrWhiteSpace(request.OperationId)||request.OperationId.Length>100)throw new InvalidOperationException("Invalid operation ID");
+            var identity=new OperationRequest(request.OperationId,request.Revision,$"move-tile:{request.X},{request.Y},{request.Z}");
+            if(operations.TryGetValue(request.OperationId,out var prior))
+            {
+                if(prior.Request!=identity)throw new InvalidOperationException("Operation ID reused with different arguments");
+                return prior.Result;
+            }
+            var before=reader.Observe();
+            if(before.Revision!=request.Revision||before.Screen!="adventure"||before.Hero is null)throw new InvalidOperationException("Fresh own-hero adventure observation required");
+            if(request.X<0||request.Y<0||request.X>255||request.Y>255||request.Z<0||request.Z>1)throw new InvalidOperationException("Cell outside supported map bounds");
+            int[] destination=[request.X,request.Y,request.Z];
+            var pending=new OperationResult("uncertain","Movement preparation started; inspect state before any retry with a new ID",null);
+            operations.Add(request.OperationId,(identity,pending));Record("move_tile_started",request);
+            if(!before.Hero.PlannedDestination.SequenceEqual(destination))game.NativeAction(31,player,request.X|(request.Y<<8)|(request.Z<<16));
+            Observation? planned=null;
+            for(int i=0;i<20;i++)
+            {
+                await Task.Delay(50,CancellationToken.None);
+                try{planned=reader.Observe();}catch(InvalidOperationException){continue;}
+                if(planned.Hero?.Id==before.Hero.Id&&planned.Hero.PlannedDestination.SequenceEqual(destination))break;
+            }
+            if(planned?.Hero?.Id!=before.Hero.Id||!planned.Hero.PlannedDestination.SequenceEqual(destination))
+            {
+                Record("move_tile_preparation_unconfirmed",new{request.OperationId,planned});return pending;
+            }
+            if(planned.Hero.Movement!=before.Hero.Movement||!planned.Hero.Position.SequenceEqual(before.Hero.Position))throw new InvalidOperationException("Hero changed during route preparation");
+            // M is the game's ordinary move-along-selected-path command.
+            await game.KeyAsync(0x4d,0x32);
+            DateTime deadline=DateTime.UtcNow.AddSeconds(12);
+            while(DateTime.UtcNow<deadline)
+            {
+                await Task.Delay(100,CancellationToken.None);
+                Observation after;
+                try{after=reader.Observe();}catch(InvalidOperationException){continue;}
+                bool arrived=after.Hero?.Position.SequenceEqual(destination)==true;
+                bool advanced=after.Hero?.Id==before.Hero.Id&&after.Hero.Movement<before.Hero.Movement&&!after.Hero.Position.SequenceEqual(before.Hero.Position);
+                if(after.Screen!="adventure"||arrived||advanced)
+                {
+                    var result=new OperationResult("completed",arrived?"Hero reached the commanded cell":after.Screen!="adventure"?"Movement opened an interaction; read the dialog":"Hero advanced along the commanded path",after);
+                    operations[request.OperationId]=(identity,result);Record("move_tile_completed",new{request.OperationId,result});return result;
+                }
+            }
+            Record("move_tile_uncertain",request);return pending;
         }
         finally{gate.Release();}
     }
@@ -454,6 +506,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
 public interface IGameEndpoint
 {
     Task<OperationResult> Move(MoveRequest request,CancellationToken ct);
+    Task<OperationResult> MoveToTile(TileMoveRequest request,CancellationToken ct);
     Task<DebugSnapshot> Snapshot(CancellationToken ct);
     Task<object> Start(CancellationToken ct);
     Task<object> Graphics(string? renderer,CancellationToken ct);
@@ -473,6 +526,7 @@ public interface IGameEndpoint
 internal sealed class LocalEndpoint(Bridge bridge) : IGameEndpoint
 {
     public Task<OperationResult> Move(MoveRequest request,CancellationToken ct)=>bridge.Move(request,ct);
+    public Task<OperationResult> MoveToTile(TileMoveRequest request,CancellationToken ct)=>bridge.MoveToTile(request,ct);
     public Task<DebugSnapshot> Snapshot(CancellationToken ct)=>bridge.Snapshot(ct);
     public Task<object> Start(CancellationToken ct)=>throw new InvalidOperationException("Game is already attached");
     public Task<object> Graphics(string? renderer,CancellationToken ct)=>throw new InvalidOperationException("Launcher host required");
@@ -492,6 +546,7 @@ internal sealed class LocalEndpoint(Bridge bridge) : IGameEndpoint
 internal sealed class RemoteEndpoint(HttpClient client) : IGameEndpoint
 {
     public Task<OperationResult> Move(MoveRequest request,CancellationToken ct)=>Call<OperationResult>("bridge/move",request,ct);
+    public Task<OperationResult> MoveToTile(TileMoveRequest request,CancellationToken ct)=>Call<OperationResult>("bridge/move-tile",request,ct);
     public Task<DebugSnapshot> Snapshot(CancellationToken ct)=>Call<DebugSnapshot>("bridge/debug-snapshot",new{},ct);
     public Task<object> Start(CancellationToken ct)=>Call<object>("bridge/start",new{},ct);
     public Task<object> Graphics(string? renderer,CancellationToken ct)=>Call<object>("bridge/graphics",new{renderer},ct);

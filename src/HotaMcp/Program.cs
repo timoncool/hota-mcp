@@ -92,6 +92,7 @@ app.MapPost("/bridge/debug-snapshot",(CancellationToken ct)=>session.Snapshot(ct
 app.MapPost("/bridge/click",(OperationRequest request,CancellationToken ct)=>session.Click(request,ct));
 app.MapPost("/bridge/text",(TextRequest request,CancellationToken ct)=>session.EnterText(request,ct));
 app.MapPost("/bridge/move",(MoveRequest request,CancellationToken ct)=>session.Move(request,ct));
+app.MapPost("/bridge/move-tile",(TileMoveRequest request,CancellationToken ct)=>session.MoveToTile(request,ct));
 app.MapPost("/bridge/journal",(JournalRequest request,CancellationToken ct)=>session.Journal(request.Limit,ct));
 app.MapPost("/bridge/plan",(PlanRequest request,CancellationToken ct)=>session.Plan(request.Value,ct));
 app.MapPost("/bridge/nearby",(CancellationToken ct)=>session.Nearby(ct));
