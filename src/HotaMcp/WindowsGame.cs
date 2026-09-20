@@ -70,6 +70,32 @@ internal sealed class WindowsGame : IDisposable
         try { await Task.Delay(60,CancellationToken.None); }
         finally { if(!PostMessageW(Window,0x202,0,lp)) throw new InvalidOperationException("Mouse release failed"); }
     }
+    public async Task DragAsync(int fromX,int fromY,int toX,int toY,int width,int height,CancellationToken ct)
+    {
+        if(!GetClientRect(Window,out Rect rect) || IsIconic(Window))
+            throw new InvalidOperationException("Game window unavailable or minimized");
+        if(fromX<0||fromY<0||toX<0||toY<0||fromX>=width||fromY>=height||toX>=width||toY>=height||width<1||height<1)
+            throw new InvalidOperationException("Target is outside game surface");
+        int fx=(int)Math.Round((double)fromX*rect.Right/width),fy=(int)Math.Round((double)fromY*rect.Bottom/height);
+        int tx=(int)Math.Round((double)toX*rect.Right/width),ty=(int)Math.Round((double)toY*rect.Bottom/height);
+        if(fx>32767||fy>32767||tx>32767||ty>32767) throw new InvalidOperationException("Window dimensions unsupported");
+        if(!PostMessageW(Window,0x200,0,(nint)(fx|(fy<<16)))) throw new InvalidOperationException("Mouse dispatch failed");
+        if(!PostMessageW(Window,0x201,1,(nint)(fx|(fy<<16)))) throw new InvalidOperationException("Mouse down failed");
+        try
+        {
+            await Task.Delay(120,CancellationToken.None);
+            const int steps=12;
+            for(int i=1;i<=steps;i++)
+            {
+                ct.ThrowIfCancellationRequested();
+                int x=fx+(tx-fx)*i/steps,y=fy+(ty-fy)*i/steps;
+                if(!PostMessageW(Window,0x200,1,(nint)(x|(y<<16)))) throw new InvalidOperationException("Mouse move failed");
+                await Task.Delay(55,CancellationToken.None);
+            }
+            await Task.Delay(120,CancellationToken.None);
+        }
+        finally { if(!PostMessageW(Window,0x202,0,(nint)(tx|(ty<<16)))) throw new InvalidOperationException("Mouse release failed"); }
+    }
     public void Dispose(){handle.Dispose();Process.Dispose();}
     public bool NativeReady=>GetPropW(Window,"HotAMcp.GameBridge.v1")!=0;
     public void NativeAction(int operation,int player,int argument=0)

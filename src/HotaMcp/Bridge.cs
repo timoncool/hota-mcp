@@ -43,6 +43,9 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             new MapReader(game,player).ValidateTarget(before,target);
             if(!attack&&string.Equals(target.Kind,"creatures",StringComparison.OrdinalIgnoreCase))
                 throw new InvalidOperationException("Danger: this cell holds a creature stack, and moving onto it starts a battle. Approach a neighbouring cell with move_to_tile, or use attack_target to fight deliberately");
+            // Refresh the game's route tree from a hover before ordering the move (see Nearby).
+            await game.MouseAsync(304,280,before.Width,before.Height,false,CancellationToken.None);
+            await Task.Delay(120,CancellationToken.None);
             var pending=new OperationResult("uncertain","Movement preparation started; inspect state before any retry with a new ID",null);
             operations.Add(request.OperationId,(identity,pending));Record("move_started",request);
             if(!before.Hero.PlannedDestination.SequenceEqual(new[]{target.X,target.Y,target.Z}))game.NativeAction(31,player,target.X|(target.Y<<8)|(target.Z<<16));
@@ -168,6 +171,11 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
         try
         {
             var observation=reader.Observe();var hero=observation.Hero??throw new InvalidOperationException("Select a hero first");
+            // The game rebuilds its route tree from the current cursor position. A plain hover (no
+            // click) over the map refreshes that tree exactly as a human moving the mouse does;
+            // without it every route can read as not_available right after the hero leaves a garrison.
+            await game.MouseAsync(304,280,observation.Width,observation.Height,false,CancellationToken.None);
+            await Task.Delay(150,CancellationToken.None);
             var region=new MapReader(game,player).Read(observation,hero.Position[0],hero.Position[1],hero.Position[2],12);
             var list=new List<TargetView>();
             foreach(var target in region.Objects)
@@ -290,6 +298,9 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
                     "split:cancel"=>(59,"town"),
                     "town:lead"=>(60,"town"),
                     "town:banner"=>(61,"town"),
+                    "hero:switch"=>(62,"town"),
+                    "hero:out"=>(63,"town"),
+                    "hero:close"=>(64,"hero_screen"),
                     _ when action.Key.StartsWith("town:take:")=>(57,"town"),
                     "town:tavern"=>(40,"tavern"),
                     _ when action.Key.StartsWith("town:recruit:")=>(40,"recruitment"),
@@ -431,6 +442,23 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             }
             else if(nativeOperation==27)await game.KeyAsync(0x1b,0x01);
             else if(nativeOperation==59)await game.KeyAsync(0x1b,0x01);
+            else if(nativeOperation==64)await game.KeyAsync(0x1b,0x01);
+            else if(nativeOperation==62)
+            {
+                // Manual, Section IV: on the town screen "Space - Switches visiting/garrison heroes".
+                // This is the game's own way to reach a hero stationed in the town garrison.
+                await game.KeyAsync(0x20,0x39);
+            }
+            else if(nativeOperation==63)
+            {
+                // Man's own way out of the garrison: click the hero's portrait to select him, then
+                // click on the row below (the army row). Two plain clicks - not a drag.
+                var portrait=reader.FindControl(241,387,58,64)??throw new InvalidOperationException("Garrison hero portrait control not found in the town dialog");
+                var below=reader.FindControl(241,483,58,64)??throw new InvalidOperationException("Army row control not found in the town dialog");
+                await game.MouseAsync(portrait.X,portrait.Y,before.Width,before.Height,true,CancellationToken.None);
+                await Task.Delay(700,CancellationToken.None);
+                await game.MouseAsync(below.X,below.Y,before.Width,before.Height,true,CancellationToken.None);
+            }
             else if(nativeOperation==60)
             {
                 // Manual (Town Garrison): "click on the hero's portrait to highlight it, and then
