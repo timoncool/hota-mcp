@@ -92,6 +92,33 @@ internal sealed class GameReader(WindowsGame game,int player)
         current=game.I32(0x69ccf4), other=game.I32(0x6995a4), active=game.U32(0x69ccfc),
         main=game.U32(0x699538), mode=game.I32(0x698a40),managers,inputCandidates
     };}
+    public record CardView(uint Vtable,string[] Texts);
+    /// Reads the plain text of whatever dialog is on top right now, without classifying it as a
+    /// supported screen. Used for the game's own info cards, which appear only while the right
+    /// mouse button is held and have no actions of their own.
+    public CardView ReadCard()
+    {
+        uint manager=game.U32(0x6992d0),dlg=game.U32(manager+0x54);
+        if(dlg==0)throw new InvalidOperationException("No dialog on screen");
+        var texts=new List<string>();
+        var seen=new HashSet<uint>();
+        for(uint item=game.U32(dlg+0x2c);item!=0&&seen.Add(item)&&seen.Count<2048;item=game.U32(item+8))
+        {
+            uint vt=game.U32(item);
+            string? text=vt is 0x642dc0 or 0x642df8 or 0x642d50?game.Text(game.U32(item+0x34))
+                :vt==0x63bb88?game.Text(game.U32(item+0x5c)):null;
+            if(!string.IsNullOrWhiteSpace(text))texts.Add(text.Trim());
+        }
+        if(texts.Count==0)
+            for(uint slot=game.U32(dlg+0x34),end=game.U32(dlg+0x38);slot<end&&end-slot<=8192;slot+=4)
+            {
+                uint item=game.U32(slot),vt=game.U32(item);
+                string? text=vt is 0x642dc0 or 0x642df8 or 0x642d50?game.Text(game.U32(item+0x34)):null;
+                if(!string.IsNullOrWhiteSpace(text))texts.Add(text.Trim());
+            }
+        return new(game.U32(dlg),texts.Distinct().ToArray());
+    }
+
     public (int X,int Y)? FindControl(int x,int y,int w,int h)
     {
         // Locate one dialog control by its exact reported rectangle and return its centre.

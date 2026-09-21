@@ -15,7 +15,7 @@ public sealed record TileMoveRequest(string OperationId,string Revision,int X,in
 public sealed record MapClickRequest(int X,int Y);
 public sealed record TextRequest(string Revision,string Element,string Text);
 public sealed record InspectRequest(string Revision,string Element);
-public sealed record ElementCard(string Element,string? Text,Observation Observation);
+public sealed record ElementCard(string Element,string[] Card,Observation Observation);
 
 internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) : IDisposable
 {
@@ -153,21 +153,19 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             var element=before.Elements.SingleOrDefault(e=>e.Key==request.Element)
                 ??throw new InvalidOperationException("Unknown control; observe again");
             await game.RightMouseDownAsync(element.X+element.Width/2,element.Y+element.Height/2,before.Width,before.Height,ct);
+            GameReader.CardView card;
             try
             {
                 await Task.Delay(350,CancellationToken.None);
-                Observation card;
-                try{card=reader.Observe();}
-                catch(InvalidOperationException e)
-                {
-                    throw new InvalidOperationException("The info card of this control is not readable by the adapter yet: "+e.Message);
-                }
-                Record("element_inspected",new{request.Element,card.Screen});
-                string? text=card.Elements.Where(e=>!string.IsNullOrWhiteSpace(e.Text))
-                    .Select(e=>e.Text).FirstOrDefault(t=>t!=element.Text);
-                return new(request.Element,text,card);
+                card=reader.ReadCard();
+                Record("element_inspected",new{request.Element,card.Vtable,card.Texts});
             }
             finally{await game.RightMouseUpAsync();}
+            await Task.Delay(150,CancellationToken.None);
+            var after=reader.Observe();
+            if(after.Screen!=before.Screen)
+                throw new InvalidOperationException("The control reacted instead of showing a card; observe again");
+            return new(request.Element,card.Texts,after);
         }
         finally{gate.Release();}
     }

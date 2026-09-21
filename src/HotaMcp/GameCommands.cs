@@ -108,7 +108,9 @@ internal static class GameCommands
         "menu:new" => new("game_type", Deliveries.Native(20, 101)),
         "menu:load" => new("game_type", Deliveries.Native(20, 102)),
         "menu:back" => new("main_menu", Deliveries.Native(21, 104)),
-        "menu:single" => new("scenario_selection", Deliveries.Native(21, 100)),
+        // Single player leads to the scenario list after "new game" and to the browser after
+        // "load game"; the reader names the browser by the button it carries.
+        "menu:single" => new("scenario_selection,load_game,save_game", Deliveries.Native(21, 100)),
         "scenario:back" => new("main_menu", Deliveries.Native(22)),
         "scenario:maps" => new("scenario_selection", Deliveries.Native(23, 128)),
         "scenario:players" => new("scenario_selection", Deliveries.Native(23, 129)),
