@@ -8,6 +8,7 @@
     <AssemblyName>HotaMcp</AssemblyName>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.12" />
     <PackageReference Include="ModelContextProtocol.AspNetCore" Version="2.2.0" />
   </ItemGroup>
   <ItemGroup Condition="Exists('../../native/game/build/v29/game-attach.exe')">

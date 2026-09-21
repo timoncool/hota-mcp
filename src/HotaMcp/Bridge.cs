@@ -7,7 +7,7 @@ public sealed record OperationResult(string Status,string Message,Observation? O
 public sealed record JournalEntry(long Sequence,DateTimeOffset Time,string Kind,object Data);
 public sealed record TargetView(string Id,string Kind,RouteView Route,int X=0,int Y=0,int Z=0);
 public sealed record NearbyTargets(string Revision,int HeroId,int Movement,List<TargetView> Targets,string Coverage);
-public sealed record DocsRequest(string Query,int Limit);
+public sealed record DocsRequest(string Query,int Limit,string? Detail);
 public sealed record ReferenceRequest(string Name,string? Kind,int Limit);
 public sealed record TargetInspection(string Id,string Kind,RouteView Route,string Revision);
 public sealed record DebugSnapshot(Observation Observation,CaptureResult Capture,string ObservationPath);
@@ -692,8 +692,8 @@ public interface IGameEndpoint
     Task<TileInspection> InspectTile(int x,int y,int z,string revision,CancellationToken ct);
     Task<NearbyTargets> Nearby(CancellationToken ct);
     Task<DocsAnswer> Docs(DocsRequest request,CancellationToken ct);
-    Task<DocsCatalog> DocsCatalog(CancellationToken ct);
-    Task<DocText> DocsRead(string path,string? heading,CancellationToken ct);
+    Task<DocsCatalog> DocsCatalog(string? path,CancellationToken ct);
+    Task<DocText> DocsRead(string path,string? heading,int offset,int maxChars,CancellationToken ct);
     Task<ReferenceAnswer> Reference(ReferenceRequest request,CancellationToken ct);
     Task<TargetInspection> InspectTarget(string targetId,string revision,CancellationToken ct);
 }
@@ -723,9 +723,9 @@ internal sealed class LocalEndpoint(Bridge bridge) : IGameEndpoint
     public Task<MapView> ReadMap(int x,int y,int z,int radius,CancellationToken ct)=>bridge.ReadMap(x,y,z,radius,ct);
     public Task<TileInspection> InspectTile(int x,int y,int z,string revision,CancellationToken ct)=>bridge.InspectTile(x,y,z,revision,ct);
     public Task<NearbyTargets> Nearby(CancellationToken ct)=>bridge.Nearby(ct);
-    public Task<DocsAnswer> Docs(DocsRequest request,CancellationToken ct)=>Task.FromResult(docs.Search(request.Query,request.Limit));
-    public Task<DocsCatalog> DocsCatalog(CancellationToken ct)=>Task.FromResult(docs.Catalog());
-    public Task<DocText> DocsRead(string path,string? heading,CancellationToken ct)=>Task.FromResult(docs.Read(path,heading));
+    public Task<DocsAnswer> Docs(DocsRequest request,CancellationToken ct)=>Task.FromResult(docs.Search(request.Query,request.Limit,request.Detail));
+    public Task<DocsCatalog> DocsCatalog(string? path,CancellationToken ct)=>Task.FromResult(docs.Catalog(path));
+    public Task<DocText> DocsRead(string path,string? heading,int offset,int maxChars,CancellationToken ct)=>Task.FromResult(docs.Read(path,heading,offset,maxChars));
     public Task<ReferenceAnswer> Reference(ReferenceRequest request,CancellationToken ct)=>Task.FromResult(docs.Reference(request.Name,request.Kind,request.Limit));
     public Task<TargetInspection> InspectTarget(string targetId,string revision,CancellationToken ct)=>bridge.InspectTarget(targetId,revision,ct);
 }
@@ -761,8 +761,8 @@ internal sealed class RemoteEndpoint(HttpClient client) : IGameEndpoint
     public Task<TileInspection> InspectTile(int x,int y,int z,string revision,CancellationToken ct)=>Call<TileInspection>("bridge/inspect",new{x,y,z,revision},ct);
     public Task<NearbyTargets> Nearby(CancellationToken ct)=>Call<NearbyTargets>("bridge/nearby",new{},ct);
     public Task<DocsAnswer> Docs(DocsRequest request,CancellationToken ct)=>Call<DocsAnswer>("bridge/docs",request,ct);
-    public Task<DocsCatalog> DocsCatalog(CancellationToken ct)=>Call<DocsCatalog>("bridge/docs-catalog",new{},ct);
-    public Task<DocText> DocsRead(string path,string? heading,CancellationToken ct)=>Call<DocText>("bridge/docs-read",new{path,heading},ct);
+    public Task<DocsCatalog> DocsCatalog(string? path,CancellationToken ct)=>Call<DocsCatalog>("bridge/docs-catalog",new{path},ct);
+    public Task<DocText> DocsRead(string path,string? heading,int offset,int maxChars,CancellationToken ct)=>Call<DocText>("bridge/docs-read",new{path,heading,offset,maxChars},ct);
     public Task<ReferenceAnswer> Reference(ReferenceRequest request,CancellationToken ct)=>Call<ReferenceAnswer>("bridge/reference",request,ct);
     public Task<TargetInspection> InspectTarget(string targetId,string revision,CancellationToken ct)=>Call<TargetInspection>("bridge/target",new{targetId,revision},ct);
 }

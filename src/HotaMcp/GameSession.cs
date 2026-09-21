@@ -126,9 +126,9 @@ internal sealed class GameSession(int? requestedPid,int player,string directory,
     public Task<TileInspection> InspectTile(int x,int y,int z,string revision,CancellationToken ct)=>WithGame(b=>b.InspectTile(x,y,z,revision,ct),ct);
     public Task<NearbyTargets> Nearby(CancellationToken ct)=>WithGame(b=>b.Nearby(ct),ct);
     private readonly DocsIndex docsIndex=new();
-    public Task<DocsAnswer> Docs(DocsRequest request,CancellationToken ct)=>Task.FromResult(docsIndex.Search(request.Query,request.Limit));
-    public Task<DocsCatalog> DocsCatalog(CancellationToken ct)=>Task.FromResult(docsIndex.Catalog());
-    public Task<DocText> DocsRead(string path,string? heading,CancellationToken ct)=>Task.FromResult(docsIndex.Read(path,heading));
+    public Task<DocsAnswer> Docs(DocsRequest request,CancellationToken ct)=>Task.FromResult(docsIndex.Search(request.Query,request.Limit,request.Detail));
+    public Task<DocsCatalog> DocsCatalog(string? path,CancellationToken ct)=>Task.FromResult(docsIndex.Catalog(path));
+    public Task<DocText> DocsRead(string path,string? heading,int offset,int maxChars,CancellationToken ct)=>Task.FromResult(docsIndex.Read(path,heading,offset,maxChars));
     public Task<ReferenceAnswer> Reference(ReferenceRequest request,CancellationToken ct)=>Task.FromResult(docsIndex.Reference(request.Name,request.Kind,request.Limit));
     public Task<TargetInspection> InspectTarget(string targetId,string revision,CancellationToken ct)=>WithGame(b=>b.InspectTarget(targetId,revision,ct),ct);
     public void Dispose(){bridge?.Dispose();adapter?.Dispose();gate.Dispose();}

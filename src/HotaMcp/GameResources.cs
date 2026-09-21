@@ -15,7 +15,7 @@ public sealed class GameResources(IGameEndpoint endpoint)
     [McpServerResource(UriTemplate="hota://docs/index",Name="Documentation index",Title="Hota MCP documentation index",MimeType="application/json")]
     public async Task<string> DocumentationIndex(CancellationToken cancellationToken)
     {
-        var catalog=await endpoint.DocsCatalog(cancellationToken);
+        var catalog=await endpoint.DocsCatalog(null,cancellationToken);
         return JsonSerializer.Serialize(catalog,Json);
     }
 
@@ -23,7 +23,7 @@ public sealed class GameResources(IGameEndpoint endpoint)
     public async Task<string> DocumentationFile(string path,string? heading,CancellationToken cancellationToken)
     {
         // Nested paths arrive as one segment with "~" in place of the directory separator.
-        var result=await endpoint.DocsRead(path.Replace('~','/'),heading,cancellationToken);
+        var result=await endpoint.DocsRead(path.Replace('~','/'),heading,0,20000,cancellationToken);
         return result.Found?result.Text:"Documentation not found: "+(result.Note??result.Path);
     }
 }

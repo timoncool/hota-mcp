@@ -108,9 +108,9 @@ app.MapPost("/bridge/attack",(MoveRequest request,CancellationToken ct)=>session
 app.MapPost("/bridge/map-click",(MapClickRequest request,CancellationToken ct)=>session.MapClick(request,ct));
 app.MapPost("/bridge/move-tile",(TileMoveRequest request,CancellationToken ct)=>session.MoveToTile(request,ct));
 app.MapPost("/bridge/docs",(DocsRequest request,CancellationToken ct)=>session.Docs(request,ct));
-app.MapPost("/bridge/docs-catalog",(CancellationToken ct)=>session.DocsCatalog(ct));
+app.MapPost("/bridge/docs-catalog",(DocsCatalogRequest request,CancellationToken ct)=>session.DocsCatalog(request.Path,ct));
 app.MapPost("/bridge/reference",(ReferenceRequest request,CancellationToken ct)=>session.Reference(request,ct));
-app.MapPost("/bridge/docs-read",(DocsReadRequest request,CancellationToken ct)=>session.DocsRead(request.Path,request.Heading,ct));
+app.MapPost("/bridge/docs-read",(DocsReadRequest request,CancellationToken ct)=>session.DocsRead(request.Path,request.Heading,request.Offset,request.MaxChars,ct));
 app.MapPost("/bridge/journal",(JournalRequest request,CancellationToken ct)=>session.Journal(request.Limit,ct));
 app.MapPost("/bridge/plan",(PlanRequest request,CancellationToken ct)=>session.Plan(request.Value,ct));
 app.MapPost("/bridge/map",(MapRequest request,CancellationToken ct)=>session.ReadMap(request.X,request.Y,request.Z,request.Radius,ct));
@@ -130,7 +130,8 @@ await app.WaitForShutdownAsync();
 record JournalRequest(int Limit);record PlanRequest(string? Value);
 record TargetRequest(string TargetId,string Revision);
 record GraphicsRequest(string? Renderer);
-record DocsReadRequest(string Path,string? Heading);
+record DocsReadRequest(string Path,string? Heading,int Offset,int MaxChars);
+record DocsCatalogRequest(string? Path);
 record MapRequest(int X,int Y,int Z,int Radius);
 record TileRequest(int X,int Y,int Z,string Revision);
 

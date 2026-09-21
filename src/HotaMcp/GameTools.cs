@@ -36,18 +36,20 @@ public sealed class GameTools(IGameEndpoint endpoint)
     [McpServerTool,Description("Read supported capabilities and current development limitations. No game action.")]
     public Task<object> GameStatus(CancellationToken cancellationToken)=>endpoint.Status(cancellationToken);
 
-    [McpServerTool,Description("Ask the project's own documentation and get the matching text back: game rules, playbooks, hotkeys and controls, combat, towns and economy, save/load cycle, capability map and the running lessons log. Use this whenever you are unsure what to do next, how a game function is operated, or whether a capability exists. Returns the best matching sections with their file, heading, score and text; empty hits mean the documentation does not cover the question yet.")]
-    public Task<DocsAnswer> HotaDocs(string query,int limit,CancellationToken cancellationToken)=>endpoint.Docs(new(query,limit<=0?3:limit),cancellationToken);
+    [McpServerTool,Description("Ask the game reference a direct question and get the passage that answers it: rules, formulas, combat, movement, towns and economy, skills and spells, object guards, hotkeys, and this bridge's own playbooks. Ask in plain words (\"как считается урон\", \"какая охрана у утопии драконов\"). Ranking is BM25 over sections; a misheard or mistyped query falls back to closest titles by spelling. detail controls cost: \"snippet\" (default) returns only the answering passage, \"titles\" returns file and heading alone for orientation, \"full\" returns whole sections and costs several times more. Read the whole section with hota_docs_read instead of asking for full detail on every hit.")]
+    public Task<DocsAnswer> HotaDocs(string query,int limit,string? detail,CancellationToken cancellationToken)
+        =>endpoint.Docs(new(query,limit<=0?3:limit,detail),cancellationToken);
 
-    [McpServerTool,Description("List every document this bridge can answer from, with the headings inside each document. Use it when no search hit looks right, or to see what knowledge exists before asking.")]
-    public Task<DocsCatalog> HotaDocsCatalog(CancellationToken cancellationToken)=>endpoint.DocsCatalog(cancellationToken);
+    [McpServerTool,Description("List what the reference contains. Without a path it names every document and how many sections each holds; with a path it lists that document's headings so you can read one section instead of the whole file. Use it when no search hit looks right, or to see what subjects exist before asking.")]
+    public Task<DocsCatalog> HotaDocsCatalog(string? path,CancellationToken cancellationToken)=>endpoint.DocsCatalog(path,cancellationToken);
 
     [McpServerTool,Description("Look up the game's own rule card for a named thing: a secondary skill, a spell, a creature, an artefact, a building, a map object or a faction. The data is read from the rule tables of the installed game, so it matches the exact HotA version being played, including what each mastery level of a skill does and what a spell costs. Pass kind to narrow the search (навык, заклинание, существо, артефакт, здание, объект карты). This is reference only and says nothing about the current party; use observe for that.")]
     public Task<ReferenceAnswer> HotaReference(string name,string? kind,int limit,CancellationToken cancellationToken)
         =>endpoint.Reference(new(name,kind,limit<=0?3:limit),cancellationToken);
 
-    [McpServerTool,Description("Read one document, or one heading inside it, exactly as the catalog or a search hit named it. Use after a search to read the full section instead of guessing from a snippet.")]
-    public Task<DocText> HotaDocsRead(string path,string? heading,CancellationToken cancellationToken)=>endpoint.DocsRead(path,heading,cancellationToken);
+    [McpServerTool,Description("Read one document, or one heading inside it, exactly as the catalog or a search hit named it. Use after a search to read the whole section instead of guessing from a passage. Long text is returned in windows: maxChars caps the window (default 6000) and offset continues where the previous window ended, so nothing is silently cut.")]
+    public Task<DocText> HotaDocsRead(string path,string? heading,int offset,int maxChars,CancellationToken cancellationToken)
+        =>endpoint.DocsRead(path,heading,offset,maxChars,cancellationToken);
 
     [McpServerTool,Description("Observe your assigned player's own hero/resources and supported active UI. Returns a revision required for actions. Unknown screens and wrong-player contexts are denied.")]
     public Task<Observation> Observe(CancellationToken cancellationToken)=>endpoint.Observe(cancellationToken);
