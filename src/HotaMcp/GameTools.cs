@@ -51,7 +51,7 @@ public sealed class GameTools(IGameEndpoint endpoint)
     public Task<DocText> HotaDocsRead(string path,string? heading,int offset,int maxChars,CancellationToken cancellationToken)
         =>endpoint.DocsRead(path,heading,offset,maxChars,cancellationToken);
 
-    [McpServerTool,Description("Observe your assigned player's own hero/resources and supported active UI. Returns a revision required for actions. Unknown screens and wrong-player contexts are denied.")]
+    [McpServerTool,Description("The whole state of your side in one call, and the only source of the revision every action needs. Carries: the date; your seven resources; Heroes — EVERY hero you own with id, name, map position, movement left, mana, primary skills and army, not only the selected one; Towns — EVERY town you own with its garrison, what is built, and whether today’s single building is already spent; the selected hero; the active screen with its controls; and Actions, the semantic keys that are legal on this screen right now. Read Heroes and Towns at the start of every turn instead of cycling the hero selection to find out what you have — an idle garrison or a hero standing still is an army you are not using. Unknown screens and wrong-player contexts are denied rather than guessed.")]
     public Task<Observation> Observe(CancellationToken cancellationToken)=>endpoint.Observe(cancellationToken);
 
     [McpServerTool,Description("Click a validated UI action from the latest observation. Accepts a key from observation Actions or validated system-option buttons. Includes own towns, construction cards and purchase/cancel. Game enforces costs and daily construction limits. Use the SAME operationId for retries; never retry an uncertain action with a new ID.")]

@@ -10,6 +10,47 @@ game's own handlers; it never picks a target, plans a route of its own, or decid
 is yours. Tool names come from the connected server as the harness exposes them (a namespace may be
 prepended); call `game_status` first to see what this build supports.
 
+## Everything the bridge gives you
+
+Twenty-three tools, in four groups. `docs/knowledge/agent/01-tools.md` holds the generated list with
+the full text of every description; this is the map.
+
+**Knowing the state**
+- `game_status` — what this build supports and what it does not. Call it once at the start.
+- `observe` — the whole state of your side plus the revision every action needs: date, resources,
+  every hero you own, every town with its garrison and whether today's building is spent, the active
+  screen, its controls and the legal actions. This is the one call you cannot skip.
+- `nearby_targets` — recognised visible objects near the selected hero, by stable id.
+- `inspect_target` — makes the game compute the route to one destination and returns cost, steps and
+  a state with a reason. Route data in `nearby_targets` is a stale cache; this is the live answer.
+- `read_map` — terrain, roads, blocked cells and visible objects around a cell, radius up to 12.
+- `read_journal` — what this controller did recently. `plan` — read or write your own goals.
+
+**Looking the way a player looks**
+- `inspect_cell` — right-button card for a map cell: which creature stands there and roughly how many.
+- `inspect_element` — right-button card for a control on the current screen: creature stats, skill
+  and spell texts, artefact descriptions. Nothing is activated.
+
+**Acting**
+- `act` — any semantic key from `observe.Actions`: town, construction, recruitment, tavern, hero
+  screen, combat, dialogs, end of turn. This is the main verb.
+- `click_ui` — the same delivery for a validated control when no semantic key exists yet.
+- `move_to` / `move_to_tile` — walk the selected hero to a target id or to an explicit cell.
+- `attack_target` — deliberately start a fight with a visible stack; ordinary movement refuses it.
+- `map_click` — make the game compute routes from a point of the map surface.
+- `start_game`, `launcher_graphics` — raise the game through the existing launcher, read or choose
+  its renderer.
+
+**The reference** — `hota_docs`, `hota_docs_catalog`, `hota_docs_read`, `hota_reference`. Described
+in the next section.
+
+**Diagnostics, not gameplay** — `debug_snapshot`, `debug_capture`. They save a frame of the game
+window to a file for a developer looking at coverage. They are not how the game is read.
+
+Every acting tool takes `operationId` and `revision`. The revision comes from the observation you
+acted on; a stale one is refused. The operation id is yours and must stay the same on a retry of the
+same intent — repeating an `uncertain` action under a fresh id is how a hero gets moved twice.
+
 ## The reference: ask it, do not guess
 
 The bridge carries a knowledge base of the game and answers direct questions. Use it whenever you
