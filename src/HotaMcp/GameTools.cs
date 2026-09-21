@@ -53,6 +53,10 @@ public sealed class GameTools(IGameEndpoint endpoint)
     public Task<OperationResult> Act(string operationId,string revision,string action,CancellationToken cancellationToken)
         =>endpoint.Click(new(operationId,revision,action),cancellationToken);
 
+    [McpServerTool,Description("Read the game's own info card for one control from the latest observation: creature stats, skill or spell description, artefact text, hero details. The bridge holds the right mouse button the way a player does, reads the card and releases it, so the control is not activated and nothing is bought, moved or spent. Pass the element key from observe.Elements.")]
+    public Task<ElementCard> InspectElement(string revision,string element,CancellationToken cancellationToken)
+        =>endpoint.InspectElement(new(revision,element),cancellationToken);
+
     [McpServerTool,Description("Read this controller's recent action results and plan updates. Contains no opponent history.")]
     public Task<object> ReadJournal(int limit,CancellationToken cancellationToken)=>endpoint.Journal(limit,cancellationToken);
 

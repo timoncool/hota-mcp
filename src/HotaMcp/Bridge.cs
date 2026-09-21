@@ -14,205 +14,105 @@ public sealed record MoveRequest(string OperationId,string Revision,string Targe
 public sealed record TileMoveRequest(string OperationId,string Revision,int X,int Y,int Z);
 public sealed record MapClickRequest(int X,int Y);
 public sealed record TextRequest(string Revision,string Element,string Text);
+public sealed record InspectRequest(string Revision,string Element);
+public sealed record ElementCard(string Element,string? Text,Observation Observation);
 
 internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) : IDisposable
 {
+    /// The game rebuilds its route tree from the cursor position. A plain hover over the map area
+    /// refreshes that tree exactly as a human moving the mouse does; without it routes can read as
+    /// not_available right after the hero leaves a garrison.
+    private const int RouteHoverX=304,RouteHoverY=280;
+
     private readonly GameReader reader=new(game,player);
     private readonly SemaphoreSlim gate=new(1,1);
     private readonly Dictionary<string,(OperationRequest Request,OperationResult Result)> operations=new();
     private readonly List<JournalEntry> journal=[];
-    private string plan="";
     private readonly Dictionary<string,MapObject> targets=new();
     private readonly Dictionary<MapObject,string> targetIds=new();
-    public Task<OperationResult> Move(MoveRequest request,CancellationToken ct)=>MoveCore(request,false,ct);
-    public Task<OperationResult> Attack(MoveRequest request,CancellationToken ct)=>MoveCore(request,true,ct);
-    public async Task<OperationResult> MapClick(MapClickRequest request,CancellationToken ct)
+    private string plan="";
+
+    public void Dispose(){game.Dispose();gate.Dispose();}
+
+    // ---------------------------------------------------------------- observation
+
+    public async Task<Observation> Observe(CancellationToken ct)
+    {
+        await gate.WaitAsync(ct);
+        try{return reader.Observe();}
+        finally{gate.Release();}
+    }
+
+    public object Status()=>new
+    {
+        phase="development",player,gamePid=game.Process.Id,
+        capabilities=new[]{"observe_own_hero","observe_adventure_ui","open_system_options","return_to_game",
+            "visible_targets","route_preview","move_to_target","move_to_tile","own_towns","town_construction",
+            "town_recruitment","tavern_hero","hero_exchange","combat_actions","battle_result","spellbook",
+            "save_game","save_list_and_load","inspect_element"},
+        unavailable=new[]{"full_map_coverage","in_game_load_browser","hero_switch_on_map","full_scenario_setup",
+            "hotseat","lan","installer","cost_measurement"}
+    };
+
+    public object Diagnostic()=>reader.DiagnosticPointers();
+    public object RawUi()=>reader.DiagnosticDialog();
+    public object MapDiagnostic()=>new MapReader(game,player).Diagnostic(reader.Observe());
+
+    public async Task<MapView> ReadMap(int x,int y,int z,int radius,CancellationToken ct)
     {
         await gate.WaitAsync(ct);
         try
         {
             var before=reader.Observe();
-            if(before.Screen!="adventure")throw new InvalidOperationException("Adventure map required");
-            if(request.X<0||request.Y<0||request.X>=before.Width||request.Y>=before.Height)throw new InvalidOperationException("Point is outside the game surface");
-            await game.MouseAsync(request.X,request.Y,before.Width,before.Height,true,CancellationToken.None);
-            await Task.Delay(400,CancellationToken.None);
-            Record("map_click",request);
-            return new("completed","Map point clicked",null);
+            var map=new MapReader(game,player);
+            var first=map.Read(before,x,y,z,radius);
+            var second=map.Read(before,x,y,z,radius);
+            if(JsonSerializer.Serialize(first)!=JsonSerializer.Serialize(second)||reader.Observe().Revision!=before.Revision)
+                throw new InvalidOperationException("Map changed while reading; observe again");
+            return second;
         }
         finally{gate.Release();}
     }
-    public async Task<OperationResult> MoveCore(MoveRequest request,bool attack,CancellationToken ct)
-    {
-        await gate.WaitAsync(ct);
-        try
-        {
-            if(string.IsNullOrWhiteSpace(request.OperationId)||request.OperationId.Length>100)throw new InvalidOperationException("Invalid operation ID");
-            var identity=new OperationRequest(request.OperationId,request.Revision,(attack?"attack:":"move:")+request.TargetId);
-            if(operations.TryGetValue(request.OperationId,out var prior))
-            {
-                if(prior.Request!=identity)throw new InvalidOperationException("Operation ID reused with different arguments");
-                return prior.Result;
-            }
-            if(!targets.TryGetValue(request.TargetId,out var target))throw new InvalidOperationException("Request nearby_targets first");
-            var before=reader.Observe();
-            if(before.Revision!=request.Revision||before.Screen!="adventure"||before.Hero is null)throw new InvalidOperationException("Fresh own-hero adventure observation required");
-            new MapReader(game,player).ValidateTarget(before,target);
-            if(!attack&&string.Equals(target.Kind,"creatures",StringComparison.OrdinalIgnoreCase))
-                throw new InvalidOperationException("Danger: this cell holds a creature stack, and moving onto it starts a battle. Approach a neighbouring cell with move_to_tile, or use attack_target to fight deliberately");
-            // Refresh the game's route tree from a hover before ordering the move (see Nearby).
-            await game.MouseAsync(304,280,before.Width,before.Height,false,CancellationToken.None);
-            await Task.Delay(120,CancellationToken.None);
-            var pending=new OperationResult("uncertain","Movement preparation started; inspect state before any retry with a new ID",null);
-            operations.Add(request.OperationId,(identity,pending));Record("move_started",request);
-            if(!before.Hero.PlannedDestination.SequenceEqual(new[]{target.X,target.Y,target.Z}))game.NativeAction(31,player,target.X|(target.Y<<8)|(target.Z<<16));
-            Observation? planned=null;
-            for(int i=0;i<20;i++)
-            {
-                await Task.Delay(50,CancellationToken.None);
-                try{planned=reader.Observe();}catch(InvalidOperationException){continue;}
-                if(planned.Hero?.Id==before.Hero.Id&&planned.Hero.PlannedDestination.SequenceEqual(new[]{target.X,target.Y,target.Z}))break;
-            }
-            if(planned?.Hero?.Id!=before.Hero.Id||!planned.Hero.PlannedDestination.SequenceEqual(new[]{target.X,target.Y,target.Z}))
-            {
-                Record("move_preparation_unconfirmed",new{request.OperationId,planned});return pending;
-            }
-            new MapReader(game,player).ValidateTarget(planned,target);
-            if(planned.Hero.Movement!=before.Hero.Movement||!planned.Hero.Position.SequenceEqual(before.Hero.Position))throw new InvalidOperationException("Hero changed during route preparation");
-            // M is the game's ordinary move-along-selected-path command.
-            await game.KeyAsync(0x4d,0x32);
-            DateTime deadline=DateTime.UtcNow.AddSeconds(10);
-            while(DateTime.UtcNow<deadline)
-            {
-                await Task.Delay(100,CancellationToken.None);
-                Observation after;
-                try{after=reader.Observe();}catch(InvalidOperationException){continue;}
-                bool arrived=after.Hero?.Position.SequenceEqual(new[]{target.X,target.Y,target.Z})==true;
-                bool collected=after.Screen=="adventure"&&target.Kind is "resource" or "campfire"&&
-                    after.Hero?.Id==before.Hero.Id&&after.Hero.Movement<before.Hero.Movement&&
-                    !new MapReader(game,player).IsTargetPresent(after,target)&&after.Resources.Where((v,i)=>v>before.Resources[i]).Any();
-                if(after.Screen!="adventure"||arrived||collected)
-                {
-                    var result=new OperationResult("completed",collected?"Target collected; object disappeared and resources increased":arrived?"Hero reached target cell":"Movement opened an interaction; read the dialog",after);
-                    operations[request.OperationId]=(identity,result);Record("move_completed",new{request.OperationId,result});return result;
-                }
-            }
-            Record("move_uncertain",request);return pending;
-        }
-        finally{gate.Release();}
-    }
-    public async Task<OperationResult> MoveToTile(TileMoveRequest request,CancellationToken ct)
-    {
-        await gate.WaitAsync(ct);
-        try
-        {
-            if(string.IsNullOrWhiteSpace(request.OperationId)||request.OperationId.Length>100)throw new InvalidOperationException("Invalid operation ID");
-            var identity=new OperationRequest(request.OperationId,request.Revision,$"move-tile:{request.X},{request.Y},{request.Z}");
-            if(operations.TryGetValue(request.OperationId,out var prior))
-            {
-                if(prior.Request!=identity)throw new InvalidOperationException("Operation ID reused with different arguments");
-                return prior.Result;
-            }
-            var before=reader.Observe();
-            if(before.Revision!=request.Revision||before.Screen!="adventure"||before.Hero is null)throw new InvalidOperationException("Fresh own-hero adventure observation required");
-            if(request.X<0||request.Y<0||request.X>255||request.Y>255||request.Z<0||request.Z>1)throw new InvalidOperationException("Cell outside supported map bounds");
-            int[] destination=[request.X,request.Y,request.Z];
-            try
-            {
-                var look=new MapReader(game,player).Read(before,request.X,request.Y,request.Z,1);
-                var creature=look.Objects.FirstOrDefault(o=>o.X==request.X&&o.Y==request.Y&&o.Z==request.Z&&string.Equals(o.Kind,"creatures",StringComparison.OrdinalIgnoreCase));
-                if(creature is not null)
-                    throw new InvalidOperationException("Danger: this cell holds a creature stack, and stepping there starts a battle. Approach a neighbouring cell instead, or use attack_target when the fight is intended");
-            }
-            catch(InvalidOperationException ex) when(ex.Message.StartsWith("Danger:")){throw;}
-            catch(InvalidOperationException){}
-            var pending=new OperationResult("uncertain","Movement preparation started; inspect state before any retry with a new ID",null);
-            operations.Add(request.OperationId,(identity,pending));Record("move_tile_started",request);
-            if(!before.Hero.PlannedDestination.SequenceEqual(destination))game.NativeAction(31,player,request.X|(request.Y<<8)|(request.Z<<16));
-            Observation? planned=null;
-            for(int i=0;i<20;i++)
-            {
-                await Task.Delay(50,CancellationToken.None);
-                try{planned=reader.Observe();}catch(InvalidOperationException){continue;}
-                if(planned.Hero?.Id==before.Hero.Id&&planned.Hero.PlannedDestination.SequenceEqual(destination))break;
-            }
-            if(planned?.Hero?.Id!=before.Hero.Id||!planned.Hero.PlannedDestination.SequenceEqual(destination))
-            {
-                Record("move_tile_preparation_unconfirmed",new{request.OperationId,planned});return pending;
-            }
-            if(planned.Hero.Movement!=before.Hero.Movement||!planned.Hero.Position.SequenceEqual(before.Hero.Position))throw new InvalidOperationException("Hero changed during route preparation");
-            // M is the game's ordinary move-along-selected-path command.
-            await game.KeyAsync(0x4d,0x32);
-            DateTime deadline=DateTime.UtcNow.AddSeconds(12);
-            while(DateTime.UtcNow<deadline)
-            {
-                await Task.Delay(100,CancellationToken.None);
-                Observation after;
-                try{after=reader.Observe();}catch(InvalidOperationException){continue;}
-                bool arrived=after.Hero?.Position.SequenceEqual(destination)==true;
-                bool advanced=after.Hero?.Id==before.Hero.Id&&after.Hero.Movement<before.Hero.Movement&&!after.Hero.Position.SequenceEqual(before.Hero.Position);
-                if(after.Screen!="adventure"||arrived||advanced)
-                {
-                    var result=new OperationResult("completed",arrived?"Hero reached the commanded cell":after.Screen!="adventure"?"Movement opened an interaction; read the dialog":"Hero advanced along the commanded path",after);
-                    operations[request.OperationId]=(identity,result);Record("move_tile_completed",new{request.OperationId,result});return result;
-                }
-            }
-            Record("move_tile_uncertain",request);return pending;
-        }
-        finally{gate.Release();}
-    }
-    public async Task<DebugSnapshot> Snapshot(CancellationToken ct)
-    {
-        await gate.WaitAsync(ct);
-        try
-        {
-            var before=reader.Observe();
-            var capture=DebugCapture.Save(game,player,Path.Combine(stateDirectory,"captures"));
-            var after=reader.Observe();
-            if(before.Revision!=after.Revision)throw new InvalidOperationException("State changed during diagnostic capture; snapshot not confirmed");
-            string path=Path.ChangeExtension(capture.Path,"json");
-            await File.WriteAllTextAsync(path,JsonSerializer.Serialize(before,new JsonSerializerOptions{WriteIndented=true}),ct);
-            return new(before,capture,path);
-        }
-        finally{gate.Release();}
-    }
-    public async Task<CaptureResult> Capture(CancellationToken ct)
-    {
-        await gate.WaitAsync(ct);
-        try{return DebugCapture.Save(game,player,Path.Combine(stateDirectory,"captures"));}
-        finally{gate.Release();}
-    }
+
     public async Task<NearbyTargets> Nearby(CancellationToken ct)
     {
         await gate.WaitAsync(ct);
         try
         {
-            var observation=reader.Observe();var hero=observation.Hero??throw new InvalidOperationException("Select a hero first");
-            // The game rebuilds its route tree from the current cursor position. A plain hover (no
-            // click) over the map refreshes that tree exactly as a human moving the mouse does;
-            // without it every route can read as not_available right after the hero leaves a garrison.
-            await game.MouseAsync(304,280,observation.Width,observation.Height,false,CancellationToken.None);
-            await Task.Delay(150,CancellationToken.None);
+            var observation=reader.Observe();
+            var hero=observation.Hero??throw new InvalidOperationException("Select a hero first");
+            await RefreshRouteTree(observation);
             var region=new MapReader(game,player).Read(observation,hero.Position[0],hero.Position[1],hero.Position[2],12);
             var list=new List<TargetView>();
             foreach(var target in region.Objects)
             {
-                if(!targetIds.TryGetValue(target,out var id)){id="target_"+Guid.NewGuid().ToString("N")[..12];targetIds.Add(target,id);targets.Add(id,target);}
+                if(!targetIds.TryGetValue(target,out var id))
+                {
+                    id="target_"+Guid.NewGuid().ToString("N")[..12];
+                    targetIds.Add(target,id);
+                    targets.Add(id,target);
+                }
                 list.Add(new(id,target.Kind,new RouteReader(game,player).Read(observation,target),target.X,target.Y,target.Z));
             }
-            if(reader.Observe().Revision!=observation.Revision)throw new InvalidOperationException("State changed; request targets again");
-            return new(observation.Revision,hero.Id,hero.Movement,list,"Recognized visible objects near selected hero; list is not exhaustive");
+            if(reader.Observe().Revision!=observation.Revision)
+                throw new InvalidOperationException("State changed; request targets again");
+            return new(observation.Revision,hero.Id,hero.Movement,list,
+                "Recognized visible objects near selected hero; list is not exhaustive");
         }
         finally{gate.Release();}
     }
+
     public async Task<TargetInspection> InspectTarget(string targetId,string revision,CancellationToken ct)
     {
         await gate.WaitAsync(ct);
         try
         {
-            if(!targets.TryGetValue(targetId,out var target))throw new InvalidOperationException("Unknown target; request nearby_targets first");
+            if(!targets.TryGetValue(targetId,out var target))
+                throw new InvalidOperationException("Unknown target; request nearby_targets first");
             var before=reader.Observe();
             if(before.Revision!=revision)throw new InvalidOperationException("State changed; request nearby_targets again");
-            var map=new MapReader(game,player);map.ValidateTarget(before,target);
+            var map=new MapReader(game,player);
+            map.ValidateTarget(before,target);
             var route=new RouteReader(game,player).Read(before,target);
             var after=reader.Observe();
             if(after.Revision!=before.Revision)throw new InvalidOperationException("State changed while reading target");
@@ -220,25 +120,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
         }
         finally{gate.Release();}
     }
-    public object Status() => new { phase="development", player, gamePid=game.Process.Id,
-        capabilities=new[]{"observe_own_hero","observe_adventure_ui","open_system_options","return_to_game","visible_targets","route_preview","move_to_target","own_towns","town_construction","town_recruitment","tavern_hero","combat_actions","battle_result","spellbook","save_game","save_list_and_load"},
-        unavailable=new[]{"full_map_coverage","in_game_load_browser","creature_and_spell_cards","full_scenario_setup","hotseat","lan","installer","cost_measurement"} };
-    public object Diagnostic()=>reader.DiagnosticPointers();
-    public object RawUi()=>reader.DiagnosticDialog();
-    public object MapDiagnostic()=>new MapReader(game,player).Diagnostic(reader.Observe());
-    public async Task<MapView> ReadMap(int x,int y,int z,int radius,CancellationToken ct)
-    {
-        await gate.WaitAsync(ct);
-        try
-        {
-            var before=reader.Observe();var map=new MapReader(game,player);
-            var first=map.Read(before,x,y,z,radius);var second=map.Read(before,x,y,z,radius);
-            if(JsonSerializer.Serialize(first)!=JsonSerializer.Serialize(second)||reader.Observe().Revision!=before.Revision)
-                throw new InvalidOperationException("Map changed while reading; observe again");
-            return second;
-        }
-        finally{gate.Release();}
-    }
+
     public async Task<TileInspection> InspectTile(int x,int y,int z,string revision,CancellationToken ct)
     {
         await gate.WaitAsync(ct);
@@ -246,341 +128,145 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
         {
             var before=reader.Observe();
             if(before.Revision!=revision)throw new InvalidOperationException("Observation is stale; observe again");
-            var map=new MapReader(game,player);var point=map.ScreenPoint(before,x,y,z);
+            var map=new MapReader(game,player);
+            var point=map.ScreenPoint(before,x,y,z);
             await game.MouseAsync(point.X,point.Y,before.Width,before.Height,false,ct);
-            await Task.Delay(150,ct);map.VerifyMouse(x,y,z);
+            await Task.Delay(150,ct);
+            map.VerifyMouse(x,y,z);
             var after=reader.Observe();
             if(after.Screen!="adventure")throw new InvalidOperationException("Screen changed during inspection");
             return new(x,y,z,after.Elements.SingleOrDefault(e=>e.Id==200)?.Text,after);
         }
         finally{gate.Release();}
     }
-    private void Record(string kind,object data)
-    {
-        Directory.CreateDirectory(stateDirectory);
-        var entry=new JournalEntry(journal.Count+1,DateTimeOffset.UtcNow,kind,data);
-        File.AppendAllText(Path.Combine(stateDirectory,"journal.jsonl"),JsonSerializer.Serialize(entry)+"\n");
-        journal.Add(entry);
-    }
-    public async Task<Observation> Observe(CancellationToken ct)
+
+    /// Holds the right mouse button on a published control so the game shows its ordinary info
+    /// card, reads the card, then releases. This is the player's own way to read creature stats,
+    /// skill texts and artefact descriptions without acting on the control.
+    public async Task<ElementCard> InspectElement(InspectRequest request,CancellationToken ct)
     {
         await gate.WaitAsync(ct);
-        try {return reader.Observe();} finally {gate.Release();}
+        try
+        {
+            var before=reader.Observe();
+            if(before.Revision!=request.Revision)throw new InvalidOperationException("Observation is stale; observe again");
+            var element=before.Elements.SingleOrDefault(e=>e.Key==request.Element)
+                ??throw new InvalidOperationException("Unknown control; observe again");
+            await game.RightMouseDownAsync(element.X+element.Width/2,element.Y+element.Height/2,before.Width,before.Height,ct);
+            try
+            {
+                await Task.Delay(350,CancellationToken.None);
+                Observation card;
+                try{card=reader.Observe();}
+                catch(InvalidOperationException e)
+                {
+                    throw new InvalidOperationException("The info card of this control is not readable by the adapter yet: "+e.Message);
+                }
+                Record("element_inspected",new{request.Element,card.Screen});
+                string? text=card.Elements.Where(e=>!string.IsNullOrWhiteSpace(e.Text))
+                    .Select(e=>e.Text).FirstOrDefault(t=>t!=element.Text);
+                return new(request.Element,text,card);
+            }
+            finally{await game.RightMouseUpAsync();}
+        }
+        finally{gate.Release();}
     }
+
+    // ---------------------------------------------------------------- actions
+
     public async Task<OperationResult> Click(OperationRequest request,CancellationToken ct)
     {
-        if(string.IsNullOrWhiteSpace(request.OperationId)||request.OperationId.Length>100)
-            throw new InvalidOperationException("Provide a unique operation ID of at most 100 characters");
+        RequireOperationId(request.OperationId);
         await gate.WaitAsync(ct);
         try
         {
             if(operations.TryGetValue(request.OperationId,out var previous))
             {
-                if(previous.Request!=request) throw new InvalidOperationException("Operation ID reused with different arguments");
+                if(previous.Request!=request)throw new InvalidOperationException("Operation ID reused with different arguments");
                 return previous.Result;
             }
             var before=reader.Observe();
-            if(before.Revision!=request.Revision) throw new InvalidOperationException("Observation is stale; observe again before acting");
-            int nativeOperation,argument=0;string expected;
+            if(before.Revision!=request.Revision)throw new InvalidOperationException("Observation is stale; observe again before acting");
             var action=before.Actions.SingleOrDefault(a=>a.Key==request.Element);
-            if(action is not null)
-            {
-                (nativeOperation,expected)=action.Key switch {
-                    "menu:new" or "menu:load"=>(20,"game_type"),"menu:back"=>(21,"main_menu"),
-                    "menu:single"=>(21,"scenario_selection"),"scenario:back"=>(22,"main_menu"),
-                    "scenario:maps" or "scenario:players" or "scenario:random"=>(23,"scenario_selection"),
-                    "scenario:start"=>(25,"adventure"),
-                    "message:accept"=>(26,"adventure"),
-                    "message:confirm"=>(29,"adventure"),"message:decline"=>(30,"adventure"),
-                    "turn:end"=>(28,"adventure"),
-                    "combat:spellbook"=>(35,"spellbook"),"spellbook:close"=>(36,"combat"),
-                    _ when action.Key.StartsWith("spellbook:select:")=>(37,"combat"),
-                    "spell:cancel"=>(36,"combat"),
-                    "battle:accept"=>(39,"adventure"),
-                    "game:load"=>(45,"message"),
-                    "load:confirm"=>(48,"adventure"),"load:back"=>(53,"main_menu"),
-                    _ when action.Key.StartsWith("load:select:")=>(46,"load_game"),
-                    _ when action.Key.StartsWith("load:open:")=>(46,"load_game"),
-                    "game:main_menu"=>(49,"main_menu"),
-                    "hero:select"=>(54,"adventure"),
-                    "save:confirm"=>(44,"message"),"game:save"=>(43,"save_game"),"recruit:max"=>(42,"recruitment"),"recruit:buy"=>(41,"town"),"recruit:cancel"=>(36,"town"),
-                    "tavern:hire"=>(41,"town"),"tavern:close"=>(36,"town"),
-                    _ when action.Key.StartsWith("spell:target:")=>(38,"combat"),
-                    "combat:wait"=>(32,"combat"),"combat:defend"=>(33,"combat"),
-                    "combat:retreat"=>(55,"combat"),"combat:auto"=>(56,"combat"),
-                    _ when action.Key.StartsWith("combat:move:")||action.Key.StartsWith("combat:attack:")=>(34,"combat"),
-                    _ when action.Key.StartsWith("setup:")=>(24,"scenario_selection"),
-                    "town:construction"=>(4,"town_hall"),"town:close"=>(27,"adventure"),
-                    "split:cancel"=>(59,"town"),
-                    "town:lead"=>(60,"town"),
-                    "town:banner"=>(61,"town"),
-                    "hero:switch"=>(62,"town"),
-                    "hero:move"=>(65,"adventure"),
-                    "hero:out"=>(63,"town"),
-                    "hero:close"=>(64,"hero_screen"),
-                    _ when action.Key.StartsWith("town:take:")=>(57,"town"),
-                    "town:tavern"=>(40,"tavern"),
-                    _ when action.Key.StartsWith("town:recruit:")=>(40,"recruitment"),
-                    "construction:close"=>(10,"town"),"building:cancel"=>(6,"town_hall"),
-                    "building:buy"=>(7,"town"),
-                    _ when action.Key.StartsWith("town:open:")=>(3,"town"),
-                    _ when action.Key.StartsWith("building:inspect:")=>(5,"building_confirmation"),
-                    _=>throw new InvalidOperationException("Action not implemented")
-                };
-                if(nativeOperation is 3 or 5)argument=int.Parse(action.Key.Split(':')[2]);
-                if(nativeOperation==20)argument=action.Key=="menu:new"?101:102;
-                if(nativeOperation==21)argument=action.Key=="menu:single"?100:104;
-                if(nativeOperation==23)argument=action.Key switch {"scenario:maps"=>128,"scenario:players"=>129,_=>130};
-                if(nativeOperation==24)argument=ScenarioReader.Controls.Single(c=>ScenarioReader.Key(c)==action.Key).Id;
-                if(nativeOperation==34)argument=action.Key.StartsWith("combat:move:")?int.Parse(action.Key.Split(':')[2]):before.Combat!.Stacks.Single(s=>s.Id==action.Key[14..]).Hex;
-            }
-            else
-            {
-                var item=before.Elements.SingleOrDefault(e=>e.Key==request.Element);
-                if(item is null||(!item.Interactive&&before.Screen!="message"))throw new InvalidOperationException("Action unavailable");
-                (nativeOperation,expected)=(before.Screen,item.Id,item.Asset) switch {
-                    ("adventure",10,"iam009.def")=>(1,"system_options"),
-                    ("system_options",30722,"soretrn.def")=>(2,"adventure"),
-                    ("save_game",188,"gspexit.def")=>(50,"system_options"),
-                    ("load_game",188,"scnrback.def")=>(50,"main_menu"),
-                    ("system_options",102,"soload.def")=>(45,"message"),
-                    ("system_options",106,"sosave.def")=>(43,"save_game"),
-                    ("message",30722,"iokay.def")=>(26,"adventure"),
-                    ("message",30725,"iokay.def")=>(29,"adventure"),
-                    ("message",30726,"icancel.def")=>(30,"adventure"),
-                    _ when before.Screen=="message"=>(68,"message"),
-                    _=>throw new InvalidOperationException("Use an available semantic action")
-                };
-            }
+            var command=action is not null
+                ?GameCommands.ForAction(action,before)
+                :GameCommands.ForElement(before,request.Element);
             var pending=new OperationResult("uncertain","Dispatch started; do not repeat using a new ID",null);
             operations.Add(request.OperationId,(request,pending));
             Record("operation_started",request);
-            if(nativeOperation==3)
-            {
-                if(before.Towns.Count!=1||before.Towns[0].Id!=argument)throw new InvalidOperationException("Town sidebar selection currently verified for one owned town only");
-                var portrait=before.Elements.Single(e=>e.Id==32&&e.Asset=="itpa.def");
-                for(int i=0;i<2;i++)
-                {
-                    await game.MouseAsync(portrait.X+portrait.Width/2,portrait.Y+portrait.Height/2,before.Width,before.Height,true,CancellationToken.None);
-                    await Task.Delay(150,CancellationToken.None);
-                    if(reader.Observe().Screen=="town")break;
-                }
-            }
-            else if(nativeOperation==40)
-            {
-                int building=request.Element=="town:tavern"?5:30+int.Parse(request.Element.Split(':')[2]);
-                var point=new TownReader(game,player).BuildingPoint(building);
-                await game.MouseAsync(point.X,point.Y,before.Width,before.Height,true,CancellationToken.None);
-            }
-            else if(nativeOperation is 50 or 51 or 52)
-            {
-                // Ordinary window mouse event into the modal loop: the dialog reads its own
-                // pressed control and produces the real callback result.
-                var button=before.Elements.Single(e=>e.Key==request.Element);
-                await game.MouseAsync(button.X+button.Width/2,button.Y+button.Height/2,before.Width,before.Height,true,CancellationToken.None);
-            }
-            else if(nativeOperation==0)
-            {
-                // Structural file-browser button (load from disk, exit to menu): addressed by
-                // its own reported control bounds, no guessing of screen coordinates.
-                var button=before.Elements.Single(e=>e.Key==request.Element);
-                await game.MouseAsync(button.X+button.Width/2,button.Y+button.Height/2,before.Width,before.Height,true,CancellationToken.None);
-            }
-            else if(nativeOperation==46)
-            {
-                // Own save browser: a file or folder row is an ordinary dialog control of the
-                // browser, clicked in its own reported bounds. The game keeps its own list state.
-                int index=int.Parse(request.Element.Split(':')[2]);
-                var entry=before.Saves?.Entries.SingleOrDefault(e=>e.Index==index)
-                    ??throw new InvalidOperationException("Unknown save entry; observe the browser again");
-                bool folder=request.Element.StartsWith("load:open:");
-                if(entry.Folder!=folder||entry.Width<1||entry.Height<1)throw new InvalidOperationException("Save row is not selectable in the visible window");
-                await game.MouseAsync(entry.X+entry.Width/2,entry.Y+entry.Height/2,before.Width,before.Height,true,CancellationToken.None);
-            }
-            else if(nativeOperation==48)
-            {
-                // The verified save path activates its browser button with an addressed window
-                // mouse event at the control's own reported bounds. The load browser button uses
-                // the same ordinary mechanism, so the dialog runs its own close/result path.
-                var button=before.Elements.Single(e=>e.Id==186&&e.Asset=="scnrlod.def"&&e.Interactive);
-                await game.MouseAsync(button.X+button.Width/2,button.Y+button.Height/2,before.Width,before.Height,true,CancellationToken.None);
-            }
-            else if(nativeOperation==49)
-            {
-                // System options "Main menu": the same addressed window mouse event used by the
-                // verified save/load browser buttons; the vtable hook left this dialog open.
-                var button=before.Elements.Single(e=>e.Id==108&&e.Asset=="somain.def"&&e.Interactive);
-                await game.MouseAsync(button.X+button.Width/2,button.Y+button.Height/2,before.Width,before.Height,true,CancellationToken.None);
-            }
-            else if(nativeOperation is 26 or 29 or 30)
-            {
-                // Modal question buttons are ordinary dialog controls addressed by their own
-                // reported id/asset; an ordinary window mouse event runs the dialog's real
-                // result path. The earlier keyboard experiment left questions unanswered.
-                int wanted=nativeOperation==30?30726:nativeOperation==29?30725:30722;
-                string asset=nativeOperation==30?"icancel.def":"iokay.def";
-                var button=before.Elements.Single(e=>e.Id==wanted&&e.Asset==asset&&e.Interactive);
-                await game.MouseAsync(button.X+button.Width/2,button.Y+button.Height/2,before.Width,before.Height,true,CancellationToken.None);
-            }
-            else if(nativeOperation==53)
-            {
-                // Browser exit button of the load/save browser, addressed by its own control bounds.
-                var button=before.Elements.Single(e=>e.Id==188&&(e.Asset=="scnrback.def"||e.Asset=="gspexit.def")&&e.Interactive);
-                await game.MouseAsync(button.X+button.Width/2,button.Y+button.Height/2,before.Width,before.Height,true,CancellationToken.None);
-            }
-            else if(nativeOperation==54)
-            {
-                // Own hero selection: the ordinary game hotkey H cycles through the player's
-                // heroes and centers the view. Needed after screens that drop the selection.
-                for(int i=0;i<8;i++)
-                {
-                    await game.KeyAsync(0x48,0x23);
-                    await Task.Delay(300,CancellationToken.None);
-                    if(reader.Observe().Hero is not null)break;
-                }
-            }
-            else if(nativeOperation is 55 or 56)
-            {
-                // Combat bar buttons are ordinary dialog controls: the retreat button (icm002) and
-                // the auto-combat button (icm004) are pressed by an addressed window mouse event
-                // in the bounds the dialog reports, exactly like a player's own press.
-                int wanted=nativeOperation==55?2002:2004;
-                var button=before.Elements.Single(e=>e.Id==wanted&&e.Interactive);
-                await game.MouseAsync(button.X+button.Width/2,button.Y+button.Height/2,before.Width,before.Height,true,CancellationToken.None);
-            }
-            else if(nativeOperation==57)
-            {
-                // Town garrison slot: the slot widget itself receives an addressed left press, the
-                // same event the game raises for the player's own click, and hands the stack to the
-                // visiting hero. Slots are the reported garrison row of the town dialog.
-                int slot=int.Parse(request.Element["town:take:".Length..]);
-                if(slot<0||slot>6)throw new InvalidOperationException("Garrison slot outside supported range");
-                var point=reader.FindControl(305+62*slot,387,58,64)??throw new InvalidOperationException("Garrison slot control not found in the town dialog");
-                await game.MouseAsync(point.X,point.Y,before.Width,before.Height,true,CancellationToken.None);
-            }
-            else if(nativeOperation==27)await game.KeyAsync(0x1b,0x01);
-            else if(nativeOperation==59)await game.KeyAsync(0x1b,0x01);
-            else if(nativeOperation==64)await game.KeyAsync(0x1b,0x01);
-            else if(nativeOperation==65)
-            {
-                // Manual, Section IV: "M - Moves current hero". The route is planned by a map click
-                // (the game's own route preview); M then sends the hero along that planned path.
-                await game.KeyAsync(0x4d,0x32);
-            }
-            else if(nativeOperation==68)
-            {
-                // Ordinary window mouse event on a message-dialog control published by the adapter
-                // (for example the gold / experience choice inside a treasure chest dialog).
-                var button=before.Elements.Single(e=>e.Key==request.Element);
-                await game.MouseAsync(button.X+button.Width/2,button.Y+button.Height/2,before.Width,before.Height,true,CancellationToken.None);
-            }
-            else if(nativeOperation==62)
-            {
-                // Manual, Section IV: on the town screen "Space - Switches visiting/garrison heroes".
-                // This is the game's own way to reach a hero stationed in the town garrison.
-                await game.KeyAsync(0x20,0x39);
-            }
-            else if(nativeOperation==63)
-            {
-                // Man's own way out of the garrison: click the hero's portrait to select him, then
-                // click on the row below (the army row). Two plain clicks - not a drag.
-                var portrait=reader.FindControl(241,387,58,64)??throw new InvalidOperationException("Garrison hero portrait control not found in the town dialog");
-                var below=reader.FindControl(241,483,58,64)??throw new InvalidOperationException("Army row control not found in the town dialog");
-                await game.MouseAsync(portrait.X,portrait.Y,before.Width,before.Height,true,CancellationToken.None);
-                await Task.Delay(700,CancellationToken.None);
-                await game.MouseAsync(below.X,below.Y,before.Width,before.Height,true,CancellationToken.None);
-            }
-            else if(nativeOperation==60)
-            {
-                // Manual (Town Garrison): "click on the hero's portrait to highlight it, and then
-                // click on the banner to the left of the first garrison troop slot" - the game then
-                // combines the hero's army with the town garrison and the hero leads it.
-                var portrait=reader.FindControl(241,483,58,64)??throw new InvalidOperationException("Hero portrait control not found in the town dialog");
-                var banner=reader.FindControl(241,387,58,64)??throw new InvalidOperationException("Garrison banner control not found in the town dialog");
-                await game.MouseAsync(portrait.X,portrait.Y,before.Width,before.Height,true,CancellationToken.None);
-                await Task.Delay(700,CancellationToken.None);
-                await game.MouseAsync(banner.X,banner.Y,before.Width,before.Height,true,CancellationToken.None);
-            }
-            else if(nativeOperation==61)
-            {
-                // Single click on the banner left of the first garrison slot: toggles the garrison
-                // hero (manual: heroes are swapped by highlighting one and clicking the other).
-                var cell=reader.FindControl(241,387,58,64)??throw new InvalidOperationException("Garrison banner control not found in the town dialog");
-                await game.MouseAsync(cell.X,cell.Y,before.Width,before.Height,true,CancellationToken.None);
-            }
-            else if(nativeOperation==28)await game.KeyAsync(0x45,0x12);
-            else if(nativeOperation==32)await game.KeyAsync(0x57,0x11);
-            else if(nativeOperation==33)await game.KeyAsync(0x44,0x20);
-            else if(nativeOperation==45)await game.KeyAsync(0x4c,0x26);
-            else if(nativeOperation==44)
-            {
-                var button=before.Elements.Single(e=>e.Id==186&&e.Asset=="scnrsav.def"&&e.Interactive);
-                await game.MouseAsync(button.X+button.Width/2,button.Y+button.Height/2,before.Width,before.Height,true,CancellationToken.None);
-            }
-            else if(nativeOperation==43)await game.KeyAsync(0x53,0x1f);
-            else if(nativeOperation==42)await game.KeyAsync(0x4d,0x32);
-            else if(nativeOperation is 39 or 41)await game.KeyAsync(0x0d,0x1c);
-            else if(nativeOperation==36)await game.KeyAsync(0x1b,0x01);
-            else if(nativeOperation==37)
-            {
-                var item=before.Elements.Single(e=>e.Id==int.Parse(request.Element.Split(':')[2]));
-                await game.MouseAsync(item.X+item.Width/2,item.Y+item.Height/2,before.Width,before.Height,true,CancellationToken.None);
-            }
-            else if(nativeOperation==35)await game.KeyAsync(0x43,0x2e);
-            else if(nativeOperation==34||nativeOperation==38)
-            {
-                if(nativeOperation==38)argument=before.Combat!.Stacks.Single(s=>s.Id==request.Element[13..]).Hex;
-                var point=new CombatReader(game,player).Point(argument);
-                await game.MouseAsync(point.X,point.Y,before.Width,before.Height,true,CancellationToken.None);
-            }
-            else game.NativeAction(nativeOperation,player,argument);
-            var deadline=DateTime.UtcNow.AddSeconds(nativeOperation is 25 or 32 or 33 or 34?10:3);
-            while(DateTime.UtcNow<deadline)
-            {
-                await Task.Delay(70,CancellationToken.None);
-                Observation? after=null;
-                try {after=reader.Observe();} catch(InvalidOperationException) { }
-                if(nativeOperation is 32 or 33 or 34 or 38 && after?.Screen=="battle_result")
-                {
-                    var finished=new OperationResult("completed","Battle result screen confirmed; read and accept the result",after);
-                    operations[request.OperationId]=(request,finished);Record("battle_finished",new{request.OperationId,after});
-                    return finished;
-                }
-                bool settingConfirmed=nativeOperation!=24||after?.Setup?.Fields.SelectMany(f=>f.Choices).Any(c=>c.Action==request.Element&&c.Selected)==true;
-                bool turnConfirmed=nativeOperation!=28||after is not null&&(after.Screen=="message"||!after.Date.SequenceEqual(before.Date));
-                bool logRequired=nativeOperation is 32 or 33 or 38||request.Element.StartsWith("combat:attack:");
-                bool logConfirmed=!logRequired||after?.Combat is not null&&after.Combat.LogCount>before.Combat!.LogCount;
-                if(nativeOperation==38)logConfirmed=logConfirmed&&after?.Hero?.Mana<before.Hero?.Mana;
-                bool combatConfirmed=nativeOperation is not (32 or 33 or 34)||after?.Combat?.OwnTurn==true&&(after.Combat.ActiveStack!=before.Combat?.ActiveStack||after.Combat.Round!=before.Combat?.Round);
-                // Loading a saved game must produce a real party, not only a screen change.
-                bool loadConfirmed=nativeOperation!=48||request.Element!="load:confirm"||(after?.Hero is not null&&after.Date.Length>0);
-                // A screen change must be visible in the revision; screen equality alone is not evidence.
-                bool screenChanged=after is not null&&after.Screen!=before.Screen&&after.Revision!=before.Revision;
-                bool sameScreenReset=after is not null&&after.Screen==before.Screen&&after.Revision!=before.Revision;
-                if(after is not null&&((screenChanged&&(after.Screen==expected||nativeOperation==28&&after.Screen=="message"))||sameScreenReset)&&settingConfirmed&&turnConfirmed&&combatConfirmed&&logConfirmed&&loadConfirmed)
-                {
-                    if(after.Combat is not null&&before.Combat is not null)
-                        Record("combat_action_evidence",new{request.OperationId,Action=request.Element,BeforeLogCount=before.Combat.LogCount,AfterLogCount=after.Combat.LogCount,Entries=after.Combat.Log.Where(e=>e.Index>=before.Combat.LogCount).ToArray()});
-                    var result=new OperationResult("completed",screenChanged?"Screen transition confirmed by revision change":"Same screen, state change confirmed by revision",after);
-                    operations[request.OperationId]=(request,result);Record("operation_completed",new{request.OperationId,after.Revision,after.Screen,BeforeScreen=before.Screen});
-                    return result;
-                }
-            }
-            Record("operation_uncertain",new{request.OperationId});return pending;
+            await command.Deliver(new CommandContext(game,reader,player,before,request.Element),ct);
+            return await AwaitResult(request,before,command,pending);
         }
-        finally {gate.Release();}
+        finally{gate.Release();}
     }
+
+    /// Waits for the game itself to show the action happened. A screen that merely looks right is
+    /// not evidence: the observed revision must change, and every extra Confirm flag must hold.
+    private async Task<OperationResult> AwaitResult(OperationRequest request,Observation before,GameCommand command,OperationResult pending)
+    {
+        var deadline=DateTime.UtcNow.AddSeconds(command.TimeoutSeconds);
+        while(DateTime.UtcNow<deadline)
+        {
+            await Task.Delay(70,CancellationToken.None);
+            Observation? after=null;
+            try{after=reader.Observe();}
+            catch(InvalidOperationException){}
+            if(after is null)continue;
+            if(command.BattleMayEnd&&after.Screen=="battle_result")
+            {
+                var finished=new OperationResult("completed","Battle result screen confirmed; read and accept the result",after);
+                operations[request.OperationId]=(request,finished);
+                Record("battle_finished",new{request.OperationId,after});
+                return finished;
+            }
+            if(!Confirmed(command.Confirm,request.Element,before,after))continue;
+            bool screenChanged=after.Screen!=before.Screen&&after.Revision!=before.Revision;
+            bool sameScreenReset=after.Screen==before.Screen&&after.Revision!=before.Revision;
+            // Ending a turn legitimately lands on the game's own question instead of the map.
+            bool landed=command.Accepts(after.Screen)||command.Confirm.HasFlag(Confirm.TurnAdvanced)&&after.Screen=="message";
+            if(!(screenChanged&&landed||sameScreenReset))continue;
+            if(after.Combat is not null&&before.Combat is not null)
+                Record("combat_action_evidence",new{request.OperationId,Action=request.Element,
+                    BeforeLogCount=before.Combat.LogCount,AfterLogCount=after.Combat.LogCount,
+                    Entries=after.Combat.Log.Where(e=>e.Index>=before.Combat.LogCount).ToArray()});
+            var result=new OperationResult("completed",
+                screenChanged?"Screen transition confirmed by revision change":"Same screen, state change confirmed by revision",after);
+            operations[request.OperationId]=(request,result);
+            Record("operation_completed",new{request.OperationId,after.Revision,after.Screen,BeforeScreen=before.Screen});
+            return result;
+        }
+        Record("operation_uncertain",new{request.OperationId});
+        return pending;
+    }
+
+    private static bool Confirmed(Confirm confirm,string element,Observation before,Observation after)
+    {
+        if(confirm.HasFlag(Confirm.SetupChoice)
+            &&after.Setup?.Fields.SelectMany(f=>f.Choices).Any(c=>c.Action==element&&c.Selected)!=true)return false;
+        if(confirm.HasFlag(Confirm.TurnAdvanced)
+            &&after.Screen!="message"&&after.Date.SequenceEqual(before.Date))return false;
+        if(confirm.HasFlag(Confirm.CombatLog)
+            &&!(after.Combat is not null&&after.Combat.LogCount>before.Combat!.LogCount))return false;
+        if(confirm.HasFlag(Confirm.ManaSpent)&&!(after.Hero?.Mana<before.Hero?.Mana))return false;
+        if(confirm.HasFlag(Confirm.CombatTurn)
+            &&!(after.Combat?.OwnTurn==true
+                &&(after.Combat.ActiveStack!=before.Combat?.ActiveStack||after.Combat.Round!=before.Combat?.Round)))return false;
+        if(confirm.HasFlag(Confirm.PartyLoaded)&&!(after.Hero is not null&&after.Date.Length>0))return false;
+        return true;
+    }
+
     public async Task<OperationResult> EnterText(TextRequest request,CancellationToken ct)
     {
         await gate.WaitAsync(ct);
         try
         {
-            if(string.IsNullOrEmpty(request.Text)||request.Text.Length>64||request.Text.Any(c=>c<32||c=='\\'||c=='/'||c==':'||c=='*'||c=='?'||c=='"'||c=='<'||c=='>'||c=='|'))
+            if(string.IsNullOrEmpty(request.Text)||request.Text.Length>64
+                ||request.Text.Any(c=>c<32||c=='\\'||c=='/'||c==':'||c=='*'||c=='?'||c=='"'||c=='<'||c=='>'||c=='|'))
                 throw new InvalidOperationException("Text must be 1-64 characters without path separators");
             var before=reader.Observe();
             if(before.Revision!=request.Revision)throw new InvalidOperationException("Observation is stale; observe again before acting");
-            var field=before.Elements.SingleOrDefault(e=>e.Key==request.Element);
-            if(field is null)throw new InvalidOperationException("Unknown edit control; observe again");
+            var field=before.Elements.SingleOrDefault(e=>e.Key==request.Element)
+                ??throw new InvalidOperationException("Unknown edit control; observe again");
             // Focus the ordinary edit control with a window mouse event, then type characters.
             await game.MouseAsync(field.X+field.Width/2,field.Y+field.Height/2,before.Width,before.Height,true,CancellationToken.None);
             await Task.Delay(200,CancellationToken.None);
@@ -589,24 +275,240 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             var after=reader.Observe();
             if(after.Screen!=before.Screen)throw new InvalidOperationException("Screen changed while entering text");
             Record("text_entered",new{request.Element,Length=request.Text.Length,Screen=before.Screen});
-            return new OperationResult("completed","Text entered into the addressed edit control; read it back before confirming",after);
+            return new("completed","Text entered into the addressed edit control; read it back before confirming",after);
         }
         finally{gate.Release();}
     }
-    public async Task<object> GetJournal(int limit,CancellationToken ct)    {
-        await gate.WaitAsync(ct);try{return journal.TakeLast(Math.Clamp(limit,1,100)).ToArray();}finally{gate.Release();}
+
+    // ---------------------------------------------------------------- movement
+
+    public Task<OperationResult> Move(MoveRequest request,CancellationToken ct)=>MoveCore(request,false,ct);
+    public Task<OperationResult> Attack(MoveRequest request,CancellationToken ct)=>MoveCore(request,true,ct);
+
+    public async Task<OperationResult> MapClick(MapClickRequest request,CancellationToken ct)
+    {
+        await gate.WaitAsync(ct);
+        try
+        {
+            var before=reader.Observe();
+            if(before.Screen!="adventure")throw new InvalidOperationException("Adventure map required");
+            if(request.X<0||request.Y<0||request.X>=before.Width||request.Y>=before.Height)
+                throw new InvalidOperationException("Point is outside the game surface");
+            await game.MouseAsync(request.X,request.Y,before.Width,before.Height,true,CancellationToken.None);
+            await Task.Delay(400,CancellationToken.None);
+            Record("map_click",request);
+            return new("completed","Map point clicked",null);
+        }
+        finally{gate.Release();}
     }
+
+    private async Task<OperationResult> MoveCore(MoveRequest request,bool attack,CancellationToken ct)
+    {
+        await gate.WaitAsync(ct);
+        try
+        {
+            RequireOperationId(request.OperationId);
+            var identity=new OperationRequest(request.OperationId,request.Revision,(attack?"attack:":"move:")+request.TargetId);
+            if(operations.TryGetValue(request.OperationId,out var prior))
+            {
+                if(prior.Request!=identity)throw new InvalidOperationException("Operation ID reused with different arguments");
+                return prior.Result;
+            }
+            if(!targets.TryGetValue(request.TargetId,out var target))throw new InvalidOperationException("Request nearby_targets first");
+            var before=RequireOwnHeroOnMap(request.Revision);
+            var map=new MapReader(game,player);
+            map.ValidateTarget(before,target);
+            if(!attack&&string.Equals(target.Kind,"creatures",StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("Danger: this cell holds a creature stack, and moving onto it starts a battle. Approach a neighbouring cell with move_to_tile, or use attack_target to fight deliberately");
+            await RefreshRouteTree(before);
+            int[] destination=[target.X,target.Y,target.Z];
+            return await RunMove(request.OperationId,identity,before,destination,10,"move",
+                planned=>map.ValidateTarget(planned,target),
+                after=>
+                {
+                    bool collected=after.Screen=="adventure"&&target.Kind is "resource" or "campfire"
+                        &&after.Hero?.Id==before.Hero!.Id&&after.Hero.Movement<before.Hero.Movement
+                        &&!map.IsTargetPresent(after,target)
+                        &&after.Resources.Where((value,index)=>value>before.Resources[index]).Any();
+                    if(collected)return "Target collected; object disappeared and resources increased";
+                    if(after.Hero?.Position.SequenceEqual(destination)==true)return "Hero reached target cell";
+                    if(after.Screen!="adventure")return "Movement opened an interaction; read the dialog";
+                    return null;
+                });
+        }
+        finally{gate.Release();}
+    }
+
+    public async Task<OperationResult> MoveToTile(TileMoveRequest request,CancellationToken ct)
+    {
+        await gate.WaitAsync(ct);
+        try
+        {
+            RequireOperationId(request.OperationId);
+            var identity=new OperationRequest(request.OperationId,request.Revision,$"move-tile:{request.X},{request.Y},{request.Z}");
+            if(operations.TryGetValue(request.OperationId,out var prior))
+            {
+                if(prior.Request!=identity)throw new InvalidOperationException("Operation ID reused with different arguments");
+                return prior.Result;
+            }
+            var before=RequireOwnHeroOnMap(request.Revision);
+            if(request.X<0||request.Y<0||request.X>255||request.Y>255||request.Z<0||request.Z>1)
+                throw new InvalidOperationException("Cell outside supported map bounds");
+            int[] destination=[request.X,request.Y,request.Z];
+            RefuseCreatureCell(before,destination);
+            return await RunMove(request.OperationId,identity,before,destination,12,"move_tile",null,
+                after=>
+                {
+                    if(after.Hero?.Position.SequenceEqual(destination)==true)return "Hero reached the commanded cell";
+                    if(after.Screen!="adventure")return "Movement opened an interaction; read the dialog";
+                    bool advanced=after.Hero?.Id==before.Hero!.Id&&after.Hero.Movement<before.Hero.Movement
+                        &&!after.Hero.Position.SequenceEqual(before.Hero.Position);
+                    return advanced?"Hero advanced along the commanded path":null;
+                });
+        }
+        finally{gate.Release();}
+    }
+
+    /// Plans the route with the game's own map-selection handler, sends the hero along it with the
+    /// ordinary M command, then waits until the game itself shows the move happened.
+    private async Task<OperationResult> RunMove(string operationId,OperationRequest identity,Observation before,
+        int[] destination,int timeoutSeconds,string journal,Action<Observation>? verifyPlanned,Func<Observation,string?> finished)
+    {
+        var pending=new OperationResult("uncertain","Movement preparation started; inspect state before any retry with a new ID",null);
+        operations.Add(operationId,(identity,pending));
+        Record(journal+"_started",identity);
+        if(!before.Hero!.PlannedDestination.SequenceEqual(destination))
+            game.NativeAction(31,player,destination[0]|(destination[1]<<8)|(destination[2]<<16));
+        Observation? planned=null;
+        for(int attempt=0;attempt<20;attempt++)
+        {
+            await Task.Delay(50,CancellationToken.None);
+            try{planned=reader.Observe();}
+            catch(InvalidOperationException){continue;}
+            if(planned.Hero?.Id==before.Hero.Id&&planned.Hero.PlannedDestination.SequenceEqual(destination))break;
+        }
+        if(planned?.Hero?.Id!=before.Hero.Id||!planned.Hero.PlannedDestination.SequenceEqual(destination))
+        {
+            Record(journal+"_preparation_unconfirmed",new{operationId,planned});
+            return pending;
+        }
+        verifyPlanned?.Invoke(planned);
+        if(planned.Hero.Movement!=before.Hero.Movement||!planned.Hero.Position.SequenceEqual(before.Hero.Position))
+            throw new InvalidOperationException("Hero changed during route preparation");
+        // M is the game's ordinary move-along-selected-path command.
+        await game.KeyAsync(0x4d,0x32);
+        var deadline=DateTime.UtcNow.AddSeconds(timeoutSeconds);
+        while(DateTime.UtcNow<deadline)
+        {
+            await Task.Delay(100,CancellationToken.None);
+            Observation after;
+            try{after=reader.Observe();}
+            catch(InvalidOperationException){continue;}
+            string? message=finished(after);
+            if(message is null)continue;
+            var result=new OperationResult("completed",message,after);
+            operations[operationId]=(identity,result);
+            Record(journal+"_completed",new{operationId,result});
+            return result;
+        }
+        Record(journal+"_uncertain",identity);
+        return pending;
+    }
+
+    /// Stepping onto a creature stack starts a battle; that must be a deliberate attack, never a
+    /// side effect of an exploration move.
+    private void RefuseCreatureCell(Observation before,int[] cell)
+    {
+        try
+        {
+            var look=new MapReader(game,player).Read(before,cell[0],cell[1],cell[2],1);
+            bool creature=look.Objects.Any(o=>o.X==cell[0]&&o.Y==cell[1]&&o.Z==cell[2]
+                &&string.Equals(o.Kind,"creatures",StringComparison.OrdinalIgnoreCase));
+            if(creature)
+                throw new InvalidOperationException("Danger: this cell holds a creature stack, and stepping there starts a battle. Approach a neighbouring cell instead, or use attack_target when the fight is intended");
+        }
+        catch(InvalidOperationException e)when(!e.Message.StartsWith("Danger:")){}
+    }
+
+    private Task RefreshRouteTree(Observation observation)=>
+        HoverAndSettle(observation,RouteHoverX,RouteHoverY);
+
+    private async Task HoverAndSettle(Observation observation,int x,int y)
+    {
+        await game.MouseAsync(x,y,observation.Width,observation.Height,false,CancellationToken.None);
+        await Task.Delay(150,CancellationToken.None);
+    }
+
+    private Observation RequireOwnHeroOnMap(string revision)
+    {
+        var before=reader.Observe();
+        if(before.Revision!=revision||before.Screen!="adventure"||before.Hero is null)
+            throw new InvalidOperationException("Fresh own-hero adventure observation required");
+        return before;
+    }
+
+    private static void RequireOperationId(string operationId)
+    {
+        if(string.IsNullOrWhiteSpace(operationId)||operationId.Length>100)
+            throw new InvalidOperationException("Provide a unique operation ID of at most 100 characters");
+    }
+
+    // ---------------------------------------------------------------- diagnostics, journal, plan
+
+    public async Task<DebugSnapshot> Snapshot(CancellationToken ct)
+    {
+        await gate.WaitAsync(ct);
+        try
+        {
+            var before=reader.Observe();
+            var capture=DebugCapture.Save(game,player,Path.Combine(stateDirectory,"captures"));
+            var after=reader.Observe();
+            if(before.Revision!=after.Revision)
+                throw new InvalidOperationException("State changed during diagnostic capture; snapshot not confirmed");
+            string path=Path.ChangeExtension(capture.Path,"json");
+            await File.WriteAllTextAsync(path,JsonSerializer.Serialize(before,new JsonSerializerOptions{WriteIndented=true}),ct);
+            return new(before,capture,path);
+        }
+        finally{gate.Release();}
+    }
+
+    public async Task<CaptureResult> Capture(CancellationToken ct)
+    {
+        await gate.WaitAsync(ct);
+        try{return DebugCapture.Save(game,player,Path.Combine(stateDirectory,"captures"));}
+        finally{gate.Release();}
+    }
+
+    public async Task<object> GetJournal(int limit,CancellationToken ct)
+    {
+        await gate.WaitAsync(ct);
+        try{return journal.TakeLast(Math.Clamp(limit,1,100)).ToArray();}
+        finally{gate.Release();}
+    }
+
     public async Task<object> Plan(string? value,CancellationToken ct)
     {
         await gate.WaitAsync(ct);
         try
         {
-            if(value!=null){if(value.Length>12000)throw new InvalidOperationException("Plan too large");plan=value;Record("plan_updated",new{plan});}
+            if(value!=null)
+            {
+                if(value.Length>12000)throw new InvalidOperationException("Plan too large");
+                plan=value;
+                Record("plan_updated",new{plan});
+            }
             return new{plan,player};
         }
         finally{gate.Release();}
     }
-    public void Dispose(){game.Dispose();gate.Dispose();}
+
+    private void Record(string kind,object data)
+    {
+        Directory.CreateDirectory(stateDirectory);
+        var entry=new JournalEntry(journal.Count+1,DateTimeOffset.UtcNow,kind,data);
+        File.AppendAllText(Path.Combine(stateDirectory,"journal.jsonl"),JsonSerializer.Serialize(entry)+"\n");
+        journal.Add(entry);
+    }
 }
 
 public interface IGameEndpoint
@@ -623,6 +525,7 @@ public interface IGameEndpoint
     Task<Observation> Observe(CancellationToken ct);
     Task<OperationResult> Click(OperationRequest request,CancellationToken ct);
     Task<OperationResult> EnterText(TextRequest request,CancellationToken ct);
+    Task<ElementCard> InspectElement(InspectRequest request,CancellationToken ct);
     Task<object> Journal(int limit,CancellationToken ct);
     Task<object> Plan(string? value,CancellationToken ct);
     Task<MapView> ReadMap(int x,int y,int z,int radius,CancellationToken ct);
@@ -636,6 +539,7 @@ public interface IGameEndpoint
 
 internal sealed class LocalEndpoint(Bridge bridge) : IGameEndpoint
 {
+    private readonly DocsIndex docs=new();
     public Task<OperationResult> Move(MoveRequest request,CancellationToken ct)=>bridge.Move(request,ct);
     public Task<OperationResult> Attack(MoveRequest request,CancellationToken ct)=>bridge.Attack(request,ct);
     public Task<OperationResult> MapClick(MapClickRequest request,CancellationToken ct)=>bridge.MapClick(request,ct);
@@ -648,12 +552,12 @@ internal sealed class LocalEndpoint(Bridge bridge) : IGameEndpoint
     public Task<Observation> Observe(CancellationToken ct)=>bridge.Observe(ct);
     public Task<OperationResult> Click(OperationRequest request,CancellationToken ct)=>bridge.Click(request,ct);
     public Task<OperationResult> EnterText(TextRequest request,CancellationToken ct)=>bridge.EnterText(request,ct);
+    public Task<ElementCard> InspectElement(InspectRequest request,CancellationToken ct)=>bridge.InspectElement(request,ct);
     public Task<object> Journal(int limit,CancellationToken ct)=>bridge.GetJournal(limit,ct);
     public Task<object> Plan(string? value,CancellationToken ct)=>bridge.Plan(value,ct);
     public Task<MapView> ReadMap(int x,int y,int z,int radius,CancellationToken ct)=>bridge.ReadMap(x,y,z,radius,ct);
     public Task<TileInspection> InspectTile(int x,int y,int z,string revision,CancellationToken ct)=>bridge.InspectTile(x,y,z,revision,ct);
     public Task<NearbyTargets> Nearby(CancellationToken ct)=>bridge.Nearby(ct);
-    private readonly DocsIndex docs=new();
     public Task<DocsAnswer> Docs(DocsRequest request,CancellationToken ct)=>Task.FromResult(docs.Search(request.Query,request.Limit));
     public Task<DocsCatalog> DocsCatalog(CancellationToken ct)=>Task.FromResult(docs.Catalog());
     public Task<DocText> DocsRead(string path,string? heading,CancellationToken ct)=>Task.FromResult(docs.Read(path,heading));
@@ -662,6 +566,12 @@ internal sealed class LocalEndpoint(Bridge bridge) : IGameEndpoint
 
 internal sealed class RemoteEndpoint(HttpClient client) : IGameEndpoint
 {
+    private async Task<T> Call<T>(string route,object body,CancellationToken ct)
+    {
+        using var response=await client.PostAsJsonAsync(route,body,ct);
+        if(!response.IsSuccessStatusCode)throw new InvalidOperationException(await response.Content.ReadAsStringAsync(ct));
+        return (await response.Content.ReadFromJsonAsync<T>(cancellationToken:ct))!;
+    }
     public Task<OperationResult> Move(MoveRequest request,CancellationToken ct)=>Call<OperationResult>("bridge/move",request,ct);
     public Task<OperationResult> Attack(MoveRequest request,CancellationToken ct)=>Call<OperationResult>("bridge/attack",request,ct);
     public Task<OperationResult> MapClick(MapClickRequest request,CancellationToken ct)=>Call<OperationResult>("bridge/map-click",request,ct);
@@ -670,16 +580,11 @@ internal sealed class RemoteEndpoint(HttpClient client) : IGameEndpoint
     public Task<object> Start(CancellationToken ct)=>Call<object>("bridge/start",new{},ct);
     public Task<object> Graphics(string? renderer,CancellationToken ct)=>Call<object>("bridge/graphics",new{renderer},ct);
     public Task<CaptureResult> Capture(CancellationToken ct)=>Call<CaptureResult>("bridge/debug-capture",new{},ct);
-    private async Task<T> Call<T>(string route,object body,CancellationToken ct)
-    {
-        using var response=await client.PostAsJsonAsync(route,body,ct);
-        if(!response.IsSuccessStatusCode)throw new InvalidOperationException(await response.Content.ReadAsStringAsync(ct));
-        return (await response.Content.ReadFromJsonAsync<T>(cancellationToken:ct))!;
-    }
     public Task<object> Status(CancellationToken ct)=>Call<object>("bridge/status",new{},ct);
     public Task<Observation> Observe(CancellationToken ct)=>Call<Observation>("bridge/observe",new{},ct);
     public Task<OperationResult> Click(OperationRequest request,CancellationToken ct)=>Call<OperationResult>("bridge/click",request,ct);
     public Task<OperationResult> EnterText(TextRequest request,CancellationToken ct)=>Call<OperationResult>("bridge/text",request,ct);
+    public Task<ElementCard> InspectElement(InspectRequest request,CancellationToken ct)=>Call<ElementCard>("bridge/inspect-element",request,ct);
     public Task<object> Journal(int limit,CancellationToken ct)=>Call<object>("bridge/journal",new{limit},ct);
     public Task<object> Plan(string? value,CancellationToken ct)=>Call<object>("bridge/plan",new{value},ct);
     public Task<MapView> ReadMap(int x,int y,int z,int radius,CancellationToken ct)=>Call<MapView>("bridge/map",new{x,y,z,radius},ct);
@@ -690,4 +595,3 @@ internal sealed class RemoteEndpoint(HttpClient client) : IGameEndpoint
     public Task<DocText> DocsRead(string path,string? heading,CancellationToken ct)=>Call<DocText>("bridge/docs-read",new{path,heading},ct);
     public Task<TargetInspection> InspectTarget(string targetId,string revision,CancellationToken ct)=>Call<TargetInspection>("bridge/target",new{targetId,revision},ct);
 }
-

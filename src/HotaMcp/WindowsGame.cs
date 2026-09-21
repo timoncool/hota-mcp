@@ -70,6 +70,33 @@ internal sealed class WindowsGame : IDisposable
         try { await Task.Delay(60,CancellationToken.None); }
         finally { if(!PostMessageW(Window,0x202,0,lp)) throw new InvalidOperationException("Mouse release failed"); }
     }
+    private nint rightButton;
+    public Task RightMouseDownAsync(int gameX,int gameY,int width,int height,CancellationToken ct)
+    {
+        // In-game right button: the info card of a control stays on screen while the button is
+        // held, so down and up are separate steps and the card is read in between.
+        if(!GetClientRect(Window,out Rect rect) || IsIconic(Window))
+            throw new InvalidOperationException("Game window unavailable or minimized");
+        if(gameX<0 || gameY<0 || gameX>=width || gameY>=height || width<1 || height<1)
+            throw new InvalidOperationException("Target is outside game surface");
+        int x=(int)Math.Round((double)gameX*rect.Right/width);
+        int y=(int)Math.Round((double)gameY*rect.Bottom/height);
+        if(x>32767 || y>32767) throw new InvalidOperationException("Window dimensions unsupported");
+        nint lp=(nint)(x|(y<<16));
+        if(!PostMessageW(Window,0x200,0,lp)) throw new InvalidOperationException("Mouse dispatch failed");
+        ct.ThrowIfCancellationRequested();
+        if(!PostMessageW(Window,0x204,2,lp)) throw new InvalidOperationException("Right mouse down failed");
+        rightButton=lp;
+        return Task.CompletedTask;
+    }
+    public async Task RightMouseUpAsync()
+    {
+        if(rightButton==0) return;
+        nint lp=rightButton;
+        rightButton=0;
+        if(!PostMessageW(Window,0x205,0,lp)) throw new InvalidOperationException("Right mouse release failed");
+        await Task.Delay(60,CancellationToken.None);
+    }
     public async Task DragAsync(int fromX,int fromY,int toX,int toY,int width,int height,CancellationToken ct)
     {
         if(!GetClientRect(Window,out Rect rect) || IsIconic(Window))
