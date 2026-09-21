@@ -94,6 +94,15 @@ internal static class ScreenActions
                 return image is null||number is null?"":GameReference.Creature(image.Frame-2);
             }
             string Count(int count)=>items.FirstOrDefault(i=>i.Id==count)?.Text?.Trim()??"";
+            // The window is also the only place both heroes are shown side by side: names and
+            // classes at 87 and 88, the four primary skills in two columns — 3..6 on the left and
+            // 8..11 on the right — and experience and mana under each portrait at 81/83 and 82/84.
+            string Value(int id)=>items.FirstOrDefault(i=>i.Id==id)?.Text?.Trim()??"?";
+            actions.Add(new("exchange:compare",
+                $"Сравнить героев: слева {Value(87)} — атака {Value(3)}, защита {Value(4)}, сила магии {Value(5)}, "
+                +$"знание {Value(6)}, опыт {Value(81)}, мана {Value(83)}; справа {Value(88)} — атака {Value(8)}, "
+                +$"защита {Value(9)}, сила магии {Value(10)}, знание {Value(11)}, опыт {Value(82)}, мана {Value(84)}. "
+                +"Это чтение, ничего не нажимается: названия вторичных навыков читает inspect_element по их значкам."));
             for(int slot=0;slot<7;slot++)
             {
                 var mine=Named(13+slot,65+slot);
@@ -107,6 +116,28 @@ internal static class ScreenActions
                         $"Забрать «{theirs}» x{Count(72+slot)} у второго героя (правый ряд → левый). "
                         +"Если у тебя уже есть такой отряд, они сольются."));
             }
+            // Under every cell sits a single arrow: it hands over exactly one creature from that
+            // stack. Controls 430..436 pass one to the right, 440..446 one to the left. It is how
+            // a scout is given a token stack without opening the split dialog.
+            for(int slot=0;slot<7;slot++)
+            {
+                var mine=Named(13+slot,65+slot);
+                if(mine.Length>0&&items.Any(i=>i.Id==430+slot))
+                    actions.Add(new($"exchange:one:right:{mine}",
+                        $"Передать ОДНОГО «{mine}» правому герою (стрелка под отрядом). Случай: дать разведчику символический отряд."));
+                var theirs=Named(20+slot,72+slot);
+                if(theirs.Length>0&&items.Any(i=>i.Id==440+slot))
+                    actions.Add(new($"exchange:one:left:{theirs}",
+                        $"Забрать ОДНОГО «{theirs}» себе (стрелка под отрядом правого героя)."));
+            }
+            // The specialty icon sits beside each portrait — 105 on the left, 106 on the right — and
+            // the secondary skills run along the row under it. A left press opens the game's own
+            // explanation of what the icon means; it is the only way to read a specialty, and a
+            // specialty decides which hero should carry the army.
+            if(items.Any(i=>i.Id==105))actions.Add(new("exchange:specialty:left",
+                "Прочитать специализацию левого героя: откроется пояснение игры, закрывается message:accept"));
+            if(items.Any(i=>i.Id==106))actions.Add(new("exchange:specialty:right",
+                "Прочитать специализацию правого героя: откроется пояснение игры, закрывается message:accept"));
             // Six buttons between the rows do wholesale moves. Their pictures name them: SwCMR and
             // SwCML move every stack to one hero, SwXCh swaps the two armies outright, and the
             // pair below does the same for artefacts.
