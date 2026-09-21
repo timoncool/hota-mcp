@@ -20,6 +20,8 @@ internal enum Confirm
     PartyLoaded = 32,
     /// The hero must actually stand somewhere else, or have spent movement getting there.
     HeroMoved = 64,
+    /// The town garrison must actually hold different stacks than before.
+    GarrisonChanged = 128,
 }
 
 /// Everything a delivery needs about the game and the action being performed.
@@ -193,7 +195,7 @@ internal static class GameCommands
             new("recruitment", ClickBuilding(c => 30 + Suffix(c.Element, 2))),
         // Manual (Town Garrison): highlight the hero portrait, then click the banner left of the
         // first garrison slot; the game then merges garrison and hero army under the hero.
-        "town:lead" => new("town", Deliveries.TwoSlots(483, 387)),
+        "town:lead" => new("town", Deliveries.TwoSlots(483, 387)) { Confirm = Confirm.GarrisonChanged },
         "town:banner" => new("town", Deliveries.Slot(241, 387, 58, 64, "Garrison banner control not found in the town dialog")),
         // Town screen: "Space - Switches visiting/garrison heroes", "Up Arrow - Previous town",
         // "Down Arrow - Next town".
@@ -201,7 +203,7 @@ internal static class GameCommands
         "town:previous" => new("town", Deliveries.Key(0x26, 0x48)),
         "town:next" => new("town", Deliveries.Key(0x28, 0x50)),
         "hero:out" => new("town", Deliveries.TwoSlots(387, 483)),
-        _ when action.Key.StartsWith("town:take:") => new("town", TakeGarrisonStack),
+        _ when action.Key.StartsWith("town:take:") => new("town", TakeGarrisonStack) { Confirm = Confirm.GarrisonChanged },
 
         // Hero screens.
         // Esc returns to whichever screen opened this one, so both are legitimate landings.

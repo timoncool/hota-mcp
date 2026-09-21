@@ -284,6 +284,14 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             &&!(after.Combat?.OwnTurn==true
                 &&(after.Combat.ActiveStack!=before.Combat?.ActiveStack||after.Combat.Round!=before.Combat?.Round)))return false;
         if(confirm.HasFlag(Confirm.PartyLoaded)&&!(after.Hero is not null&&after.Date.Length>0))return false;
+        // Handing a stack over must actually change what the garrison holds. Pressing a slot only
+        // selects it, and selection alone already changes the observed revision.
+        if(confirm.HasFlag(Confirm.GarrisonChanged))
+        {
+            var was=before.Towns.SelectMany(t=>t.GarrisonCounts).ToArray();
+            var now=after.Towns.SelectMany(t=>t.GarrisonCounts).ToArray();
+            if(was.Length==now.Length&&was.SequenceEqual(now))return false;
+        }
         // A step counts only when the hero is somewhere else or paid movement for it; a dialog
         // opening on the way is the move having happened too.
         if(confirm.HasFlag(Confirm.HeroMoved)&&after.Screen=="adventure"
