@@ -16,6 +16,8 @@ public sealed record TileMoveRequest(string OperationId,string Revision,int X,in
 public sealed record MapClickRequest(int X,int Y);
 public sealed record TextRequest(string Revision,string Element,string Text);
 public sealed record InspectRequest(string Revision,string Element);
+public sealed record CellRequest(string Revision,int X,int Y,int Z);
+public sealed record CellCard(int X,int Y,int Z,string[] Card,Observation Observation);
 public sealed record ElementCard(string Element,string[] Card,Observation Observation);
 
 internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) : IDisposable
@@ -138,6 +140,36 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             var after=reader.Observe();
             if(after.Screen!="adventure")throw new InvalidOperationException("Screen changed during inspection");
             return new(x,y,z,after.Elements.SingleOrDefault(e=>e.Id==200)?.Text,after);
+        }
+        finally{gate.Release();}
+    }
+
+    /// The player's own way to look at a map cell before walking into it: hold the right button
+    /// over it and the game names what stands there and roughly how many. Nothing is entered and
+    /// no fight starts. The cell must be on screen, exactly as it must be for a player.
+    public async Task<CellCard> InspectCell(CellRequest request,CancellationToken ct)
+    {
+        await gate.WaitAsync(ct);
+        try
+        {
+            var before=reader.Observe();
+            if(before.Revision!=request.Revision)throw new InvalidOperationException("Observation is stale; observe again");
+            if(before.Screen!="adventure")throw new InvalidOperationException("Adventure map required");
+            var map=new MapReader(game,player);
+            var point=map.ScreenPoint(before,request.X,request.Y,request.Z);
+            await game.RightMouseDownAsync(point.X,point.Y,before.Width,before.Height,ct);
+            GameReader.CardView card;
+            try
+            {
+                await Task.Delay(350,CancellationToken.None);
+                card=reader.ReadCard();
+                Record("cell_inspected",new{request.X,request.Y,request.Z,card.Texts});
+            }
+            finally{await game.RightMouseUpAsync();}
+            await Task.Delay(150,CancellationToken.None);
+            var after=reader.Observe();
+            if(after.Screen!="adventure")throw new InvalidOperationException("The map reacted instead of showing a card; observe again");
+            return new(request.X,request.Y,request.Z,card.Texts,after);
         }
         finally{gate.Release();}
     }
@@ -590,6 +622,7 @@ public interface IGameEndpoint
     Task<OperationResult> Click(OperationRequest request,CancellationToken ct);
     Task<OperationResult> EnterText(TextRequest request,CancellationToken ct);
     Task<ElementCard> InspectElement(InspectRequest request,CancellationToken ct);
+    Task<CellCard> InspectCell(CellRequest request,CancellationToken ct);
     Task<object> Journal(int limit,CancellationToken ct);
     Task<object> Plan(string? value,CancellationToken ct);
     Task<MapView> ReadMap(int x,int y,int z,int radius,CancellationToken ct);
@@ -618,6 +651,7 @@ internal sealed class LocalEndpoint(Bridge bridge) : IGameEndpoint
     public Task<OperationResult> Click(OperationRequest request,CancellationToken ct)=>bridge.Click(request,ct);
     public Task<OperationResult> EnterText(TextRequest request,CancellationToken ct)=>bridge.EnterText(request,ct);
     public Task<ElementCard> InspectElement(InspectRequest request,CancellationToken ct)=>bridge.InspectElement(request,ct);
+    public Task<CellCard> InspectCell(CellRequest request,CancellationToken ct)=>bridge.InspectCell(request,ct);
     public Task<object> Journal(int limit,CancellationToken ct)=>bridge.GetJournal(limit,ct);
     public Task<object> Plan(string? value,CancellationToken ct)=>bridge.Plan(value,ct);
     public Task<MapView> ReadMap(int x,int y,int z,int radius,CancellationToken ct)=>bridge.ReadMap(x,y,z,radius,ct);
@@ -651,6 +685,7 @@ internal sealed class RemoteEndpoint(HttpClient client) : IGameEndpoint
     public Task<OperationResult> Click(OperationRequest request,CancellationToken ct)=>Call<OperationResult>("bridge/click",request,ct);
     public Task<OperationResult> EnterText(TextRequest request,CancellationToken ct)=>Call<OperationResult>("bridge/text",request,ct);
     public Task<ElementCard> InspectElement(InspectRequest request,CancellationToken ct)=>Call<ElementCard>("bridge/inspect-element",request,ct);
+    public Task<CellCard> InspectCell(CellRequest request,CancellationToken ct)=>Call<CellCard>("bridge/inspect-cell",request,ct);
     public Task<object> Journal(int limit,CancellationToken ct)=>Call<object>("bridge/journal",new{limit},ct);
     public Task<object> Plan(string? value,CancellationToken ct)=>Call<object>("bridge/plan",new{value},ct);
     public Task<MapView> ReadMap(int x,int y,int z,int radius,CancellationToken ct)=>Call<MapView>("bridge/map",new{x,y,z,radius},ct);

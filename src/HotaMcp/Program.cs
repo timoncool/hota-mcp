@@ -99,6 +99,7 @@ app.MapPost("/bridge/debug-snapshot",(CancellationToken ct)=>session.Snapshot(ct
 app.MapPost("/bridge/click",(OperationRequest request,CancellationToken ct)=>session.Click(request,ct));
 app.MapPost("/bridge/text",(TextRequest request,CancellationToken ct)=>session.EnterText(request,ct));
 app.MapPost("/bridge/inspect-element",(InspectRequest request,CancellationToken ct)=>session.InspectElement(request,ct));
+app.MapPost("/bridge/inspect-cell",(CellRequest request,CancellationToken ct)=>session.InspectCell(request,ct));
 app.MapPost("/bridge/move",(MoveRequest request,CancellationToken ct)=>session.Move(request,ct));
 app.MapPost("/bridge/attack",(MoveRequest request,CancellationToken ct)=>session.Attack(request,ct));
 app.MapPost("/bridge/map-click",(MapClickRequest request,CancellationToken ct)=>session.MapClick(request,ct));

@@ -60,6 +60,10 @@ public sealed class GameTools(IGameEndpoint endpoint)
     public Task<OperationResult> Act(string operationId,string revision,string action,CancellationToken cancellationToken)
         =>endpoint.Click(new(operationId,revision,action),cancellationToken);
 
+    [McpServerTool,Description("Look at a map cell the way a player does before walking into it: the bridge holds the right mouse button over the cell and reads the card the game shows, then releases. For a wandering stack that card names the creature and its rough size, which is what you need before deciding to fight. Nothing is entered, no fight starts, the hero does not move. The cell must be within the visible part of the map.")]
+    public Task<CellCard> InspectCell(string revision,int x,int y,int z,CancellationToken cancellationToken)
+        =>endpoint.InspectCell(new(revision,x,y,z),cancellationToken);
+
     [McpServerTool,Description("Read the game's own info card for one control from the latest observation: creature stats, skill or spell description, artefact text, hero details. The bridge holds the right mouse button the way a player does, reads the card and releases it, so the control is not activated and nothing is bought, moved or spent. Pass the element key from observe.Elements.")]
     public Task<ElementCard> InspectElement(string revision,string element,CancellationToken cancellationToken)
         =>endpoint.InspectElement(new(revision,element),cancellationToken);
