@@ -20,20 +20,22 @@ import re
 ROOT = 'docs/knowledge'
 STAMP = datetime.date.today().isoformat()
 BRANCHES = [
-    ('manual', 'Официальная документация игры', 'Мануал Heroes III и файл справки из установки игры'),
-    ('hota', 'Официальная документация Horn of the Abyss', 'Что дополнение HotA добавляет и меняет, по официальной странице'),
-    ('core', 'Правила игры для агента', 'Выжимка правил: календарь, движение, города, герои, магия, бой'),
-    ('playbooks', 'Сценарии работы через мост', 'Пошаговые how-to: сохранение и загрузка, город, ход, бой'),
-    ('agent', 'Материалы для агента', 'Как играть через мост, игровой цикл, список инструментов'),
-    ('sources', 'Исходники и заметки', 'Разбор источников и заметки по алгоритмам'),
+    ('agent', 'Как играть через мост', 'С чего начать, реестр экранов, инструменты, пошаговые сценарии'),
+    ('rules', 'Как игра считает', 'Формулы урона и движения, экономика города, навыки и магия, охрана банков, объекты карты, ростеры HotA'),
+    ('play', 'Как решать', 'Оценка боя, порядок построек, игровые циклы, приоритеты, реестр ситуаций'),
+    ('official', 'Официальные источники', 'Мануал Heroes III, справка из установки игры, документация HotA'),
+    ('engine', 'Внутренности настоящего exe', 'Адреса и структуры h3hota HD.exe, на которые опирается мост'),
+    ('sources', 'Происхождение знаний', 'Разбор источников и заметки по алгоритмам'),
 ]
 TYPE_HINTS = [
-    ('playbooks', 'how-to'),
+    ('agent/00', 'how-to'),
+    ('agent/1', 'how-to'),
     ('agent/01-tools', 'reference'),
-    ('manual', 'reference'),
-    ('hota/0', 'reference'),
-    ('core', 'reference'),
-    ('controls-hotkeys', 'reference'),
+    ('agent/01-screens', 'reference'),
+    ('rules', 'reference'),
+    ('play', 'explanation'),
+    ('official', 'reference'),
+    ('engine', 'reference'),
     ('sources', 'explanation'),
 ]
 
@@ -45,8 +47,11 @@ def doc_type(rel):
     return 'reference'
 
 
+HELP_FILE = os.environ.get('HOTA_HELP_FILE', r'G:\HoMM 3 Complete\HEROES3.HLP')
+
+
 def hlp_blocks():
-    raw = open(r'G:\HoMM 3 Complete\HEROES3.HLP', 'rb').read()
+    raw = open(HELP_FILE, 'rb').read()
     runs = [r.decode('cp1251', 'replace') for r in re.findall(rb'[\x20-\x7e\xc0-\xff]{18,}', raw)]
     blocks, seen = [], set()
     for r in runs:
@@ -99,7 +104,7 @@ def write_help():
             chunk = [b for b in chunk if b != title]
         out += [b + '\n' for b in chunk] + ['']
     text = '\n'.join(out)
-    path = os.path.join(ROOT, 'manual', 'h3-help-ru-hlp-extract.md')
+    path = os.path.join(ROOT, 'official', 'manual', 'h3-help-ru-hlp-extract.md')
     with open(path, 'w', encoding='utf-8') as f:
         f.write(text)
     return path, part, len(text)
@@ -109,6 +114,11 @@ def read_meta(path):
     """Return (title, meta line, first real paragraph) of a markdown document."""
     with open(path, encoding='utf-8') as f:
         lines = f.read().splitlines()
+    # A YAML front matter block is metadata, not the document's own words: skip it whole,
+    # otherwise the table of contents quotes "game_version_scope:" as if it were a summary.
+    if lines and lines[0].strip() == '---':
+        end = next((i for i in range(1, len(lines)) if lines[i].strip() == '---'), 0)
+        lines = lines[end + 1:]
     title, meta, summary = '', '', ''
     for line in lines:
         s = line.strip()
@@ -131,12 +141,17 @@ def write_branch_tocs():
         base = os.path.join(ROOT, folder)
         if not os.path.isdir(base):
             continue
-        files = sorted(f for f in os.listdir(base) if f.endswith('.md') and f.lower() != 'readme.md')
+        files = []
+        for where, _, names in os.walk(base):
+            for entry in sorted(names):
+                if entry.endswith('.md') and entry.lower() != 'readme.md':
+                    files.append(os.path.relpath(os.path.join(where, entry), base).replace(os.sep, '/'))
+        files.sort()
         rows = []
         for name in files:
             rel = f'{folder}/{name}'
-            title, _, summary = read_meta(os.path.join(base, name))
-            rows.append(f'| `{name}` | {doc_type(rel)} | {title or name} | {summary} |')
+            title, _, summary = read_meta(os.path.join(base, name.replace('/', os.sep)))
+            rows.append(f'| [`{name}`]({name}) | {doc_type(rel)} | {title or name} | {summary} |')
         text = [f'# {folder} — оглавление ветки',
                 '',
                 '> Собрано автоматически командой `python build/gen-docs-nav.py`; не править руками.',
@@ -156,7 +171,8 @@ def write_llms():
     for folder, title, inside in BRANCHES:
         if not os.path.isdir(os.path.join(ROOT, folder)):
             continue
-        files = [f for f in os.listdir(os.path.join(ROOT, folder)) if f.endswith('.md') and f.lower() != 'readme.md']
+        files = [f for where, _, names in os.walk(os.path.join(ROOT, folder)) for f in names
+                 if f.endswith('.md') and f.lower() != 'readme.md']
         lines.append(f'## {title}')
         lines.append(f'- [{folder}/]({folder}/README.md) — {inside}. Файлов: {len(files)}.')
         lines.append('')
@@ -183,7 +199,10 @@ def write_llms():
 
 
 if __name__ == '__main__':
-    help_path, parts, size = write_help()
+    if os.path.exists(HELP_FILE):
+        help_path, parts, size = write_help()
+    else:
+        help_path, parts, size = HELP_FILE + ' (не найден, извлечение справки пропущено)', 0, 0
     tocs = write_branch_tocs()
     index, full_size = write_llms()
     print(f'help: {help_path} parts={parts} chars={size}')

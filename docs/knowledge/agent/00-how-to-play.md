@@ -1,6 +1,14 @@
+---
+id: h3.agent.how-to-play
+title: Как играть в Heroes III через этот мост (памятка агенту)
+game_version_scope: HotA 1.8.x поверх Heroes III Complete
+topics: [heroes, knowledge, playbooks, core, game, status, start, observe]
+verification_status: источник: Материалы для агента
+type: reference
+layer: agent
+updated: "2026-09-20"
+---
 # Как играть в Heroes III через этот мост (памятка агенту)
-> **type:** reference · **layer:** agent · **source:** Материалы для агента · **updated:** 2026-09-20
-
 
 Короткая сводка для агента, который садится играть: с чего начать сессию, как выглядит игровой день, что важно помнить. Подробности — в `knowledge/playbooks/*` и `knowledge/core/*`.
 

@@ -1,6 +1,14 @@
+---
+id: h3.sources.core
+title: Core knowledge sources
+game_version_scope: HotA 1.8.x поверх Heroes III Complete
+topics: [core, knowledge, sources, docs, manual, steam, heroes, edition]
+verification_status: источник: Разбор источников
+type: explanation
+layer: agent
+updated: "2026-09-20"
+---
 # Core knowledge sources
-> **type:** explanation · **layer:** agent · **source:** Разбор источников · **updated:** 2026-09-20
-
 
 Эти источники покрывают базовую справку и границы применимости. Ссылки ведут на руководства или официальные страницы проекта; пересказ в `docs/knowledge/core/` выполнен кратко и собственными словами.
 

@@ -104,10 +104,18 @@ internal sealed class GameReference
                 if(text is null)continue;
                 int before=result.Count;
                 result.AddRange(Parse(text,kind,seen));
-                if(result.Count>before)used.Add($"{file} ({archiveName})");
+                // A table that is present but yields nothing is a parsing failure, not an absence:
+                // saying so beats a reference that quietly answers "no such thing".
+                used.Add(result.Count>before
+                    ?$"{file} ({archiveName})"
+                    :$"{file} ({archiveName}: прочитан, но ни одной карточки)");
                 break;
             }
         }
+        var missing=Tables.Select(t=>t.File)
+            .Where(file=>!used.Any(entry=>entry.StartsWith(file,StringComparison.OrdinalIgnoreCase)))
+            .ToArray();
+        if(missing.Length>0)used.Add("не найдены в архивах: "+string.Join(", ",missing));
         source=used.Count==0?"":string.Join(", ",used);
         return result;
     }
@@ -173,6 +181,20 @@ internal sealed class GameReference
     private static IEnumerable<ReferenceCard> Parse(string text,string kind,HashSet<string> seen)
     {
         var rows=Rows(text);
+        // Some of the game's tables are plain name lists with no columns at all — the map object
+        // names, the mine and terrain names, the faction names. They carry no fields, but the names
+        // themselves are what the agent sees on screen, so they are worth a card of their own.
+        if(rows.All(row=>row.Count(cell=>Clean(cell).Length>0)<=1))
+        {
+            foreach(var row in rows)
+            {
+                string only=Clean(row.FirstOrDefault(cell=>Clean(cell).Length>0)??"");
+                if(only.Length<2||double.TryParse(only,out _))continue;
+                if(!seen.Add(kind+" "+only))continue;
+                yield return new(kind,only,new Dictionary<string,string>(),only);
+            }
+            yield break;
+        }
         int headerRow=HeaderRow(rows);
         if(headerRow<0)yield break;
         var headers=rows[headerRow];

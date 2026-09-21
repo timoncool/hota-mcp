@@ -1,3 +1,13 @@
+---
+id: h3.agent.tools
+title: Инструменты моста (сгенерировано из живого MCP)
+game_version_scope: HotA 1.8.x поверх Heroes III Complete
+topics: [python, build, gen-tools-doc, tools, list, resources, execute, available]
+verification_status: собрано из открытых источников; внутриигровым замером не проверялось
+type: how-to
+layer: agent
+updated: "2026-09-21"
+---
 # Инструменты моста (сгенерировано из живого MCP)
 
 Файл собран командой `python build/gen-tools-doc.py`: список берётся прямо у работающего моста (MCP `tools/list`, `resources/list`), поэтому всегда соответствует текущей сборке.

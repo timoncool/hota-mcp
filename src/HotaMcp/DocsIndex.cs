@@ -129,8 +129,10 @@ public sealed class DocsIndex:IDisposable
     {
         var root=FindRoot();
         if(root is null)return [];
+        // Only the knowledge tree and the skills are the reference. The working documents next to
+        // it — state, tasks, lessons, handoffs — describe the project's own progress, and indexed
+        // beside the rules they answer game questions with development notes.
         var files=new List<string>();
-        files.AddRange(Directory.GetFiles(Path.Combine(root,"docs"),"*.md",SearchOption.TopDirectoryOnly));
         var knowledge=Path.Combine(root,"docs","knowledge");
         if(Directory.Exists(knowledge))
         {
@@ -142,6 +144,12 @@ public sealed class DocsIndex:IDisposable
         var result=new List<Section>();
         foreach(var file in files.Distinct().OrderBy(f=>f))
         {
+            // Branch tables of contents and the machine index describe the corpus instead of
+            // answering anything, and they repeat every title in it — indexed, they win searches
+            // away from the documents they point at. Navigation is what hota_docs_catalog is for.
+            var leaf=Path.GetFileName(file);
+            if(leaf.Equals("README.md",StringComparison.OrdinalIgnoreCase)
+               ||leaf.Equals("llms.txt",StringComparison.OrdinalIgnoreCase))continue;
             string[] lines;
             try{lines=File.ReadAllLines(file);}catch(IOException){continue;}
             var heading="";var body=new StringBuilder();var stack=new List<(int,string)>();
@@ -366,6 +374,9 @@ public sealed class DocsIndex:IDisposable
         }
     }
 
+    /// Every document ends with a section saying what it does NOT know. Those sections name the
+    /// very things they lack, so unweighted they answer questions about them — the agent asks the
+    /// price of a castle and is told nobody measured it. They stay searchable, just never first.
     private static List<DocHit> Query(SqliteConnection connection,string expression,int take,bool titlesOnly,bool full,bool cards)
     {
         using var command=connection.CreateCommand();
@@ -374,7 +385,7 @@ public sealed class DocsIndex:IDisposable
                    snippet(fts,1,'','','…',24) AS passage, s.body
             FROM fts JOIN sections s ON s.id=fts.rowid
             WHERE fts MATCH @m AND (s.file LIKE @p)=@c
-            ORDER BY rank
+            ORDER BY rank + CASE WHEN s.heading LIKE '%Пробелы%' THEN 4.0 ELSE 0.0 END
             LIMIT @n
             """;
         command.Parameters.AddWithValue("@m",expression);

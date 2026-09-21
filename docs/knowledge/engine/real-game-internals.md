@@ -33,9 +33,9 @@ source_urls:
   - https://raw.githubusercontent.com/RoseKavalier/H3Plugins/master/Examples/ShiftToggle/include/ShiftToggle.hpp
   - https://github.com/ERA-Projects/era-project-eng
   - https://raw.githubusercontent.com/ERA-Projects/era-project-eng/main/Help/Era%20manual/html/plugins_and_patches.html
-  - C:\Users\user\Documents\Codex\2026-09-19\new-chat-2\outputs\hota-agent-bridge\native\game\game_bridge.cpp
-  - C:\Users\user\Documents\Codex\2026-09-19\new-chat-2\outputs\hota-agent-bridge\native\game\attach.cpp
-  - C:\Users\user\Documents\Codex\2026-09-19\new-chat-2\outputs\hota-agent-bridge\docs\CAPABILITIES.md
+  - `native/game/game_bridge.cpp`
+  - `native/game/attach.cpp`
+  - `docs/CAPABILITIES.md`
   - https://download.h3hota.com/upd/changelogs/rus.txt
 type: reference
 layer: agent
@@ -53,12 +53,12 @@ H3API (`github.com/RoseKavalier/H3API`) — открытая header-only/ста�
 
 То есть библиотека документирует не HotA, а оригинальный патч 3.2 Shadow of Death/Complete (`heroes3.exe`). HotA нигде не упомянута ни в `Readme.md`, ни в `include/Changelog.txt` (220 строк истории версий библиотеки 2019–2021 годов, HotA не встречается ни разу). Каждый структурный тип получает фиксированный адрес через макрос:
 
-```cpp
+``cpp
 #define _H3API_GET_INFO_(address_pointer, struct_type) \
   static constexpr h3::ADDRESS ADDRESS = address_pointer; \
   static struct_type* Get() { return StructAt<struct_type>(ADDRESS); } \
   typedef struct_type TYPE
-```
+``
 
 `h3::ADDRESS` — это просто `unsigned int` (32-битный указатель, `include/H3Types.hpp`), без версионирования: один адрес намертво прибит к одной версии exe. Использовать H3API «как есть» на HotA — это допущение, которое нужно проверять, а не факт. Ниже — раздел, где это допущение проверено экспериментально.
 
@@ -98,22 +98,22 @@ H3API (`github.com/RoseKavalier/H3API`) — открытая header-only/ста�
 
 Итого — **24 независимо совпавших факта** (адреса синглтонов, vtable-адреса классов, офсеты полей, размеры структур, число слотов в vtable) между документацией для SoD 3.2 и живым, работающим прямо сейчас HotA 1.8.x (сборка закреплена в `attach.cpp` по SHA-256 хешу файла — см. ниже). Из этого следует практический вывод: **базовые структуры адвенчур-карты, менеджеров экрана и диалоговой системы в HotA 1.8.x бинарно идентичны SoD 3.2** — ни один байт смещения, ни один адрес vtable, ни один синглтон-указатель не сдвинулся. HotA добавляет код и данные (третья фракция Бастион/Кронверк, новые здания, новые диалоги) в новых адресах поверх старого макета, не трогая существующий.
 
-Источник: C:\Users\user\Documents\Codex\2026-09-19\new-chat-2\outputs\hota-agent-bridge\native\game\game_bridge.cpp (строки 55–175), сверено построчно с заголовками из первой колонки таблицы
+Источник: `native/game/game_bridge.cpp` (строки 55–175), сверено построчно с заголовками из первой колонки таблицы
 
 ## Как игра защищает мост от несовместимой версии
 
 Раз адреса зашиты намертво, любое несовпадение версии exe — не «работает чуть хуже», а чтение мусора или падение. `native/game/attach.cpp` решает это не проверкой номера версии, а криптографической проверкой байтов файла:
 
-```cpp
+``cpp
 if (!QueryFullProcessImageNameW(process,0,path,&length) ||
     HashFile(path) != "5AAAB925F06CCCF23BB09814767590A95B84A557EB33D244800520BE4F1F18DE") {
     std::cerr << "Unsupported game binary\n"; ...
 }
-```
+``
 
 Хешируется (`BCryptHash`, SHA-256) не только сам `h3hota HD.exe`, но и лежащий рядом `HotA.dll` — то есть закреплена связка «exe + модуль правил HotA» целиком, одной версией. Если пользователь обновит HotA (например, с 1.8.0 на 1.8.1) и хотя бы один байт одного из двух файлов изменится, хеш не совпадёт и `game-attach.exe` откажется цепляться («Unsupported game binary» / «Unsupported game native DLL»), вместо того чтобы попытаться работать с потенциально другими смещениями. Это осознанно консервативнее, чем подход H3API/H3Plugins, где обычно нет автоматической защиты от неверной версии — только явное указание «библиотека для версии 3.2» в документации, а платить за несовпадение приходится падением или тихой порчей памяти.
 
-Источник: C:\Users\user\Documents\Codex\2026-09-19\new-chat-2\outputs\hota-agent-bridge\native\game\attach.cpp (строки 21–49)
+Источник: `native/game/attach.cpp` (строки 21–49)
 
 ## Как устроена память партии: главный объект H3Main
 
@@ -206,9 +206,9 @@ if (!QueryFullProcessImageNameW(process,0,path,&length) ||
 
 Все крупные подсистемы интерфейса (окна, ввод, звук, мышь, обмен войсками, бой, адвенчур-карта, город, найм) — наследники одного базового класса `H3Manager` (размер `0x38`, конструктор `0x44D200`) с трёхслотовой виртуальной таблицей:
 
-```cpp
+``cpp
 struct ManagerVTable { h3func start; h3func stop; h3func processMessage; };
-```
+``
 
 Слоты: `[v00] Start(zorder)`, `[v04] Stop()`, `[v08] ProcessMessage(H3Msg&)`. Именно слот `v08` (смещение `+0x08` от адреса vtable) — точка, куда попадает любое сообщение, адресованное менеджеру; мост подтверждённо использует это же смещение (`Read<uintptr_t>(original+8)`) при временной подмене vtable менеджера города (см. раздел про подключение плагинов ниже). Перечисление типов менеджера (`eType`, битовые флаги, а не последовательные номера — это маска для фильтрации «кто активен сейчас»):
 
@@ -263,22 +263,22 @@ Vtable диалога — 15 функций (`H3DlgVTable`): `destroyDlg, showDl
 
 Мост, работающий с реальным HotA 1.8.x, реализует и использует байт-в-байт совместимую структуру самостоятельно, назвав её `GameMessage` (32 байта, статически проверено `static_assert(sizeof(GameMessage)==32)`):
 
-```cpp
+``cpp
 struct GameMessage { int command, subtype, item, flags, x, y; void* parameter; void* dialog; };
-```
+``
 
 Мост синтезирует такие сообщения сам и «впрыскивает» их не через постановку в общую очередь Windows-сообщений (это было бы небезопасно и неточно адресуемо), а точечно — подменой указателя на vtable (или таблицы методов) ровно одного объекта (кнопки/диалога/менеджера), так что при следующем естественном вызове виртуального метода этим же объектом внутри игровой модальной обёртки управление один раз попадает в код моста, отдаёт заранее подготовленное `GameMessage`, само восстанавливает оригинальный указатель на vtable и передаёт управление дальше — оригинальному обработчику. Это «одноразовый батут» (trampoline), а не постоянный хук: он снимает себя сам после первого срабатывания.
 
 Пример (сокращённо, кнопка):
-```cpp
+``cpp
 buttonOriginal = Read<uintptr_t>(targetButton);           // сохранить исходный vtable-указатель
 for (i=0..12) buttonTable[i] = Read<uintptr_t>(buttonOriginal + i*4); // скопировать все 13 слотов
 buttonTable[2] = &DeliverButtonCommand;                    // подменить только vProcessMsg (слот 2)
 *reinterpret_cast<uintptr_t*>(targetButton) = &buttonTable; // подложить копию с одной подменой
-```
+``
 и `DeliverButtonCommand` при первом же вызове восстанавливает `buttonOriginal`, отдаёт заранее собранное сообщение и возвращает `2` — код, который «модальный цикл» (`ProcessItems`) интерпретирует как готовый результат, включая совместимость с собственным меню HD Mod.
 
-Источник: C:\Users\user\Documents\Codex\2026-09-19\new-chat-2\outputs\hota-agent-bridge\native\game\game_bridge.cpp (строки 9–53)
+Источник: `native/game/game_bridge.cpp` (строки 9–53)
 
 ## Как плагины подключаются к игре: три разные экосистемы
 
@@ -290,15 +290,15 @@ buttonTable[2] = &DeliverButtonCommand;                    // подменить
 
 **3. Наш мост (`hota-agent-bridge`).** Ни ERA, ни HD Mod plugin API не используются вовсе. Инъекция сделана низкоуровневым штатным механизмом Windows — `SetWindowsHookExW(WH_GETMESSAGE, ...)` на поток целевого окна игры:
 
-```cpp
+``cpp
 DWORD thread = GetWindowThreadProcessId(target, nullptr);
 HHOOK hook = SetWindowsHookExW(WH_GETMESSAGE, proc, dll, thread);
 PostMessageW(target, kInit, 0, 0); // будит очередь сообщений — Windows сама подгружает DLL в чужой процесс
-```
+``
 
 Это официально задокументированный Win32-приём: при установке WH_GETMESSAGE-хука с ненулевым `hMod` система сама отображает указанную DLL в адресное пространство процесса-владельца потока в момент, когда тот в следующий раз вызовет `GetMessage`/`PeekMessage`. Не требуется ни `CreateRemoteThread`, ни ручная запись в чужую память для инъекции, ни патч точки входа exe. Дальше — обмен приватными сообщениями через `PostMessageW`/`GetPropW` на самом окне игры (`kInit`, `kAction` = `WM_APP+0x391/0x392`), что гарантированно исполняется в родном потоке игры (см. ниже про потокобезопасность).
 
-Источник: https://raw.githubusercontent.com/ERA-Projects/era-project-eng/main/Help/Era%20manual/html/plugins_and_patches.html, https://raw.githubusercontent.com/RoseKavalier/H3Plugins/master/README.md, C:\Users\user\Documents\Codex\2026-09-19\new-chat-2\outputs\hota-agent-bridge\native\game\attach.cpp
+Источник: https://raw.githubusercontent.com/ERA-Projects/era-project-eng/main/Help/Era%20manual/html/plugins_and_patches.html, https://raw.githubusercontent.com/RoseKavalier/H3Plugins/master/README.md, `native/game/attach.cpp`
 
 ## Хуки patcher_x86: какие типы существуют и когда какой применяется
 
@@ -308,10 +308,10 @@ PostMessageW(target, kInit, 0, 0); // будит очередь сообщени
 - **`HiHook`** — хук на конкретную инструкцию `CALL`, с тремя разновидностями (`hooktype`): `CALL_` (подмена самого адреса вызова), `SPLICE_` (врезка «мостом» — оригинальная функция физически перемещается, а на её месте остаётся трамплин; так безопаснее переживает конкурирующие патчи разных плагинов на одном адресе) и `FUNCPTR_` (подмена указателя на функцию напрямую, для виртуальных вызовов через таблицы). Дополнительно указывается соглашение вызова оригинальной функции: `STDCALL_/THISCALL_/FASTCALL_/CDECL_` — это обязательный параметр, потому что x86 не хранит соглашение вызова в самом коде, и его нужно знать заранее из реверс-инжиниринга.
 
 Практическое правило, явно видное на примере `ShiftToggle::Start()`:
-```cpp
+``cpp
 Hook(0x40A7C7, ::CheckShift);                     // LoHook на конкретный адрес кода
 Hook(0x408BA0, Splice, Thiscall, ::_HH_CheckShift); // HiHook типа Splice, __thiscall
-```
+``
 — `LoHook` используют, когда нужно перехватить именно точку внутри функции (условие, ответвление); `HiHook`/`Splice` — когда нужно перехватить сам вызов чужой функции целиком (обернуть её, дописать логику до/после, опционально не выполнять оригинал).
 
 Источник: https://raw.githubusercontent.com/RoseKavalier/H3API/master/include/patcher_x86.hpp, https://raw.githubusercontent.com/RoseKavalier/H3Plugins/master/Examples/ShiftToggle/src/ShiftToggle.cpp
@@ -328,7 +328,7 @@ Hook(0x408BA0, Splice, Thiscall, ::_HH_CheckShift); // HiHook типа Splice, _
 
 Практический вывод для любых новых хуков/операций: если код когда-либо обращается к `H3Main`, менеджерам, диалогам, армии — это обращение обязано происходить синхронно из колбэка, вызванного самой игрой (хук, виртуальный метод, обработчик сообщения), и никогда — из фонового потока или таймера адаптера, даже если адрес «просто читается», а не пишется: структуры меняются посреди кадра, и чтение из чужого потока может застать их в противоречивом промежуточном состоянии.
 
-Источник: C:\Users\user\Documents\Codex\2026-09-19\new-chat-2\outputs\hota-agent-bridge\native\game\game_bridge.cpp (строки 176–204), C:\Users\user\Documents\Codex\2026-09-19\new-chat-2\outputs\hota-agent-bridge\native\game\attach.cpp
+Источник: `native/game/game_bridge.cpp` (строки 176–204), `native/game/attach.cpp`
 
 ## Чем отличается адресация HotA от Shadow of Death и что ломается при обновлении версии
 
@@ -340,7 +340,7 @@ Hook(0x408BA0, Splice, Thiscall, ::_HH_CheckShift); // HiHook типа Splice, _
 - ERA/WoG нацелены на оригинальный `heroes3.exe`; официальная документация ERA не подтверждает и не отрицает работу на `h3hota HD.exe` напрямую — не проверялось (см. `## Пробелы`).
 - HD Mod, через который грузятся классические H3Plugins, — отдельный самостоятельно обновляемый компонент; его собственная версия и её совместимость с конкретной сборкой HotA — отдельная переменная, не покрытая ни H3API, ни нашим мостом.
 
-Источник: C:\Users\user\Documents\Codex\2026-09-19\new-chat-2\outputs\hota-agent-bridge\native\game\attach.cpp, https://download.h3hota.com/upd/changelogs/rus.txt (версия 1.8.1 от 25.08.2026 подтверждает, что HotA продолжает выходить патчами поверх той же базы, без анонсов о «переписанном движке» или смене архитектуры exe)
+Источник: `native/game/attach.cpp`, https://download.h3hota.com/upd/changelogs/rus.txt (версия 1.8.1 от 25.08.2026 подтверждает, что HotA продолжает выходить патчами поверх той же базы, без анонсов о «переписанном движке» или смене архитектуры exe)
 
 ## Пробелы
 

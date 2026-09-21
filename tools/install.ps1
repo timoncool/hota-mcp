@@ -50,6 +50,34 @@ if (-not (Test-Path (Join-Path $tab 'hota_launcher_tab.dll'))) {
 }
 
 $app = Join-Path $InstallPath 'app'
+
+# A running service holds its own binaries open, so an upgrade has to ask it to stop first. The
+# service exposes a control pipe per launcher; when it does not answer, the process is ended
+# directly, because leaving a half-published folder behind is worse than a restart.
+$running = Get-Process HotaMcp -ErrorAction SilentlyContinue
+if ($running) {
+    Write-Host 'Stopping the running MCP service...'
+    foreach ($process in $running) {
+        $stopped = $false
+        foreach ($launcher in (Get-Process HD_Launcher -ErrorAction SilentlyContinue)) {
+            try {
+                $pipe = [IO.Pipes.NamedPipeClientStream]::new('.', ("hota-mcp-control-{0}" -f $launcher.Id), [IO.Pipes.PipeDirection]::InOut)
+                $pipe.Connect(1000)
+                $bytes = [Text.Encoding]::UTF8.GetBytes('stop')
+                $pipe.Write($bytes, 0, $bytes.Length)
+                $null = $pipe.ReadByte()
+                $pipe.Dispose()
+                $stopped = $true
+            } catch { }
+        }
+        if (-not $process.WaitForExit(4000)) {
+            if (-not $stopped) { Write-Host '  control pipe did not answer; ending the process' }
+            try { $process.Kill() } catch { }
+            $null = $process.WaitForExit(4000)
+        }
+    }
+}
+
 if (-not $NoBuild) {
     Write-Host 'Publishing the MCP service...'
     & dotnet publish (Join-Path $repo 'src\HotaMcp\HotaMcp.csproj') -c Release -o $app -v q --nologo
@@ -58,9 +86,21 @@ if (-not $NoBuild) {
     throw "No published service in $app and -NoBuild was given."
 }
 
-# The tab starts the service from its own directory, so both live side by side.
-Copy-Item (Join-Path $tab 'hota_launcher_tab.dll') $app -Force
-Copy-Item (Join-Path $tab 'launcher-attach.exe') $app -Force
+# The tab starts the service from its own directory, so both live side by side. The tab DLL is
+# injected into a running launcher and is therefore locked while that launcher lives; replacing an
+# identical file would gain nothing, so it is copied only when it actually differs, and a locked
+# newer version is reported instead of failing the whole install.
+foreach ($binary in @('hota_launcher_tab.dll', 'launcher-attach.exe')) {
+    $from = Join-Path $tab $binary
+    $to = Join-Path $app $binary
+    $same = (Test-Path $to) -and ((Get-FileHash $from).Hash -eq (Get-FileHash $to).Hash)
+    if ($same) { continue }
+    try {
+        Copy-Item $from $to -Force
+    } catch [System.IO.IOException] {
+        Write-Warning ("{0} is in use by the running launcher and was not replaced. Close the HD Launcher and run this installer again to pick up the new tab." -f $binary)
+    }
+}
 
 # The bridge serves its documentation offline; it is found by walking up from the binaries.
 foreach ($tree in @('docs', 'skills')) {
