@@ -152,6 +152,7 @@ internal sealed class GameReference
     /// so plainly and points at the card, instead of pretending a number is an answer.
     private static readonly Dictionary<int,string> HotaCreatures=new()
     {
+        [172]="Механик",
         [174]="Броненосец",
     };
 

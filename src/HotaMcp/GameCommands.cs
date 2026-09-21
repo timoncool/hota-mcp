@@ -201,6 +201,13 @@ internal static class GameCommands
         // Single player leads to the scenario list after "new game" and to the browser after
         // "load game"; the reader names the browser by the button it carries.
         "menu:single" => new("scenario_selection,load_game,save_game", Deliveries.Native(21, 100)),
+        // These two carry no caption at all — the meaning is in the picture, so the picture is the
+        // name: TPTav01 hires the chosen hero, TPTav02 opens the Thieves Guild beside it.
+        "tavern:hire" => new("town,tavern", Deliveries.Control(12,"TPTav01.def")) { Confirm = Confirm.GarrisonChanged },
+        "tavern:thieves" => new("thieves_guild", Deliveries.Control(11,"TPTav02.def")),
+        _ when action.Key.StartsWith("tavern:select:",StringComparison.Ordinal)
+            && int.TryParse(action.Key["tavern:select:".Length..],out int who) && who is 1 or 2
+            => new("tavern",Deliveries.Control(4+who)),
         "scenario:back" => new("main_menu", Deliveries.Native(22)),
         "scenario:maps" => new("scenario_selection", Deliveries.Native(23, 128)),
         "scenario:players" => new("scenario_selection", Deliveries.Native(23, 129)),
@@ -309,7 +316,6 @@ internal static class GameCommands
         "exchange:done" => new("adventure,town", Deliveries.Key(0x1b, 0x01)),
 
         // Tavern and recruitment.
-        "tavern:hire" => new("town", Deliveries.Key(0x0d, 0x1c)),
         "tavern:close" => new("town", Deliveries.Key(0x1b, 0x01)),
         "recruit:max" => new("recruitment", Deliveries.Key(0x4d, 0x32)),
         "recruit:buy" => new("town", Deliveries.Key(0x0d, 0x1c)),

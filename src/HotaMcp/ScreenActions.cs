@@ -51,6 +51,32 @@ internal static class ScreenActions
                     :$"{name.Text} (уровень {tier+1}): жилище {dwelling} не построено"));
             }
         }
+        if(screen=="tavern")
+        {
+            // The tavern offers up to two heroes: portraits 5 and 6, the price under the chosen
+            // one at 4, the hire button at 11 and the exit at 30720. Hiring was not published at
+            // all, so a bridge with a town and no hero had no way to get one.
+            var price=items.FirstOrDefault(i=>i.Id==4)?.Text?.Trim();
+            var who=items.FirstOrDefault(i=>i.Id==7)?.Text?.ReplaceLineEndings(" ").Trim();
+            foreach(int slot in new[]{5,6})
+                if(items.Any(i=>i.Id==slot&&i.Interactive))
+                    actions.Add(new($"tavern:select:{slot-4}",$"Выбрать героя {slot-4} из предложенных"));
+            // Hiring is control 12, the button under the price; control 11 beside it opens the
+            // Thieves Guild and is not the way in. The hire button goes dead while a hero already
+            // stands in the town as a visitor: a town holds one visiting hero and one garrison
+            // hero, and the tavern needs the visitor slot free.
+            if(items.Any(i=>i.Id==11&&i.Interactive))
+                actions.Add(new("tavern:thieves","Открыть Гильдию Воров: сведения о соперниках"));
+            bool free=items.Any(i=>i.Id==12&&i.Interactive);
+            if(!free&&items.Any(i=>i.Id==12))
+                actions.Add(new("tavern:hire",
+                    "Нанять нельзя: место гостя в городе занято. Сначала выведи героя на карту "
+                    +"(hero:out) или посади его в гарнизон (town:lead), потом нанимай."));
+            if(free)
+                actions.Add(new("tavern:hire",
+                    $"Нанять выбранного героя{(who is null?"":$" ({who})")}{(price is null?"":$" за {price} золота")}. "
+                    +"Герой появится в городе как гость со своей небольшой армией."));
+        }
         if(screen=="enemy_hero_card")actions.Add(new("screen:close","Закрыть карточку чужого героя"));
         if(screen is "adventure_options" or "world_view" or "puzzle_map" or "scenario_info"
             or "thieves_guild" or "marketplace" or "mage_guild" or "town_fort")
@@ -285,7 +311,6 @@ internal static class ScreenActions
         if(screen=="system_options"&&items.Any(i=>i.Id==108&&i.Asset=="somain.def"&&i.Interactive))actions.Add(new("game:main_menu","Выйти в главное меню через штатный вопрос игры"));
         if(screen=="tavern")
         {
-            if(items.Any(i=>i.Id==12&&i.Interactive))actions.Add(new("tavern:hire","Нанять выбранного героя за указанную цену"));
             actions.Add(new("tavern:close","Выйти из таверны"));
         }
         if(screen=="battle_result"&&items.Any(i=>i.Id==30722&&i.Interactive))actions.Add(new("battle:accept","Принять результат боя"));
