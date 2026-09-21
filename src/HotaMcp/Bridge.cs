@@ -187,9 +187,20 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
         {
             var before=reader.Observe();
             if(before.Revision!=request.Revision)throw new InvalidOperationException("Observation is stale; observe again");
-            var element=before.Elements.SingleOrDefault(e=>e.Key==request.Element)
-                ??throw new InvalidOperationException("Unknown control; observe again");
-            await game.RightMouseDownAsync(element.X+element.Width/2,element.Y+element.Height/2,before.Width,before.Height,ct);
+            // Any cell on screen can be looked at, not only the ones the observation lists: an
+            // element key works, and so does "id:<number>" for a control the observation leaves
+            // out to stay compact.
+            int centreX,centreY;
+            var element=before.Elements.SingleOrDefault(e=>e.Key==request.Element);
+            if(element is not null)(centreX,centreY)=(element.X+element.Width/2,element.Y+element.Height/2);
+            else if(request.Element.StartsWith("id:")&&int.TryParse(request.Element[3..],out int wanted))
+            {
+                var box=reader.FindControlById(wanted)
+                    ??throw new InvalidOperationException($"No control with id {wanted} on this screen");
+                (centreX,centreY)=(box.X+box.Width/2,box.Y+box.Height/2);
+            }
+            else throw new InvalidOperationException("Unknown control; observe again, or address it as id:<number>");
+            await game.RightMouseDownAsync(centreX,centreY,before.Width,before.Height,ct);
             GameReader.CardView card;
             try
             {

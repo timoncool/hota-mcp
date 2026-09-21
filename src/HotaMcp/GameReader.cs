@@ -14,8 +14,20 @@ public record HeroView(int Id,string Name,int[] Position,int Mana,int Movement,i
 {
     public int[] PlannedDestination {get;init;}=[];
 }
+public record HeroSkill(string Name,string Mastery,string Element);
+public record HeroSlot(string Slot,string Element);
+public record HeroSheet(string Name,string Title,List<HeroSkill> Skills,List<HeroSlot> Equipped,string Specialty)
+{
+    /// Where to point inspect_element to read what the game explains on this screen. The help
+    /// calls these out as clickable icons: morale, luck, experience to the next level, mana,
+    /// the four primary skills and the seven army slots.
+    public Dictionary<string,string> Inspect {get;init;}=new();
+}
+
 public record Observation(string Revision,int Player,int[] Date,int[] Resources,HeroView? Hero,string Screen,int Width,int Height,List<UiElement> Elements)
 {
+    /// Filled only on the hero screen: what the player reads there and cannot read anywhere else.
+    public HeroSheet? Sheet {get;init;}
     public List<TownView> Towns {get;init;}=[];
     public List<AvailableAction> Actions {get;init;}=[];
     public ScenarioSetup? Setup {get;init;}
@@ -111,6 +123,28 @@ internal sealed class GameReader(WindowsGame game,int player)
         current=game.I32(0x69ccf4), other=game.I32(0x6995a4), active=game.U32(0x69ccfc),
         main=game.U32(0x699538), mode=game.I32(0x698a40),managers,inputCandidates
     };}
+    public record ControlBox(int Id,int X,int Y,int Width,int Height);
+    /// Finds any control of the active dialog by its own id, whether or not the observation
+    /// publishes it. Observations stay compact; inspection still reaches every cell on screen.
+    public ControlBox? FindControlById(int id,int occurrence=0)
+    {
+        uint manager=game.U32(0x6992d0),dlg=game.U32(manager+0x54);
+        if(dlg==0)return null;
+        int dx=game.I32(dlg+0x18),dy=game.I32(dlg+0x1c);
+        var seen=new HashSet<uint>();
+        int found=0;
+        for(uint item=game.U32(dlg+0x2c);item!=0&&seen.Add(item)&&seen.Count<2048;item=game.U32(item+8))
+        {
+            if(BitConverter.ToUInt16(game.Read(item+0x10,2))!=id)continue;
+            if(found++<occurrence)continue;
+            int w=BitConverter.ToUInt16(game.Read(item+0x1c,2)),h=BitConverter.ToUInt16(game.Read(item+0x1e,2));
+            if(w<1||h<1)continue;
+            return new(id,dx+BitConverter.ToInt16(game.Read(item+0x18,2),0),
+                dy+BitConverter.ToInt16(game.Read(item+0x1a,2),0),w,h);
+        }
+        return null;
+    }
+
     public record ScreenProbe(uint Vtable,string? Name,int Controls,object[] Items);
     /// Names whatever dialog is on top and lists its controls, even when the screen reader has no
     /// name for it yet. This is how an unmapped screen gets mapped: it is the developer's view,
@@ -321,7 +355,34 @@ internal sealed class GameReader(WindowsGame game,int player)
         var setup=screen=="scenario_selection"?new ScenarioReader(game).Read(dlg,items):null;
         var combat=screen=="combat"?new CombatReader(game,player).Read():null;
         var actions=ScreenActions.Build(game,player,screen,items,towns,hero,saves,setup,combat);
-        var result=new Observation("",player,date,resources,hero,screen,width,height,items){Towns=towns,Actions=actions,Setup=setup,Combat=combat,Saves=saves};
+        HeroSheet? sheet=null;
+        if(screen=="hero_screen")
+        {
+            // Skill names sit at 87..94, their mastery at 95..102, and the icon that carries the
+            // full description at 79..86. Equipment slots 2..20 hold an artefact when the slot
+            // draws a picture at all.
+            var skills=new List<HeroSkill>();
+            for(int i=0;i<8;i++)
+            {
+                var name=items.FirstOrDefault(e=>e.Id==87+i);
+                if(name is null||string.IsNullOrWhiteSpace(name.Text))continue;
+                skills.Add(new(name.Text.Trim(),items.FirstOrDefault(e=>e.Id==95+i)?.Text?.Trim()??"",$"id:{79+i}"));
+            }
+            var equipped=new List<HeroSlot>();
+            foreach(var slot in items.Where(e=>e.Id is >=2 and <=20&&e.Frame>0&&e.Width==44))
+                equipped.Add(new($"слот {slot.Id}",$"id:{slot.Id}"));
+            var inspect=new Dictionary<string,string>
+            {
+                ["боевой дух"]="id:116",["удача"]="id:117",["опыт и следующий уровень"]="id:119",
+                ["мана"]="id:120",["специализация"]="id:118",
+                ["атака"]="id:50",["защита"]="id:51",["сила магии"]="id:52",["знания"]="id:53",
+            };
+            for(int slot=0;slot<7;slot++)
+                if(items.Any(e=>e.Id==54+slot&&e.Frame>0))inspect[$"отряд {slot+1}"]=$"id:{54+slot}";
+            sheet=new(items.FirstOrDefault(e=>e.Id==1)?.Text?.Trim()??"",
+                items.FirstOrDefault(e=>e.Id==140)?.Text?.Trim()??"",skills,equipped,"id:118"){Inspect=inspect};
+        }
+        var result=new Observation("",player,date,resources,hero,screen,width,height,items){Towns=towns,Actions=actions,Setup=setup,Combat=combat,Saves=saves,Sheet=sheet};
         string revision=Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(epoch+JsonSerializer.Serialize(result))))[..24];
         return result with {Revision=revision};
     }
