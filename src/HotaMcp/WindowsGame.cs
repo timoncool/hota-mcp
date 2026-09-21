@@ -52,15 +52,30 @@ internal sealed class WindowsGame : IDisposable
         }
         return Encoding.GetEncoding(1251).GetString(bytes.ToArray());
     }
-    public async Task MouseAsync(int gameX,int gameY,int width,int height,bool click,CancellationToken ct)
+    /// Turns a point on the game's drawing surface into a point in the window.
+    ///
+    /// The window and the surface do not have to share an aspect ratio: a 800x600 surface inside a
+    /// 3840x1600 client is drawn scaled to fit and centred, with bars on the sides. Stretching to
+    /// the full client instead happens to be right in the middle of the screen and wrong at the
+    /// edges, which is why presses near a window's own exit button used to miss.
+    private (int X,int Y) ToWindow(int gameX,int gameY,int width,int height)
     {
         if(!GetClientRect(Window,out Rect rect) || IsIconic(Window))
             throw new InvalidOperationException("Game window unavailable or minimized");
         if(gameX<0 || gameY<0 || gameX>=width || gameY>=height || width<1 || height<1)
             throw new InvalidOperationException("Target is outside game surface");
-        int x=(int)Math.Round((double)gameX*rect.Right/width);
-        int y=(int)Math.Round((double)gameY*rect.Bottom/height);
-        if(x>32767 || y>32767) throw new InvalidOperationException("Window dimensions unsupported");
+        if(rect.Right<1||rect.Bottom<1)throw new InvalidOperationException("Game window has no client area");
+        double scale=Math.Min((double)rect.Right/width,(double)rect.Bottom/height);
+        int drawnWidth=(int)Math.Round(width*scale),drawnHeight=(int)Math.Round(height*scale);
+        int x=(rect.Right-drawnWidth)/2+(int)Math.Round((gameX+0.5)*scale);
+        int y=(rect.Bottom-drawnHeight)/2+(int)Math.Round((gameY+0.5)*scale);
+        if(x>32767||y>32767)throw new InvalidOperationException("Window dimensions unsupported");
+        return(x,y);
+    }
+
+    public async Task MouseAsync(int gameX,int gameY,int width,int height,bool click,CancellationToken ct)
+    {
+        var (x,y)=ToWindow(gameX,gameY,width,height);
         nint lp=(nint)(x|(y<<16));
         if(!PostMessageW(Window,0x200,0,lp)) throw new InvalidOperationException("Mouse dispatch failed");
         if(!click) return;
@@ -74,13 +89,7 @@ internal sealed class WindowsGame : IDisposable
     {
         // In-game right button: the info card of a control stays on screen while the button is
         // held, so down and up are separate steps and the card is read in between.
-        if(!GetClientRect(Window,out Rect rect) || IsIconic(Window))
-            throw new InvalidOperationException("Game window unavailable or minimized");
-        if(gameX<0 || gameY<0 || gameX>=width || gameY>=height || width<1 || height<1)
-            throw new InvalidOperationException("Target is outside game surface");
-        int x=(int)Math.Round((double)gameX*rect.Right/width);
-        int y=(int)Math.Round((double)gameY*rect.Bottom/height);
-        if(x>32767 || y>32767) throw new InvalidOperationException("Window dimensions unsupported");
+        var (x,y)=ToWindow(gameX,gameY,width,height);
         nint lp=(nint)(x|(y<<16));
         if(!PostMessageW(Window,0x200,0,lp)) throw new InvalidOperationException("Mouse dispatch failed");
         ct.ThrowIfCancellationRequested();
@@ -98,13 +107,8 @@ internal sealed class WindowsGame : IDisposable
     }
     public async Task DragAsync(int fromX,int fromY,int toX,int toY,int width,int height,CancellationToken ct)
     {
-        if(!GetClientRect(Window,out Rect rect) || IsIconic(Window))
-            throw new InvalidOperationException("Game window unavailable or minimized");
-        if(fromX<0||fromY<0||toX<0||toY<0||fromX>=width||fromY>=height||toX>=width||toY>=height||width<1||height<1)
-            throw new InvalidOperationException("Target is outside game surface");
-        int fx=(int)Math.Round((double)fromX*rect.Right/width),fy=(int)Math.Round((double)fromY*rect.Bottom/height);
-        int tx=(int)Math.Round((double)toX*rect.Right/width),ty=(int)Math.Round((double)toY*rect.Bottom/height);
-        if(fx>32767||fy>32767||tx>32767||ty>32767) throw new InvalidOperationException("Window dimensions unsupported");
+        var (fx,fy)=ToWindow(fromX,fromY,width,height);
+        var (tx,ty)=ToWindow(toX,toY,width,height);
         if(!PostMessageW(Window,0x200,0,(nint)(fx|(fy<<16)))) throw new InvalidOperationException("Mouse dispatch failed");
         if(!PostMessageW(Window,0x201,1,(nint)(fx|(fy<<16)))) throw new InvalidOperationException("Mouse down failed");
         try
