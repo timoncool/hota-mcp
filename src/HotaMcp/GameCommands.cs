@@ -144,6 +144,11 @@ internal static class GameCommands
     /// Where answering a modal question can legitimately land.
     private const string AfterMessage="adventure,message,combat,battle_result,town,hero_screen,exchange";
 
+    /// Anything a town building can open.
+    private const string AnyTownScreen="town,town_hall,building_confirmation,recruitment,tavern,"
+        +"marketplace,hero_screen,message,spellbook,split_stack,exchange,thieves_guild,level_up,"
+        +"mage_guild,town_fort";
+
     private static int Suffix(string key, int part) => int.Parse(key.Split(':')[part]);
 
     public static GameCommand ForAction(AvailableAction action, Observation before) => action.Key switch
@@ -215,6 +220,9 @@ internal static class GameCommands
             new("building_confirmation", Deliveries.Native(5, c => Suffix(c.Element, 2))),
         _ when action.Key.StartsWith("town:open:") => new("town", OpenTown),
         "town:tavern" => new("tavern", ClickBuilding(5)),
+        // A building opens whatever screen it owns; the landing is therefore not fixed.
+        _ when action.Key.StartsWith("town:building:") => new(AnyTownScreen,
+            ClickBuilding(c => Suffix(c.Element, 2))),
         _ when action.Key.StartsWith("town:recruit:") =>
             new("recruitment", ClickBuilding(c => 30 + Suffix(c.Element, 2))),
         // Manual (Town Garrison): highlight the hero portrait, then click the banner left of the
@@ -242,7 +250,7 @@ internal static class GameCommands
         "kingdom:close" => new("adventure,town", Deliveries.Dismiss),
         // Every one of these windows closes on its own button; Esc is the fallback when the
         // window does not publish one.
-        "screen:close" => new("adventure,town,combat", Deliveries.Dismiss),
+        "screen:close" => new("adventure,town,combat,hero_screen", Deliveries.Dismiss),
         "split:cancel" => new("town,hero_screen,exchange", Deliveries.Key(0x1b, 0x01)),
         // The exchange window closes with the game's ordinary Esc, like the other hero screens.
         // It opens both from a meeting on the map and from the town screen.

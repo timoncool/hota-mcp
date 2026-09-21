@@ -31,7 +31,7 @@ internal sealed class GameReader(WindowsGame game,int player)
         [0x63d528]="combat",[0x63d46c]="battle_result",[0x641ddc]="spellbook",
         [0x640330]="kingdom_overview",[0x63a610]="adventure_options",[0x643c64]="world_view",
         [0x640610]="puzzle_map",[0x641720]="scenario_info",[0x643774]="thieves_guild",
-        [0x643a08]="marketplace",
+        [0x643a08]="marketplace",[0x6437ec]="mage_guild",[0x6439cc]="town_fort",
     };
 
     private readonly string epoch=Guid.NewGuid().ToString("N");
@@ -271,7 +271,7 @@ internal sealed class GameReader(WindowsGame game,int player)
         if(start>end||end>cap||(end-start)%4!=0||end-start>8192) throw new InvalidOperationException("Invalid UI list");
         var items=new List<UiElement>();
         var controls=new List<uint>();
-        if(screen is "message" or "combat" or "spellbook" or "battle_result" or "tavern" or "recruitment" or "split_stack" or "hero_screen" or "exchange" or "level_up" or "kingdom_overview" or "adventure_options" or "world_view" or "puzzle_map" or "scenario_info" or "thieves_guild" or "marketplace")
+        if(screen is "message" or "combat" or "spellbook" or "battle_result" or "tavern" or "recruitment" or "split_stack" or "hero_screen" or "exchange" or "level_up" or "kingdom_overview" or "adventure_options" or "world_view" or "puzzle_map" or "scenario_info" or "thieves_guild" or "marketplace" or "mage_guild" or "town_fort")
         {
             var seen=new HashSet<uint>();
             for(uint item=game.U32(dlg+0x2c);item!=0;item=game.U32(item+8))

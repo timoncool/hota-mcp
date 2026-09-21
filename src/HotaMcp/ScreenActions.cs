@@ -15,7 +15,7 @@ internal static class ScreenActions
         if(screen=="hero_screen")actions.Add(new("hero:close","Закрыть экран героя (Esc)"));
         if(screen=="kingdom_overview")actions.Add(new("kingdom:close","Закрыть обзор королевства"));
         if(screen is "adventure_options" or "world_view" or "puzzle_map" or "scenario_info"
-            or "thieves_guild" or "marketplace")
+            or "thieves_guild" or "marketplace" or "mage_guild" or "town_fort")
             actions.Add(new("screen:close","Закрыть окно и вернуться"));
         if(screen=="exchange")actions.Add(new("exchange:done","Закрыть окно обмена (ОК)"));
         if(screen=="level_up")
@@ -78,6 +78,10 @@ internal static class ScreenActions
             int townId=game.Read(game.U32(game.U32(0x69954c)+0x38),1)[0];
             var currentTown=towns.Single(t=>t.Id==townId);
             if(currentTown.Buildings.Contains(5))actions.Add(new("town:tavern","Открыть таверну"));
+            // Every building that is actually built can be entered by pressing it, the way a
+            // player does. The names the game itself uses come from its own building table.
+            foreach(int building in currentTown.Buildings.Where(b=>b is not (>=30 and <=36) and not 5).OrderBy(b=>b))
+                actions.Add(new($"town:building:{building}",$"Войти в постройку города номер {building}"));
             for(int level=0;level<7;level++)if(currentTown.Buildings.Contains(30+level))actions.Add(new($"town:recruit:{level}",$"Открыть найм существ уровня {level+1}"));
             actions.Add(new("town:construction","Открыть зал совета"));
             actions.Add(new("town:close","Вернуться на карту"));
