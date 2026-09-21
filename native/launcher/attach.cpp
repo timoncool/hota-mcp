@@ -28,6 +28,14 @@ std::string HashFile(const wchar_t* path) {
     const char* hex="0123456789ABCDEF"; std::string result;
     for(auto b:digest){result+=hex[b>>4]; result+=hex[b&15];} return result;
 }
+bool Exists(const std::wstring& path){return GetFileAttributesW(path.c_str())!=INVALID_FILE_ATTRIBUTES;}
+// Compatibility is decided by the installation and by the controls the tab actually uses, not by
+// byte equality with one HD Mod release: HD updates itself and every hash moves with it. The
+// observed binaries are reported so a new release is visible instead of silently blocking the tab.
+void Report(const char* name,const std::string& seen,const char* validated){
+    std::cout<<name<<": "<<(seen.empty()?std::string("unreadable"):seen)
+             <<(seen==validated?" (validated build)":" (new build; structural checks decide)")<<"\n";
+}
 }
 int wmain(int argc,wchar_t** argv) {
     if(argc!=3){std::cerr<<"Usage: launcher-attach PID DLL_PATH\n";return 2;}
@@ -35,10 +43,18 @@ int wmain(int argc,wchar_t** argv) {
     HANDLE process=OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION|SYNCHRONIZE,FALSE,wantedPid);
     if(!process){std::cerr<<"Cannot open launcher\n";return 3;}
     wchar_t path[32768]{}; DWORD length=32768;
-    if(!QueryFullProcessImageNameW(process,0,path,&length) ||
-       HashFile(path)!="9FCD3FA166047D5944358E07CF993402837CC6FD8C3083E9CA7C6E322504D74C"){
-        std::cerr<<"Unsupported launcher binary\n";CloseHandle(process);return 4;
+    if(!QueryFullProcessImageNameW(process,0,path,&length)){
+        std::cerr<<"Cannot read launcher image path\n";CloseHandle(process);return 4;
     }
+    std::wstring launcherPath(path);
+    auto directory=launcherPath.substr(0,launcherPath.find_last_of(L"\\/"));
+    if(!Exists(directory+L"\\h3hota HD.exe")||!Exists(directory+L"\\HotA.dll")){
+        std::cerr<<"Launcher is not part of a HotA installation\n";CloseHandle(process);return 4;
+    }
+    Report("HD_Launcher.exe",HashFile(path),
+        "9FCD3FA166047D5944358E07CF993402837CC6FD8C3083E9CA7C6E322504D74C");
+    Report("HD_LauncherNative.dll",HashFile((directory+L"\\HD_LauncherNative.dll").c_str()),
+        "8B61E97C68ABB15E2E209C0801CDFF2AA90A93E946999EF30BDF4A8B9BF706BC");
     EnumWindows(Find,0);
     if(!target){std::cerr<<"Launcher tab control not found\n";CloseHandle(process);return 5;}
     if(wcscmp(argv[2],L"--detach")==0){
@@ -46,12 +62,6 @@ int wmain(int argc,wchar_t** argv) {
         bool ok=SendMessageTimeoutW(target,kRemove,0,0,SMTO_ABORTIFHUNG,2000,&result)!=0;
         CloseHandle(process);
         std::cout<<(ok?"Detached\n":"Detach failed\n");return ok?0:10;
-    }
-    std::wstring launcherPath(path);
-    auto directory=launcherPath.substr(0,launcherPath.find_last_of(L"\\/"));
-    if(HashFile((directory+L"\\HD_LauncherNative.dll").c_str())!=
-       "89272F1327974B1462716E873FADF6E0137DB8CE76A9D5084725B0428BAF5488"){
-        std::cerr<<"Unsupported launcher native DLL\n";CloseHandle(process);return 4;
     }
     if(GetPropW(target,L"HotAMcp.LauncherTab.v1")){std::cerr<<"Already attached\n";CloseHandle(process);return 6;}
     HMODULE dll=LoadLibraryW(argv[2]);
