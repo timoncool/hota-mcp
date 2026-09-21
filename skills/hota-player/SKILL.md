@@ -68,6 +68,54 @@ cannot be understood without a frame, that is a missing tool, not a reason to lo
   `observe`. Careful: left click on an army slot or an exchange arrow **performs the action**. For
   information, prefer the right button.
 
+## Before the first move of a turn
+
+`observe` carries the whole kingdom, not just the selected hero: `Heroes` lists every hero you own
+with position, movement, mana and army; `Towns` lists every town with its garrison, what is built
+and whether the daily build is spent. Read that first — cycling `hero:select` to discover what you
+own wastes turns and misses heroes standing still somewhere.
+
+Then read `plan` and `read_journal`. The plan is where the previous turn left its intent; without it
+a new turn starts blind and repeats yesterday's thinking. Write the plan back at the end of every
+turn: the goal of the game, what changed today, what is known about the enemy, and the first two or
+three things to do tomorrow. Keep it short enough to read in one glance.
+
+## The shape of a day
+
+1. **Roster.** Who do I have, where, with how much movement, and what is idle. Troops sitting in a
+   garrison are an army you are not using.
+2. **Town.** One building per day per town — decide which, and buy it early so the day is not lost.
+   Creature growth arrives on the first day of a week, so that is the day to recruit; on other days
+   the dwellings answer "Доступно 0" and that is normal, not a failure.
+3. **Main hero.** Spend movement on what grows strength: guarded objects worth the loss, unguarded
+   bonuses on the way, terrain that opens new map.
+4. **Secondary hero.** A hero with a token army is not useless — he collects resources, flags mines,
+   visits obelisks and the one-time bonus objects, and carries reinforcements to the front so the
+   main hero never walks home.
+5. **End the day** only when both heroes have spent what they usefully can. The game asks for
+   confirmation while movement remains; that question is a reminder, not an error.
+
+## Objects worth a detour
+
+Permanent, one visit per hero: Garden of Revelation (+1 Knowledge), Learning Stone, Mercenary Camp,
+Marletto Tower, Star Axis, Tree of Knowledge. Weekly: Stables (+movement for the week), Windmill,
+Water Wheel, Magic Spring. For the day only: Fountain of Fortune, Rally Flag, Oasis, Watering Hole.
+A collector hero should be routed through these rather than walking empty.
+
+## Before committing to a fight
+
+The decision is made before the first hex is clicked:
+
+1. `inspect_cell` on the stack — the game names the creature and its rough size. It goes stale:
+   wandering stacks move on the enemy's turn, so inspect in the same turn you attack.
+2. `hota_reference` on both your creature and theirs. The cards carry the modifiers that decide the
+   fight and are invisible on the battlefield — mutual double damage between water and fire
+   elementals, immunities, flying, and above all **speed**, which says who strikes first.
+3. `hota_docs` for the numbers you cannot see: army strength with the hero multiplier, how a
+   neutral pack splits into stacks, what the size words mean.
+4. Only then decide. A fight you win by trading your specialty stack for a guard is usually a fight
+   worth postponing until the army is bigger or a spell is available.
+
 ## The turn
 
 `observe` → `nearby_targets` → `inspect_target` on what looks worthwhile (the game plans the route
