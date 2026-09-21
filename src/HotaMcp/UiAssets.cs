@@ -17,6 +17,18 @@ internal static class UiAssets
         ["iokay.def"]="ОК",
         ["icancel.def"]="Отмена",
         ["ICN6432.def"]="Отмена",
+        // Main menu.
+        ["mmenung.def"]="Новая игра",
+        ["mmenulg.def"]="Загрузить игру",
+        ["mmenuhs.def"]="Рекорды",
+        ["mmenucr.def"]="Создатели",
+        ["mmenuqt.def"]="Выход из игры",
+        // Game type.
+        ["gtsingl.def"]="Одиночный сценарий",
+        ["gtmulti.def"]="Многопользовательская игра",
+        ["gtcampn.def"]="Кампания",
+        ["gttutor.def"]="Обучение",
+        ["gtback.def"]="Назад",
         // Scenario selection.
         ["scnrbeg.def"]="НАЧАТЬ — запустить выбранный сценарий",
         ["scnrback.def"]="ВЫЙТИ из выбора сценария",

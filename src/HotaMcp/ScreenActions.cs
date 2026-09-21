@@ -211,15 +211,61 @@ internal static class ScreenActions
 
         if(screen=="main_menu")
         {
+            // Five buttons, each drawing its own picture: new game, load, high scores, credits and
+            // quit. Only the first two were published, so the rest of the menu did not exist for
+            // the agent at all.
             if(items.Any(i=>i.Id==101&&i.Interactive))actions.Add(new("menu:new","Новая игра"));
             if(items.Any(i=>i.Id==102&&i.Interactive))actions.Add(new("menu:load","Загрузить игру"));
+            if(items.Any(i=>i.Id==103&&i.Interactive))actions.Add(new("menu:highscores","Рекорды: таблица лучших результатов"));
+            if(items.Any(i=>i.Id==104&&i.Interactive))actions.Add(new("menu:credits","Создатели игры"));
+            if(items.Any(i=>i.Id==105&&i.Interactive))actions.Add(new("menu:quit","Выход из игры — игра закроется"));
         }
-        if(screen=="game_type"&&items.Any(i=>i.Id==104&&i.Interactive))actions.Add(new("menu:back","Главное меню"));
-        if(screen=="game_type"&&items.Any(i=>i.Id==100&&i.Interactive))actions.Add(new("menu:single","Одиночная игра"));
+        if(screen=="game_type")
+        {
+            // Five choices here: single scenario, multiplayer, campaign, tutorial and back. Only
+            // two were published, so campaigns and multiplayer were invisible to the agent.
+            if(items.Any(i=>i.Id==100&&i.Interactive))actions.Add(new("menu:single","Одиночный сценарий"));
+            if(items.Any(i=>i.Id==102&&i.Interactive))actions.Add(new("menu:multiplayer","Многопользовательская игра: сеть, hotseat"));
+            if(items.Any(i=>i.Id==101&&i.Interactive))actions.Add(new("menu:campaign","Кампания"));
+            if(items.Any(i=>i.Id==103&&i.Interactive))actions.Add(new("menu:tutorial","Обучение"));
+            if(items.Any(i=>i.Id==104&&i.Interactive))actions.Add(new("menu:back","Назад в главное меню"));
+        }
         if(screen=="scenario_selection"&&items.Any(i=>i.Id==188&&i.Interactive))actions.Add(new("scenario:back","Выйти из выбора сценария"));
         if(screen=="scenario_selection"&&items.Any(i=>i.Id==186&&i.Interactive))actions.Add(new("scenario:start","Начать партию с текущими настройками"));
         if(screen=="scenario_selection")
         {
+            // The row of buttons over the list filters it by map size; «Все» clears the filter.
+            // They are ordinary controls, each drawing its own picture.
+            foreach(var (id,label) in new[]{(137,"S — маленькие"),(138,"M — средние"),(139,"L — большие"),
+                (140,"XL — очень большие"),(3000,"H — огромные"),(3001,"XH — сверхогромные"),
+                (3002,"G — гигантские"),(141,"все размеры")})
+                if(items.Any(i=>i.Id==id&&i.Interactive))
+                    actions.Add(new($"scenario:filter:{id}",$"Показать в списке только {label}"));
+            // The players panel gives one row per colour, and every row is the same five things:
+            // the flag, a human/AI switch, and three choices with arrows either side — starting
+            // town, starting hero and starting bonus. Each column is a block of ids: the switch at
+            // 207 plus the row, town arrows at 215 and 223, hero at 231 and 239, bonus at 247 and
+            // 255, with the chosen value written under each picture.
+            string[] colours=["красный","синий","коричневый","зелёный","оранжевый","фиолетовый","бирюзовый","розовый"];
+            for(int slot=0;slot<8;slot++)
+            {
+                if(items.All(i=>i.Id!=345+slot))continue;
+                string who=items.FirstOrDefault(i=>i.Id==345+slot)?.Text?.Trim()??"?";
+                string colour=slot<colours.Length?colours[slot]:$"игрок {slot+1}";
+                if(items.Any(i=>i.Id==207+slot&&i.Interactive))
+                    actions.Add(new($"setup:{colour}:кто",
+                        $"{colour}: переключить, кто играет — сейчас «{who}»"));
+                foreach(var (what,left,right) in new[]{("город",215,223),("герой",231,239),("бонус",247,255)})
+                {
+                    string now=items.FirstOrDefault(i=>i.Id==(what=="город"?353:what=="герой"?361:369)+slot)?.Text?.Trim()??"";
+                    if(items.Any(i=>i.Id==left+slot&&i.Interactive))
+                        actions.Add(new($"setup:{colour}:{what}:назад",
+                            $"{colour}: предыдущий стартовый {what}{(now.Length>0?$" (сейчас {now})":"")}"));
+                    if(items.Any(i=>i.Id==right+slot&&i.Interactive))
+                        actions.Add(new($"setup:{colour}:{what}:вперёд",
+                            $"{colour}: следующий стартовый {what}{(now.Length>0?$" (сейчас {now})":"")}"));
+                }
+            }
             foreach(var (id,key) in new[]{(128,"scenario:maps"),(129,"scenario:players"),(130,"scenario:random")})
                 if(items.Any(i=>i.Id==id&&i.Interactive))actions.Add(new(key,items.Single(i=>i.Id==id).Text!));
         }

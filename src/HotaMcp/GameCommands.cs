@@ -214,10 +214,16 @@ internal static class GameCommands
     {
         // Main menu and scenario setup.
         "menu:new" => new("game_type", Deliveries.Control(101)),
+        "menu:highscores" => new("high_scores", Deliveries.Control(103,"mmenuhs.def")),
+        "menu:credits" => new("credits", Deliveries.Control(104,"mmenucr.def")),
+        "menu:quit" => new("main_menu", Deliveries.Control(105,"mmenuqt.def")),
         "menu:load" => new("game_type", Deliveries.Control(102)),
         "menu:back" => new("main_menu", Deliveries.Control(104)),
         // Single player leads to the scenario list after "new game" and to the browser after
         // "load game"; the reader names the browser by the button it carries.
+        "menu:multiplayer" => new("game_type,scenario_selection", Deliveries.Control(102,"gtmulti.def")),
+        "menu:campaign" => new("game_type,scenario_selection", Deliveries.Control(101,"gtcampn.def")),
+        "menu:tutorial" => new("game_type,scenario_selection", Deliveries.Control(103,"gttutor.def")),
         "menu:single" => new("scenario_selection,load_game,save_game", Deliveries.Control(100)),
         // These two carry no caption at all — the meaning is in the picture, so the picture is the
         // name: TPTav01 hires the chosen hero, TPTav02 opens the Thieves Guild beside it.
@@ -231,6 +237,14 @@ internal static class GameCommands
         // parameter, and that call crashed the game outright — the same bypass that started a
         // scenario with no town and no hero. The buttons are ordinary controls with captions, so
         // they are pressed like a player presses them.
+        _ when action.Key.StartsWith("scenario:filter:",StringComparison.Ordinal)
+            && int.TryParse(action.Key["scenario:filter:".Length..],out int filter)
+            => new("scenario_selection",Deliveries.Control(filter)),
+        _ when action.Key.StartsWith("scenario:map:",StringComparison.Ordinal)
+            => new("scenario_selection",SelectScenario){TimeoutSeconds=30},
+        _ when action.Key.StartsWith("setup:",StringComparison.Ordinal)
+            && action.Key.Count(c=>c==':')>=2
+            => new("scenario_selection",PlayerSetup),
         "scenario:maps" => new("scenario_selection", Deliveries.Control(128)),
         "scenario:players" => new("scenario_selection", Deliveries.Control(129)),
         "scenario:random" => new("scenario_selection", Deliveries.Control(130)),
@@ -748,6 +762,56 @@ internal static class GameCommands
             .OrderByDescending(e => e.Y).FirstOrDefault()
             ?? throw new InvalidOperationException("Картинка варианта не найдена");
         await Deliveries.Press(context, picture.X + picture.Width / 2, picture.Y + picture.Height / 2, ct);
+    };
+
+    /// Choosing a scenario by name. The list answers the arrow keys the way it answers a player's:
+    /// one press moves the selection by one row and the view follows. The bridge walks the
+    /// difference between where the selection is and where the named map lies — one decided
+    /// intent, carried out mechanically, the same as pressing a stack twice to move it.
+    private static readonly Deliver SelectScenario = async (context, ct) =>
+    {
+        string wanted = context.Element["scenario:map:".Length..];
+        var list = context.Before.Setup?.Fields.FirstOrDefault(f => f.Key == "map")?.Choices
+            ?? throw new InvalidOperationException("Список сценариев не прочитан: открой панель «Доступные сценарии»");
+        int target = list.FindIndex(c => c.Action == context.Element);
+        int current = list.FindIndex(c => c.Selected);
+        if (target < 0) throw new InvalidOperationException($"Сценария «{wanted}» в списке нет");
+        if (current < 0) throw new InvalidOperationException("Не видно, какой сценарий выбран сейчас");
+        int steps = target - current;
+        // Walking hundreds of rows one key at a time is not how a player finds a map: he narrows
+        // the list by size first and then picks from what is left. Refusing the long walk keeps
+        // that gesture honest instead of grinding through the whole library.
+        if (Math.Abs(steps) > 40)
+            throw new InvalidOperationException(
+                $"До «{wanted}» {Math.Abs(steps)} строк списка. Сузь список фильтром размера "
+                +"(scenario:filter:...) и выбирай из оставшихся, как это делает игрок.");
+        for (int i = 0; i < Math.Abs(steps); i++)
+        {
+            await context.Game.KeyAsync(steps > 0 ? (ushort)0x28 : (ushort)0x26,
+                steps > 0 ? (ushort)0x50 : (ushort)0x48);
+            await Task.Delay(60, CancellationToken.None);
+        }
+    };
+
+    /// One control of the players panel. The key names the colour, the column and the direction,
+    /// and the row is the colour's place in the game's own order.
+    private static readonly Deliver PlayerSetup = async (context, ct) =>
+    {
+        string[] colours=["красный","синий","коричневый","зелёный","оранжевый","фиолетовый","бирюзовый","розовый"];
+        var parts=context.Element.Split(':');
+        int slot=Array.IndexOf(colours,parts[1]);
+        if(slot<0)throw new InvalidOperationException($"Цвет «{parts[1]}» не опознан");
+        int id=parts[2] switch
+        {
+            "кто" => 207+slot,
+            "город" => (parts[3]=="назад"?215:223)+slot,
+            "герой" => (parts[3]=="назад"?231:239)+slot,
+            "бонус" => (parts[3]=="назад"?247:255)+slot,
+            _ => throw new InvalidOperationException($"Столбец «{parts[2]}» не опознан")
+        };
+        var box=context.Reader.FindControlById(id)
+            ?? throw new InvalidOperationException($"Контрол {id} на панели участников не найден");
+        await Deliveries.Press(context,box.X+box.Width/2,box.Y+box.Height/2,ct);
     };
 
     private static readonly Deliver RecruitFromFort = async (context, ct) =>

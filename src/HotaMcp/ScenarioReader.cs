@@ -25,6 +25,7 @@ internal sealed class ScenarioReader(WindowsGame game)
         string panel=flags[2]==1?"random":flags[1]==1?"maps":"players";
         ScenarioMap? map=null;
         var fields=new List<SetupField>();
+        var available=new List<SetupChoice>();
         if(panel=="random")
         {
             foreach(var (key,offset) in new[]{("size",0x18a0u),("players",0x18a8u),("computer_only",0x18b0u),("water",0x18b8u),("monsters",0x18bcu)})
@@ -45,7 +46,20 @@ internal sealed class ScenarioReader(WindowsGame game)
             int size=game.I32(selected+0x18);
             if(size<36||size>252||size%36!=0)throw new InvalidOperationException("Scenario map size unsupported");
             map=new(game.Text(game.U32(selected+0x2d4))??"",game.Text(game.U32(selected+0x2e4),8192)??"",size);
+            // Every scenario the filter currently admits, in the order the list shows them. The
+            // player scrolls this list with his eyes; without it the agent knows only the one row
+            // that happens to be selected and cannot choose a map at all.
+            int count=(int)((last-first)/0xca4);
+            for(int row=0;row<count&&row<1000;row++)
+            {
+                uint entry=checked(first+(uint)row*0xca4);
+                string title=game.Text(game.U32(entry+0x2d4))??"";
+                if(title.Length==0)continue;
+                int side=game.I32(entry+0x18);
+                available.Add(new($"scenario:map:{title}",$"{title} — {side}×{side}",row==index,true));
+            }
         }
+        if(available.Count>0)fields.Add(new("map",0,available));
         return new(panel,map,fields);
     }
 }
