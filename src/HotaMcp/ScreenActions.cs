@@ -100,7 +100,21 @@ internal static class ScreenActions
         }
         if(screen=="town_hall")
         {
-            foreach(var item in items.Where(i=>i.Id>=600&&i.Id<618))actions.Add(new($"building:inspect:{item.Id-600}",item.Text??"Описание здания"));
+            // The hall colours each row by state; the picture next to the label carries it.
+            foreach(var item in items.Where(i=>i.Id>=600&&i.Id<618))
+            {
+                int slot=item.Id-600;
+                var picture=items.FirstOrDefault(i=>i.Id==400+slot);
+                string state=picture?.Frame switch
+                {
+                    0=>"уже построено",
+                    2=>"можно построить",
+                    3=>"построить нельзя",
+                    null=>"состояние неизвестно",
+                    _=>$"состояние {picture.Frame}",
+                };
+                actions.Add(new($"building:inspect:{slot}",$"{item.Text??"Здание"} — {state}"));
+            }
             actions.Add(new("construction:close","Вернуться в город"));
         }
         if(screen=="building_confirmation")

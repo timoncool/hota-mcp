@@ -4,7 +4,12 @@ using System.Text.Json;
 
 namespace HotaMcp;
 
-public record UiElement(string Key,int Id,string? Text,string? Asset,int X,int Y,int Width,int Height,bool Interactive);
+public record UiElement(string Key,int Id,string? Text,string? Asset,int X,int Y,int Width,int Height,bool Interactive)
+{
+    /// Picture frame the control is drawing. The game uses it to colour a row: in the town hall
+    /// 0 marks a building that already stands, 2 one that can be built now, 3 one that cannot.
+    public int Frame {get;init;}
+}
 public record HeroView(int Id,string Name,int[] Position,int Mana,int Movement,int MaxMovement,int[] Primary,int[] ArmyTypes,int[] ArmyCounts)
 {
     public int[] PlannedDestination {get;init;}=[];
@@ -130,6 +135,7 @@ internal sealed class GameReader(WindowsGame game,int player)
                 w=(int)BitConverter.ToUInt16(game.Read(item+0x1c,2)),
                 h=(int)BitConverter.ToUInt16(game.Read(item+0x1e,2)),
                 asset=vt is 0x63bb54 or 0x63bb88?game.Text(game.U32(item+0x30)+4,16):null,
+                frame=game.I32(item+0x34),
                 text=vt is 0x642dc0 or 0x642df8 or 0x642d50?game.Text(game.U32(item+0x34))
                     :vt==0x63bb88?game.Text(game.U32(item+0x5c)):null});
         }
@@ -283,7 +289,7 @@ internal sealed class GameReader(WindowsGame game,int player)
         else for(uint pos=start;pos<end;pos+=4)controls.Add(game.U32(pos));
         for(int controlIndex=0;controlIndex<controls.Count;controlIndex++)
         {
-            uint a=controls[controlIndex];byte[] b=game.Read(a,0x30);
+            uint a=controls[controlIndex];byte[] b=game.Read(a,0x38);
             if(BitConverter.ToUInt32(b,4)!=dlg) throw new InvalidOperationException("UI changed while reading");
             ushort state=BitConverter.ToUInt16(b,0x16);
             if((state&4)==0) continue;
@@ -294,9 +300,13 @@ internal sealed class GameReader(WindowsGame game,int player)
             if(vt is 0x63bb54 or 0x63bb88||(screen=="spellbook"||screen=="adventure")&&vt==0x63ec48) asset=game.Text(game.U32(a+0x30)+4,16);
             if(vt==0x63bb88)text=game.Text(game.U32(a+0x5c));
             bool interactive=(vt is 0x63bb54 or 0x63bb88||(screen=="spellbook"||screen=="adventure")&&vt==0x63ec48)&&(state&2)!=0&&(state&0x28)==0;
-            if(string.IsNullOrEmpty(text)&&asset==null&&!((screen is "message" or "exchange" or "level_up")&&(state&2)!=0)) continue;
-            items.Add(new($"ui:{controlIndex}",BitConverter.ToUInt16(b,0x10),text,asset,
-                dx+BitConverter.ToInt16(b,0x18),dy+BitConverter.ToInt16(b,0x1a),iw,ih,interactive));
+            // Some controls carry no text and no button graphic yet still say something: the town
+            // hall colours a bare picture next to each row to mark built, buildable or blocked.
+            bool bareControlMatters=screen=="town_hall"||(screen is "message" or "exchange" or "level_up")&&(state&2)!=0;
+            if(string.IsNullOrEmpty(text)&&asset==null&&!bareControlMatters) continue;
+            items.Add(new UiElement($"ui:{controlIndex}",BitConverter.ToUInt16(b,0x10),text,asset,
+                dx+BitConverter.ToInt16(b,0x18),dy+BitConverter.ToInt16(b,0x1a),iw,ih,interactive)
+                {Frame=BitConverter.ToInt32(b,0x34)});
         }
         if(screen=="scenario_selection"&&items.Any(i=>i.Id==186&&i.Asset=="scnrsav.def"))screen="save_game";
         SaveList? saves=null;
