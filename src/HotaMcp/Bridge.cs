@@ -338,7 +338,10 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
                     if(after.Hero?.Position.SequenceEqual(destination)==true)return "Hero reached target cell";
                     if(after.Screen!="adventure")return "Movement opened an interaction; read the dialog";
                     return null;
-                });
+                },
+                after=>after.Hero?.Id==before.Hero!.Id&&after.Hero.Movement<before.Hero.Movement
+                    &&!after.Hero.Position.SequenceEqual(before.Hero.Position)
+                    ?"Hero stopped short of the target":null);
         }
         finally{gate.Release();}
     }
@@ -365,10 +368,11 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
                 {
                     if(after.Hero?.Position.SequenceEqual(destination)==true)return "Hero reached the commanded cell";
                     if(after.Screen!="adventure")return "Movement opened an interaction; read the dialog";
-                    bool advanced=after.Hero?.Id==before.Hero!.Id&&after.Hero.Movement<before.Hero.Movement
-                        &&!after.Hero.Position.SequenceEqual(before.Hero.Position);
-                    return advanced?"Hero advanced along the commanded path":null;
-                });
+                    return null;
+                },
+                after=>after.Hero?.Id==before.Hero!.Id&&after.Hero.Movement<before.Hero.Movement
+                    &&!after.Hero.Position.SequenceEqual(before.Hero.Position)
+                    ?"Hero stopped short of the commanded cell":null);
         }
         finally{gate.Release();}
     }
@@ -376,7 +380,8 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
     /// Plans the route with the game's own map-selection handler, sends the hero along it with the
     /// ordinary M command, then waits until the game itself shows the move happened.
     private async Task<OperationResult> RunMove(string operationId,OperationRequest identity,Observation before,
-        int[] destination,int timeoutSeconds,string journal,Action<Observation>? verifyPlanned,Func<Observation,string?> finished)
+        int[] destination,int timeoutSeconds,string journal,Action<Observation>? verifyPlanned,
+        Func<Observation,string?> finished,Func<Observation,string?> stopped)
     {
         var pending=new OperationResult("uncertain","Movement preparation started; inspect state before any retry with a new ID",null);
         operations.Add(operationId,(identity,pending));
@@ -402,6 +407,8 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
         // M is the game's ordinary move-along-selected-path command.
         await game.KeyAsync(0x4d,0x32);
         var deadline=DateTime.UtcNow.AddSeconds(timeoutSeconds);
+        Observation? resting=null;
+        int still=0;
         while(DateTime.UtcNow<deadline)
         {
             await Task.Delay(100,CancellationToken.None);
@@ -409,7 +416,19 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             try{after=reader.Observe();}
             catch(InvalidOperationException){continue;}
             string? message=finished(after);
-            if(message is null)continue;
+            // Pressing M walks the whole planned path. Reporting on the first step would end the
+            // command while the hero is still walking, so a hero that moved but is not at the
+            // destination is only reported once it has stood still for a while: the game stops a
+            // hero short when the movement of the day runs out or something blocks the way.
+            if(message is null)
+            {
+                if(resting is not null&&after.Hero?.Position.SequenceEqual(resting.Hero!.Position)==true
+                    &&after.Hero.Movement==resting.Hero.Movement)still++;
+                else{resting=after;still=0;}
+                if(still<4)continue;
+                message=stopped(after);
+                if(message is null)continue;
+            }
             var result=new OperationResult("completed",message,after);
             operations[operationId]=(identity,result);
             Record(journal+"_completed",new{operationId,result});
