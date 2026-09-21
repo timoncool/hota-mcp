@@ -101,7 +101,7 @@ internal sealed class GameSession(int? requestedPid,int player,string directory,
         try
         {
             Refresh();
-            return state=="attached"?$"HotA: PID {game!.Process.Id}\r\nНаблюдение, системные опции, журнал и план.\r\nКарта, город и бой ещё в разработке.":
+            return state=="attached"?$"HotA: PID {game!.Process.Id}\r\nКарта, города, герои, обмен, таверна, бой и меню партии.\r\nСправочник игры, журнал и план агента.":
                 state=="waiting_for_game"?"Ожидание запуска HotA. Сервер готов к подключению.":$"Подключение игры: {detail}";
         }
         finally{gate.Release();}

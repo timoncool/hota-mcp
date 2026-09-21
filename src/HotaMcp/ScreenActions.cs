@@ -21,6 +21,45 @@ internal static class ScreenActions
             actions.Add(new("turn:end:anyway","ДА, закончить ход, хотя у героев остались очки хода — они сгорят"));
             actions.Add(new("turn:end:cancel","НЕТ, вернуться и дойти оставшимися ходами"));
         }
+        if(screen=="message")
+        {
+            // A reward dialog offers two pictures side by side with a number under each and the
+            // word «или» between them: a treasure chest trading gold for experience, a campfire,
+            // a scholar. The choice is made by pressing the picture, and until now it had no name
+            // — the agent had to press a bare control id it could not interpret.
+            var choices=items.Where(i=>i.Text is not null&&int.TryParse(i.Text.Trim(),out _)
+                    &&items.Any(o=>o.Text?.Trim()=="или"))
+                .OrderBy(i=>i.X).ToList();
+            if(choices.Count==2)
+            {
+                // A number alone is not an answer: 1000 of what? The dialog's own text names the
+                // two rewards in the order the pictures stand, so the left choice is the first
+                // thing it mentions and the right one the second. A treasure chest reads «забрать
+                // золото или ... опытом», and the left picture is indeed the gold pile.
+                string story=items.FirstOrDefault(i=>i.Text is not null&&i.Text.Length>40)?.Text??"";
+                string[] known=["золот","опыт","камн","кристалл","ртут","сер","древесин","руд"];
+                string[] pretty=["золото","опыт","кристаллы","кристаллы","ртуть","сера","дерево","руда"];
+                var named=new List<string>();
+                foreach(var (stem,index) in known.Select((stem,index)=>(stem,index)))
+                {
+                    int at=story.IndexOf(stem,StringComparison.OrdinalIgnoreCase);
+                    if(at>=0)named.Add($"{at}|{pretty[index]}");
+                }
+                var order=named.Select(n=>n.Split('|')).OrderBy(n=>int.Parse(n[0]))
+                    .Select(n=>n[1]).Distinct().ToList();
+                for(int side=0;side<choices.Count;side++)
+                {
+                    var choice=choices[side];
+                    var picture=items.Where(i=>i.Text is null&&Math.Abs(i.X-choice.X)<20&&i.Y<choice.Y)
+                        .OrderByDescending(i=>i.Y).FirstOrDefault();
+                    if(picture is null)continue;
+                    string what=side<order.Count?order[side]:"вариант";
+                    actions.Add(new($"reward:take:{what}",
+                        $"Взять {what} — {choice.Text!.Trim()}. Второй вариант тогда пропадёт; "
+                        +"после выбора подтверди message:accept."));
+                }
+            }
+        }
         if(screen=="creature_card")
         {
             // The game reuses this dialog for the creature card of a stack. Its two small buttons

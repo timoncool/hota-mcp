@@ -45,6 +45,9 @@ internal sealed record GameCommand(string Expected, Deliver Deliver)
 internal static class Deliveries
 {
     /// Closed native command vocabulary running on the game's UI thread.
+    /// Kept only because the screen adapters still reference the type; no command uses it any
+    /// more. Calling a screen's own command with a parameter bypassed the interface and crashed
+    /// the game, so every action presses the button a player presses.
     public static Deliver Native(int operation, int argument = 0) =>
         (context, _) => { context.Game.NativeAction(operation, context.Player, argument); return Task.CompletedTask; };
 
@@ -73,6 +76,16 @@ internal static class Deliveries
                 "Кнопка НАЧАТЬ (контрол 186) на экране не найдена: панель выбора сценария не "
                 +"открыта. Открой её и убедись, что карта выбрана — иначе игра начнётся без города "
                 +"и героя и будет проиграна сразу.");
+        await Press(context, box.X + box.Width / 2, box.Y + box.Height / 2, ct);
+    };
+
+    /// Some keys carry the control number in the key itself; the id is worked out from the
+    /// command rather than written down twice.
+    public static Deliver Control(Func<CommandContext,int> id) => async (context, ct) =>
+    {
+        int wanted = id(context);
+        var box = context.Reader.FindControlById(wanted)
+            ?? throw new InvalidOperationException($"Кнопка {wanted} на экране не найдена");
         await Press(context, box.X + box.Width / 2, box.Y + box.Height / 2, ct);
     };
 
@@ -200,12 +213,12 @@ internal static class GameCommands
     public static GameCommand ForAction(AvailableAction action, Observation before) => action.Key switch
     {
         // Main menu and scenario setup.
-        "menu:new" => new("game_type", Deliveries.Native(20, 101)),
-        "menu:load" => new("game_type", Deliveries.Native(20, 102)),
-        "menu:back" => new("main_menu", Deliveries.Native(21, 104)),
+        "menu:new" => new("game_type", Deliveries.Control(101)),
+        "menu:load" => new("game_type", Deliveries.Control(102)),
+        "menu:back" => new("main_menu", Deliveries.Control(104)),
         // Single player leads to the scenario list after "new game" and to the browser after
         // "load game"; the reader names the browser by the button it carries.
-        "menu:single" => new("scenario_selection,load_game,save_game", Deliveries.Native(21, 100)),
+        "menu:single" => new("scenario_selection,load_game,save_game", Deliveries.Control(100)),
         // These two carry no caption at all — the meaning is in the picture, so the picture is the
         // name: TPTav01 hires the chosen hero, TPTav02 opens the Thieves Guild beside it.
         "tavern:hire" => new("town,tavern", Deliveries.Control(12,"TPTav01.def")) { Confirm = Confirm.GarrisonChanged },
@@ -213,10 +226,14 @@ internal static class GameCommands
         _ when action.Key.StartsWith("tavern:select:",StringComparison.Ordinal)
             && int.TryParse(action.Key["tavern:select:".Length..],out int who) && who is 1 or 2
             => new("tavern",Deliveries.Control(4+who)),
-        "scenario:back" => new("main_menu", Deliveries.Native(22)),
-        "scenario:maps" => new("scenario_selection", Deliveries.Native(23, 128)),
-        "scenario:players" => new("scenario_selection", Deliveries.Native(23, 129)),
-        "scenario:random" => new("scenario_selection", Deliveries.Native(23, 130)),
+        "scenario:back" => new("main_menu", Deliveries.Control(188,"scnrback.def")),
+        // These three switch the panel. They were sent as the screen's own internal command with a
+        // parameter, and that call crashed the game outright — the same bypass that started a
+        // scenario with no town and no hero. The buttons are ordinary controls with captions, so
+        // they are pressed like a player presses them.
+        "scenario:maps" => new("scenario_selection", Deliveries.Control(128)),
+        "scenario:players" => new("scenario_selection", Deliveries.Control(129)),
+        "scenario:random" => new("scenario_selection", Deliveries.Control(130)),
         _ when action.Key.StartsWith("scenario:difficulty:",StringComparison.Ordinal)
             && int.TryParse(action.Key["scenario:difficulty:".Length..],out int level) && level is >=1 and <=5
             => new("scenario_selection",Deliveries.Control(106+level)),
@@ -226,7 +243,7 @@ internal static class GameCommands
         // does: it fixes the chosen map and the player slots first.
         "scenario:start" => new("adventure", Deliveries.StartScenario) { TimeoutSeconds = 10 },
         _ when action.Key.StartsWith("setup:") => new("scenario_selection",
-            Deliveries.Native(24, c => ScenarioReader.Controls.Single(x => ScenarioReader.Key(x) == c.Element).Id))
+            Deliveries.Control(c => ScenarioReader.Controls.Single(x => ScenarioReader.Key(x) == c.Element).Id))
             { Confirm = Confirm.SetupChoice },
 
         // Modal questions: ordinary presses on the dialog's own buttons. Answering one can start a
@@ -235,6 +252,8 @@ internal static class GameCommands
         "message:accept" => new(AfterMessage, Deliveries.Control(30722, "iokay.def")),
         "turn:end:anyway" => new("adventure", Deliveries.Control(30725,"iokay.def")) { Confirm = Confirm.TurnAdvanced, TimeoutSeconds = 20 },
         "turn:end:cancel" => new("adventure", Deliveries.Control(30726,"icancel.def")),
+        _ when action.Key.StartsWith("reward:take:",StringComparison.Ordinal)
+            => new("message",RewardChoice),
         "message:confirm" => new(AfterMessage, Deliveries.Control(30725, "iokay.def")),
         "message:decline" => new(AfterMessage, Deliveries.Control(30726, "icancel.def")),
 
@@ -274,13 +293,13 @@ internal static class GameCommands
             new("load_game", SelectSaveRow),
 
         // Town.
-        "town:construction" => new("town_hall", Deliveries.Native(4)),
+        "town:construction" => new("town_hall", ClickBuilding(10)),
         "town:close" => new("adventure", Deliveries.Key(0x1b, 0x01)),
-        "construction:close" => new("town", Deliveries.Native(10)),
-        "building:cancel" => new("town_hall", Deliveries.Native(6)),
-        "building:buy" => new("town", Deliveries.Native(7)),
+        "construction:close" => new("town", Deliveries.Control(30722,"iokay.def")),
+        "building:cancel" => new("town_hall", Deliveries.Control(30721,"icancel.def")),
+        "building:buy" => new("town", Deliveries.Control(30722,"iBUY30.def")),
         _ when action.Key.StartsWith("building:inspect:") =>
-            new("building_confirmation", Deliveries.Native(5, c => Suffix(c.Element, 2))),
+            new("building_confirmation", Deliveries.Control(c => 600 + Suffix(c.Element, 2))),
         _ when action.Key.StartsWith("town:open:") => new("town", OpenTown),
         "town:tavern" => new("tavern", ClickBuilding(5)),
         // A building opens whatever screen it owns; the landing is therefore not fixed.
@@ -404,8 +423,8 @@ internal static class GameCommands
             throw new InvalidOperationException("Action unavailable");
         return (before.Screen, item.Id, item.Asset) switch
         {
-            ("adventure", 10, "iam009.def") => new("system_options", Deliveries.Native(1)),
-            ("system_options", 30722, "soretrn.def") => new("adventure", Deliveries.Native(2)),
+            ("adventure", 10, "iam009.def") => new("system_options", Deliveries.Control(10,"iam009.def")),
+            ("system_options", 30722, "soretrn.def") => new("adventure", Deliveries.Control(30722,"soretrn.def")),
             ("system_options", 102, "soload.def") => new("message", Deliveries.Key(0x4c, 0x26)),
             ("system_options", 106, "sosave.def") => new("save_game", Deliveries.Key(0x53, 0x1f)),
             ("save_game", 188, "gspexit.def") => new("system_options", Deliveries.Requested),
@@ -706,6 +725,29 @@ internal static class GameCommands
             return;
         }
         throw new InvalidOperationException($"Отряда «{wanted}» в этом ряду нет");
+    };
+
+    /// Choosing between the two offers of a reward dialog. The value under a picture is its name
+    /// here, because that is what the player reads; the press lands on the picture above it.
+    private static readonly Deliver RewardChoice = async (context, ct) =>
+    {
+        // The key names the reward, and the action that published it put the rewards in the order
+        // the dialog's own text names them: the first belongs to the left picture.
+        string wanted = context.Element["reward:take:".Length..];
+        var action = context.Before.Actions.FirstOrDefault(a => a.Key == context.Element)
+            ?? throw new InvalidOperationException($"Варианта «{wanted}» в диалоге нет");
+        var numbers = context.Before.Elements
+            .Where(e => e.Text is not null && int.TryParse(e.Text.Trim(), out _))
+            .OrderBy(e => e.X).ToList();
+        int side = context.Before.Actions.Where(a => a.Key.StartsWith("reward:take:", StringComparison.Ordinal))
+            .ToList().IndexOf(action);
+        if (side < 0 || side >= numbers.Count) throw new InvalidOperationException("Вариант не сопоставлен картинке");
+        var label = numbers[side];
+        var picture = context.Before.Elements
+            .Where(e => e.Text is null && Math.Abs(e.X - label.X) < 20 && e.Y < label.Y)
+            .OrderByDescending(e => e.Y).FirstOrDefault()
+            ?? throw new InvalidOperationException("Картинка варианта не найдена");
+        await Deliveries.Press(context, picture.X + picture.Width / 2, picture.Y + picture.Height / 2, ct);
     };
 
     private static readonly Deliver RecruitFromFort = async (context, ct) =>

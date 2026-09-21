@@ -88,9 +88,12 @@ found. Treat each one the same way:
 - **A wrong answer** — the bridge said something the screen contradicts. Trust the screen, find why
   the reading is wrong, fix the reading. Two towns showed the first town's garrison for both; the
   fix was to read which town the screen is showing.
-- **A missing capability** — something a player does that has no action key. Map it by watching the
-  dialog: `probe-screen` lists every control with its id, state and rectangle, and comparing a
-  probe before and after a click says exactly which control changed.
+- **A missing capability** — something a player does that has no action key. Map it with
+  `debug_snapshot`: one call saves the frame and the matching observation together, so what is on
+  the screen and what the bridge reports are the same instant and can be compared line by line.
+  Use it for mapping, not `debug_capture` — a picture alone does not say which control is which.
+  Then `probe-screen` lists every control with its id, state, rectangle and picture, and comparing
+  a probe before and after a press says exactly which control answered.
 - **A missing name** — an id or a number where the game has a word. The game's own tables carry the
   names: creatures, buildings, map objects, resources. A number the player never sees should never
   reach the agent.
