@@ -2,6 +2,10 @@ namespace HotaMcp;
 
 public sealed record TownView(int Id,string? Name,int Type,bool BuiltToday,int[] Buildings)
 {
+    /// The garrison as a player reads it: names beside counts, empty slots omitted.
+    public List<string> Garrison=>GarrisonTypes.Zip(GarrisonCounts)
+        .Where(s=>s.First>=0&&s.Second>0)
+        .Select(s=>$"{GameReference.Creature(s.First)} x{s.Second}").ToList();
     public int GarrisonHero {get;init;}
     public int VisitingHero {get;init;}
     public int[] GarrisonTypes {get;init;}=[];

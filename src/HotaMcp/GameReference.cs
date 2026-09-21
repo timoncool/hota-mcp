@@ -59,6 +59,43 @@ internal sealed class GameReference
 
     /// Looks up cards by name, optionally narrowed to one kind. Matching is by substring, because
     /// the agent asks with the word it saw on screen rather than the exact table spelling.
+    private static List<string>? creatureNames;
+
+    /// Creature names in table order, so a stack read from memory can be reported by name instead
+    /// of by the row number the game happens to store. A number is not an identifier a player has.
+    public static List<string> CreatureNames()
+    {
+        if(creatureNames is not null)return creatureNames;
+        var result=new List<string>();
+        string? data=FindDataDirectory();
+        if(data is not null)
+            foreach(var archive in new[]{"HotA_lng.lod","H3bitmap.lod"})
+            {
+                var lod=LodArchive.Open(Path.Combine(data,archive));
+                string? text=lod?.ReadText("CRTRAITS.TXT");
+                if(text is null)continue;
+                foreach(var row in Rows(text).Skip(2))
+                {
+                    string name=Clean(row.ElementAtOrDefault(0)??"");
+                    if(name.Length<2)continue;
+                    // Faction captions fill only the first cell; creature rows carry numbers.
+                    if(row.Length<5||!row.Skip(1).Take(7).Any(c=>int.TryParse(Clean(c),out _)))continue;
+                    result.Add(name);
+                }
+                if(result.Count>0)break;
+            }
+        creatureNames=result;
+        return result;
+    }
+
+    /// Names a stack by its type as the game stores it; an unknown type stays a number rather than
+    /// becoming a guess.
+    public static string Creature(int type)
+    {
+        var names=CreatureNames();
+        return type>=0&&type<names.Count?names[type]:"тип "+type;
+    }
+
     public ReferenceAnswer Find(string name,string? kind,int limit)
     {
         var all=Cards();

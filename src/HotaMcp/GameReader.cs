@@ -12,6 +12,11 @@ public record UiElement(string Key,int Id,string? Text,string? Asset,int X,int Y
 }
 public record HeroView(int Id,string Name,int[] Position,int Mana,int Movement,int MaxMovement,int[] Primary,int[] ArmyTypes,int[] ArmyCounts)
 {
+    /// The army as a player reads it: creature names beside their counts, empty slots omitted.
+    /// A type number is what the game stores, not something a player can act on.
+    public List<string> Army=>ArmyTypes.Zip(ArmyCounts)
+        .Where(s=>s.First>=0&&s.Second>0)
+        .Select(s=>$"{GameReference.Creature(s.First)} x{s.Second}").ToList();
     public int[] PlannedDestination {get;init;}=[];
 }
 public record HeroSkill(string Name,string Mastery,string Element);
