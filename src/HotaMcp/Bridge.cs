@@ -46,6 +46,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
     public object Status()=>new
     {
         phase="development",player,gamePid=game.Process.Id,
+        build=new{game.Build.Status,game.Build.Summary,game.Build.Validated,game.Build.Checks},
         capabilities=new[]{"observe_own_hero","observe_adventure_ui","open_system_options","return_to_game",
             "visible_targets","route_preview","move_to_target","move_to_tile","own_towns","town_construction",
             "town_recruitment","tavern_hero","hero_exchange","combat_actions","battle_result","spellbook",

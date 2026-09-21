@@ -11,24 +11,23 @@ internal sealed class WindowsGame : IDisposable
     private readonly SafeProcessHandle handle;
     public Process Process { get; }
     public nint Window { get; }
+    public BuildFingerprint Build { get; }
     public WindowsGame(int pid)
     {
         Process = Process.GetProcessById(pid);
         string path = Process.MainModule?.FileName ?? throw new InvalidOperationException("Game path unavailable");
-        RequireHash(path, "5AAAB925F06CCCF23BB09814767590A95B84A557EB33D244800520BE4F1F18DE");
-        RequireHash(Path.Combine(Path.GetDirectoryName(path)!, "HotA.dll"),
-            "0A1DAA1D8F29870B5CB72EBBA54A88C43A366473530B908BD23FAFC7968223A7");
         handle = OpenProcess(0x410, false, pid);
         if (handle.IsInvalid) throw new InvalidOperationException("Cannot read game process");
         Window = Process.MainWindowHandle;
         if (Window == 0) { handle.Dispose(); throw new InvalidOperationException("Game window unavailable"); }
         SetProcessDPIAware();
+        Build = BuildProfile.Probe(this, Hash(path), Hash(Path.Combine(Path.GetDirectoryName(path)!, "HotA.dll")));
+        if (!Build.Usable) { handle.Dispose(); throw new InvalidOperationException(Build.Summary); }
     }
-    private static void RequireHash(string path, string expected)
+    private static string Hash(string path)
     {
-        using var file = File.OpenRead(path);
-        if (Convert.ToHexString(SHA256.HashData(file)) != expected)
-            throw new InvalidOperationException("Unsupported game build; adapter update required");
+        try { using var file = File.OpenRead(path); return Convert.ToHexString(SHA256.HashData(file)); }
+        catch (IOException) { return ""; }
     }
     public byte[] Read(uint address, int length)
     {
