@@ -1,7 +1,11 @@
 using System.ComponentModel;
+using System.Reflection;
 using ModelContextProtocol.Server;
 
 namespace HotaMcp;
+
+public sealed record ToolEntry(string Name,string Group,string Purpose);
+public sealed record ToolInventory(int Count,List<ToolEntry> Tools,string Note);
 
 [McpServerToolType]
 public sealed class GameTools(IGameEndpoint endpoint)
@@ -32,6 +36,38 @@ public sealed class GameTools(IGameEndpoint endpoint)
 
     [McpServerTool,Description("Read a visible target and available game route data directly from memory by target ID. Does not send keyboard or mouse input, move the hero, or add reference knowledge. Unavailable route data is not evidence that the target is unreachable.")]
     public Task<TargetInspection> InspectTarget(string targetId,string revision,CancellationToken cancellationToken)=>endpoint.InspectTarget(targetId,revision,cancellationToken);
+
+    /// The inventory is read from the registered tools themselves, so it cannot drift away from
+    /// what the server actually offers the way a hand-written list does.
+    private static readonly (string Prefix,string Group)[] Groups=
+    [
+        ("hota_tools","state"),("game_status","state"),("observe","state"),("nearby_targets","state"),("inspect_target","state"),
+        ("read_map","state"),("read_journal","state"),("plan","state"),
+        ("inspect_cell","look"),("inspect_element","look"),
+        ("act","act"),("click_ui","act"),("move_to","act"),("move_to_tile","act"),
+        ("attack_target","act"),("map_click","act"),("start_game","act"),("launcher_graphics","act"),
+        ("hota_docs","reference"),("hota_reference","reference"),
+        ("debug_snapshot","diagnostic"),("debug_capture","diagnostic"),
+    ];
+
+    [McpServerTool,Description("List every tool this bridge offers, grouped by what it is for: state (what you have and where), look (the cards a player reads with the right mouse button), act (the verbs that change the game), reference (the game knowledge base), diagnostic (developer frames, not gameplay). Answers \"what can you do\" without reading documentation or guessing, and is built from the registered tools themselves so it cannot drift. Every acting tool takes operationId and revision.")]
+    public ToolInventory HotaTools()
+    {
+        var entries=typeof(GameTools).GetMethods(BindingFlags.Public|BindingFlags.Instance)
+            .Where(m=>m.GetCustomAttribute<McpServerToolAttribute>() is not null)
+            .Select(m=>
+            {
+                string name=string.Concat(m.Name.Select((c,i)=>i>0&&char.IsUpper(c)?"_"+char.ToLowerInvariant(c):char.ToLowerInvariant(c).ToString()));
+                string purpose=m.GetCustomAttribute<DescriptionAttribute>()?.Description??"";
+                int stop=purpose.IndexOf(". ",StringComparison.Ordinal);
+                string group=Groups.FirstOrDefault(g=>name.StartsWith(g.Prefix,StringComparison.Ordinal)).Group??"act";
+                return new ToolEntry(name,group,stop>0?purpose[..(stop+1)]:purpose);
+            })
+            .OrderBy(e=>e.Group).ThenBy(e=>e.Name).ToList();
+        return new(entries.Count,entries,
+            "One line each; the full text of a description arrives with the tool itself. "
+            +"Acting tools need operationId and the revision from the observation you acted on.");
+    }
 
     [McpServerTool,Description("Read supported capabilities and current development limitations. No game action.")]
     public Task<object> GameStatus(CancellationToken cancellationToken)=>endpoint.Status(cancellationToken);
