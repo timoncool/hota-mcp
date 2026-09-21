@@ -43,6 +43,9 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
     /// whether it is getting anywhere. The first two are the observation and the actions; this is
     /// the third. Without it a turn feels the same whether the army doubled or the day was wasted.
     private (int[] Day,int Gold,int Army,int Towns) yesterday=([],0,0,0);
+    /// Names of the towns this side held at the last observation. A town changes hands on the
+    /// opponent's turn, between two of your own reads, and nothing on your screen says so.
+    private List<string> heldTowns=[];
 
     private readonly Dictionary<string,MapObject> targets=new();
     private readonly Dictionary<MapObject,string> targetIds=new();
@@ -92,6 +95,16 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
              string.Join(";",state.Towns.Select(t=>$"{t.Id}:{t.Buildings.Length}:{t.BuiltToday}"))]);
         if(progress==lastProgress)idleReads++;
         else {lastProgress=progress;idleReads=0;}
+        var townsNow=state.Towns.Select(t=>t.Name??"безымянный").ToList();
+        if(heldTowns.Count>0)
+        {
+            foreach(var lost in heldTowns.Except(townsNow))
+                lines.Insert(0,$"ГОРОД ПОТЕРЯН: {lost} больше не твой. Его забрали на чужом ходу. "
+                    +"Отбить город обычно важнее всего остального: он кормит и армию, и доход.");
+            foreach(var gained in townsNow.Except(heldTowns))
+                lines.Insert(0,$"Новый город: {gained} теперь твой.");
+        }
+        heldTowns=townsNow;
         int army=state.Heroes.Sum(h=>h.ArmyCounts.Sum())+state.Towns.Sum(t=>t.GarrisonCounts.Sum());
         int gold=state.Resources.Length>6?state.Resources[6]:0;
         if(state.Date.Length>0&&!yesterday.Day.SequenceEqual(state.Date))

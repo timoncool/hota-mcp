@@ -489,7 +489,8 @@ internal static class GameCommands
     {
         string wanted = context.Element[(context.Element.IndexOf(':') + 1)..];
         wanted = wanted[(wanted.IndexOf(':') + 1)..];
-        var town = context.Before.Towns.FirstOrDefault()
+        var town = context.Before.Towns.FirstOrDefault(t => t.Id == context.Before.OpenTown)
+            ?? context.Before.Towns.FirstOrDefault()
             ?? throw new InvalidOperationException("Экран города не прочитан");
         var visiting = context.Before.Heroes.FirstOrDefault(h => h.Id == town.VisitingHero);
         var keeper = context.Before.Heroes.FirstOrDefault(h => h.Id == town.GarrisonHero);

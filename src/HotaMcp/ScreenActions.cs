@@ -51,6 +51,7 @@ internal static class ScreenActions
                     :$"{name.Text} (уровень {tier+1}): жилище {dwelling} не построено"));
             }
         }
+        if(screen=="enemy_hero_card")actions.Add(new("screen:close","Закрыть карточку чужого героя"));
         if(screen is "adventure_options" or "world_view" or "puzzle_map" or "scenario_info"
             or "thieves_guild" or "marketplace" or "mage_guild" or "town_fort")
             actions.Add(new("screen:close","Закрыть окно и вернуться"));

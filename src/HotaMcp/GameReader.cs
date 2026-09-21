@@ -19,6 +19,7 @@ public record HeroView(int Id,string Name,int[] Position,int Mana,int Movement,i
         .Select(s=>$"{GameReference.Creature(s.First)} x{s.Second}").ToList();
     public int[] PlannedDestination {get;init;}=[];
 }
+public record ForeignHero(int Id,string Name,int Owner,int[] Position);
 public record HeroSkill(string Name,string Mastery,string Element);
 public record HeroSlot(string Slot,string Element);
 public record HeroSheet(string Name,string Title,List<HeroSkill> Skills,List<HeroSlot> Equipped,string Specialty)
@@ -53,6 +54,16 @@ public record Observation(string Revision,int Player,int[] Date,int[] Resources,
     /// stack makes the next press on another cell a transfer, so this says whether a gesture
     /// starts from a clean screen.
     public string? SelectedStack {get;init;}
+    /// Which of your towns the town screen is showing. With more than one town the first of the
+    /// list is not the one on screen, and every town action must follow the screen.
+    public int OpenTown {get;init;}=-1;
+    /// Whose card is on screen and what a player can tell about his army: the creature of each
+    /// stack and the size band the game prints instead of a number.
+    public string? ForeignHero {get;init;}
+    public List<string> ForeignArmy {get;init;}=[];
+    /// Heroes of other players standing on tiles this player can see. Not knowing that somebody is
+    /// walking at your town is how a town is lost without a single warning.
+    public List<ForeignHero> ForeignHeroes {get;init;}=[];
     /// Who this session plays and whether the game is currently waiting for that side. In a shared
     /// game — hotseat, or a human on another colour — acting for the wrong side is the one mistake
     /// that cannot be undone, so the answer is stated rather than assumed.
@@ -128,6 +139,8 @@ internal sealed class GameReader(WindowsGame game,int player)
         [0x63ff60]="main_menu",[0x63e6d8]="game_type",[0x641cbc]="scenario_selection",
         [0x64373c]="town",[0x6437b0]="town_hall",[0x643954]="building_confirmation",
         [0x640c5c]="recruitment",[0x643990]="tavern",[0x643c24]="creature_card",
+        // Right-clicking an enemy hero on the map: his name and the size band of each stack.
+        [0x6406b8]="enemy_hero_card",
         // The real split dialog: a slider between two halves of one stack, with its own confirm.
         [0x63b8f8]="split_army",
         [0x63eae8]="hero_screen",[0x642438]="exchange",[0x63fe74]="level_up",
@@ -410,6 +423,7 @@ internal sealed class GameReader(WindowsGame game,int player)
         }
         }
         var roster=new List<HeroView>();
+        var foreignHeroes=new List<ForeignHero>();
         if(!frontend)
         {
             uint main2=game.U32(0x699538);
@@ -427,7 +441,33 @@ internal sealed class GameReader(WindowsGame game,int player)
                     // the first unreadable record is the end, and one bad record never costs the
                     // whole observation.
                     try{head=game.Read(at,0x24);}catch{break;}
-                    if(BitConverter.ToInt32(head,0x1a)!=id||head[0x22]!=player)continue;
+                    if(BitConverter.ToInt32(head,0x1a)!=id)continue;
+                    if(head[0x22]!=player)
+                    {
+                        // Somebody else's hero counts only where the player can actually see him.
+                        // Reading a position through the fog would be looking at what the player
+                        // cannot, so the tile's visibility decides.
+                        int fx=BitConverter.ToInt16(head,0),fy=BitConverter.ToInt16(head,2),fz=BitConverter.ToInt16(head,4);
+                        if(head[0x22]>7)continue;
+                        try
+                        {
+                            if(game.U32(0x699538)==0)continue;
+                            // Same layout the map reader uses: the size and the visibility plane
+                            // live in the scenario setup, and a hero is reported only where this
+                            // player's own bit is set in that plane.
+                            uint mapSetup=game.U32(0x699538)+0x1fb70;
+                            int size=game.I32(mapSetup+0xd4);
+                            uint vision=game.U32(0x698a48);
+                            if(size<36||size>252||vision==0)continue;
+                            if(fx<0||fy<0||fx>=size||fy>=size||fz<0)continue;
+                            uint index=checked((uint)((fz*size+fy)*size+fx));
+                            if((game.Read(vision+index*2,1)[0]&(1<<player))==0)continue;
+                            string otherName=Encoding.GetEncoding(1251).GetString(game.Read(at,0x492),0x23,13).Split('\0')[0];
+                            foreignHeroes.Add(new(id,otherName,head[0x22],[fx,fy,fz]));
+                        }
+                        catch(Exception){}
+                        continue;
+                    }
                     byte[] h2;
                     try{h2=game.Read(at,0x492);}catch{continue;}
                     string name2=Encoding.GetEncoding(1251).GetString(h2,0x23,13).Split(' ')[0];
@@ -494,6 +534,26 @@ internal sealed class GameReader(WindowsGame game,int player)
         var towns=frontend?new List<TownView>():new TownReader(game,player).Read();
         var setup=screen=="scenario_selection"?new ScenarioReader(game).Read(dlg,items):null;
         var combat=screen=="combat"?new CombatReader(game,player).Read():null;
+        int openTown=-1;
+        if(screen=="town")
+            try{openTown=game.Read(game.U32(game.U32(0x69954c)+0x38),1)[0];}
+            catch(InvalidOperationException){openTown=-1;}
+        List<string> foreignArmy=[];
+        string? foreignName=null;
+        if(screen=="enemy_hero_card")
+        {
+            // The card shows what a player sees of somebody else's army: a picture per stack and a
+            // size band instead of a number. The picture's frame is the creature, two ahead of the
+            // type the game stores, the same offset the town rows use.
+            foreignName=items.FirstOrDefault(i=>i.Id==2002)?.Text?.Trim();
+            for(int slot=0;slot<7;slot++)
+            {
+                var size=items.FirstOrDefault(i=>i.Id==2012+slot*2);
+                var picture=items.FirstOrDefault(i=>i.Id==2011+slot*2);
+                if(size?.Text is null||picture is null)continue;
+                foreignArmy.Add($"{GameReference.Creature(picture.Frame-2)} {size.Text.Trim()}");
+            }
+        }
         string? selected=null;
         if(screen=="town")
         {
@@ -535,7 +595,7 @@ internal sealed class GameReader(WindowsGame game,int player)
             int active=game.I32(0x69ccf4);
             side=new(player,Colour(player),active,Colour(active),active==player);
         }
-        var result=new Observation("",player,date,resources,hero,screen,width,height,items){Towns=towns,Actions=actions,Setup=setup,Combat=combat,Saves=saves,Sheet=sheet,Build=build,Heroes=roster,Side=side,SelectedStack=selected,Brief=ScreenBriefing.Build(screen,date,resources,towns,roster,hero,side,selected,build)};
+        var result=new Observation("",player,date,resources,hero,screen,width,height,items){Towns=towns,Actions=actions,Setup=setup,Combat=combat,Saves=saves,Sheet=sheet,Build=build,Heroes=roster,Side=side,SelectedStack=selected,OpenTown=openTown,ForeignHero=foreignName,ForeignArmy=foreignArmy,ForeignHeroes=foreignHeroes,Brief=ScreenBriefing.Build(screen,date,resources,towns,roster,hero,side,selected,build,openTown,foreignName,foreignArmy,foreignHeroes)};
         string revision=Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(epoch+JsonSerializer.Serialize(result))))[..24];
         return result with {Revision=revision};
     }

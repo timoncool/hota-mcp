@@ -10,13 +10,17 @@ namespace HotaMcp;
 internal static class ScreenBriefing
 {
     public static List<string> Build(string screen,int[] date,int[] resources,List<TownView> towns,
-        List<HeroView> roster,HeroView? selected,SideView? side,string? selectedStack,BuildOffer? offer)
+        List<HeroView> roster,HeroView? selected,SideView? side,string? selectedStack,BuildOffer? offer,int openTown,string? foreignHero,List<string> foreignArmy,List<ForeignHero> foreignHeroes)
     {
         var lines=new List<string>();
         if(side is not null)
             lines.Add(side.Yours
                 ?$"Ход твой, играешь за {side.Colour}. День {Part(date,0)}, неделя {Part(date,1)}, месяц {Part(date,2)}." + (Part(date,0)=="1"?" Первый день недели: в городах появился прирост существ, мельницы и водяные колёса снова дают ресурс.":"")
                 :$"Сейчас ходит {side.ActiveColour}, а ты играешь за {side.Colour} — не действуй за чужой цвет.");
+        foreach(var enemy in foreignHeroes)
+            lines.Add($"ТРЕВОГА: чужой герой {enemy.Name} ({Colour(enemy.Owner)}) виден на клетке "
+                +$"{enemy.Position[0]},{enemy.Position[1]}. Посмотреть его войско — наведи на него inspect_tile "
+                +"или открой карточку правым щелчком; при угрозе городу переходи в состояние обороны.");
         if(date.Length>2)
         {
             int left=8-date[0];
@@ -29,7 +33,14 @@ internal static class ScreenBriefing
                 +$". До конца недели {left} " +(left==1?"день":left<5?"дня":"дней")
                 +", прирост существ придёт в первый день новой недели — до него имеет смысл достроить жилища.");
         }
-        if(screen=="town")TownBrief(lines,resources,towns,roster,selectedStack);
+        if(screen=="enemy_hero_card")
+        {
+            lines.Add($"Карточка чужого героя {foreignHero}. Войско: "
+                +(foreignArmy.Count>0?string.Join(", ",foreignArmy):"не прочитано")+".");
+            lines.Add("Размер отряда игра показывает вилкой, а не числом — точное число даёт только заклинание Видения "
+                +"или существо Разбойник в армии. Закрыть карточку — screen:close.");
+        }
+        if(screen=="town")TownBrief(lines,resources,towns,roster,selectedStack,openTown);
         if(screen=="adventure")AdventureBrief(lines,resources,towns,roster,selected);
         if(screen=="building_confirmation"&&offer is not null)
         {
@@ -42,6 +53,12 @@ internal static class ScreenBriefing
         return lines;
     }
 
+    private static string Colour(int index)=>index switch
+    {
+        0=>"красный",1=>"синий",2=>"коричневый",3=>"зелёный",
+        4=>"оранжевый",5=>"фиолетовый",6=>"бирюзовый",7=>"розовый",_=>"игрок "+index
+    };
+
     private static string Part(int[] date,int index)=>index<date.Length?date[index].ToString():"?";
 
     private static string Stacks(int[] types,int[] counts)
@@ -52,9 +69,12 @@ internal static class ScreenBriefing
     }
 
     private static void TownBrief(List<string> lines,int[] resources,List<TownView> towns,
-        List<HeroView> roster,string? selectedStack)
+        List<HeroView> roster,string? selectedStack,int openTown)
     {
-        var town=towns.FirstOrDefault();
+        // With two towns the screen shows one of them, and the game keeps which one in its own
+        // town manager. Taking the first of the list was showing the wrong town's garrison,
+        // buildings and daily limit the moment a second town was captured.
+        var town=towns.FirstOrDefault(t=>t.Id==openTown)??towns.FirstOrDefault();
         if(town is null){lines.Add("Экран города открыт, но город не прочитан.");return;}
         lines.Add($"Город {town.Name}. Золото {(resources.Length>6?resources[6]:0)}, дерево {Res(resources,0)}, руда {Res(resources,1)}.");
         var keeper=roster.FirstOrDefault(h=>h.Id==town.GarrisonHero);

@@ -51,6 +51,52 @@ Every acting tool takes `operationId` and `revision`. The revision comes from th
 acted on; a stale one is refused. The operation id is yours and must stay the same on a retry of the
 same intent — repeating an `uncertain` action under a fresh id is how a hero gets moved twice.
 
+## The loop of one turn
+
+The same seven steps every turn. They exist because the expensive mistakes are all mistakes of
+order: acting before reading, ending a day with movement left, deciding twice what was decided
+yesterday.
+
+1. **`observe`.** It opens with a briefing in words — whose turn it is, the date, every hero with
+   position, movement and army, every town with what is built and whether today's building is
+   spent, the forecast for tomorrow morning, and your own stored plan and last results. Read the
+   briefing before anything else; most follow-up questions are already answered in it.
+2. **Reconcile with the plan.** The plan comes back inside the observation. Did yesterday's active
+   task happen? If it did, close it and take the next from the queue. If it did not and cannot,
+   say so in the plan and replace it — an active task nobody can finish is how a game stalls.
+3. **Town first.** One building per day per town, and with two towns the screen shows one of them
+   — the briefing names which. On the first day of a week also recruit: growth appears that morning
+   and is lost if the week turns without it.
+4. **Main hero.** Spend his movement on the goal of the current state, not on what happens to be
+   near. Before a fight: `inspect_tile` on the target (the game's own hint line says what it is,
+   what it gives and whether this hero has been there), then `hota_reference` on both creatures,
+   then decide.
+5. **Collector.** Free objects, mines, mills once a week, and the fog. `read_map` sees everything
+   already discovered, including what lies outside the hero's sight — `nearby_targets` only covers
+   what he can see now.
+6. **Spend what is left.** Movement does not carry over. A hero with movement and nothing to do is
+   a hero who should be walking toward tomorrow's target.
+7. **Close the day.** Rewrite the plan — state, roles, active task with its deadline, queue, one
+   compressed line of what was done — then `turn:end`. The game asks for confirmation while
+   movement remains; that question is a reminder, not an error.
+
+## What to do with what breaks
+
+Every turn turns up something the bridge gets wrong, and the turn is the only place it can be
+found. Treat each one the same way:
+
+- **A wrong answer** — the bridge said something the screen contradicts. Trust the screen, find why
+  the reading is wrong, fix the reading. Two towns showed the first town's garrison for both; the
+  fix was to read which town the screen is showing.
+- **A missing capability** — something a player does that has no action key. Map it by watching the
+  dialog: `probe-screen` lists every control with its id, state and rectangle, and comparing a
+  probe before and after a click says exactly which control changed.
+- **A missing name** — an id or a number where the game has a word. The game's own tables carry the
+  names: creatures, buildings, map objects, resources. A number the player never sees should never
+  reach the agent.
+- **Then write it down.** A fix that is not recorded is found again next week. Rules of the game go
+  to the knowledge base; how to work the bridge goes here; what happened this game goes to the plan.
+
 ## The reference: ask it, do not guess
 
 The bridge carries a knowledge base of the game and answers direct questions. Use it whenever you
