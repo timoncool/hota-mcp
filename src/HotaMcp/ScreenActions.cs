@@ -29,7 +29,7 @@ internal static class ScreenActions
                 if(items.Any(i=>i.Id==id&&i.Interactive))actions.Add(new(key,items.Single(i=>i.Id==id).Text!));
         }
         if(screen=="adventure")foreach(var town in towns)actions.Add(new($"town:open:{town.Id}",$"Открыть город: {town.Name}"));
-        if(screen=="adventure"&&hero is null)actions.Add(new("hero:select","Выбрать своего героя на карте (штатная клавиша H)"));
+        if(screen=="adventure")actions.Add(new("hero:select","Перейти к следующему своему герою на карте (штатная клавиша H)"));
         if(screen=="adventure"&&hero is not null)actions.Add(new("hero:move","Переместить героя по проложенному пути (штатная клавиша M)"));
         if(screen=="adventure"&&hero is not null)
         {

@@ -300,14 +300,19 @@ internal static class GameCommands
         }
     };
 
-    /// Own hero selection: the ordinary hotkey H cycles the player's heroes and centres the view.
+    /// "H - Selects next hero": the game's own way to move between the player's heroes on the map
+    /// and to pick one up again after a screen dropped the selection. With a single hero it simply
+    /// selects that one.
     private static readonly Deliver SelectOwnHero = async (context, _) =>
     {
+        int? before = context.Before.Hero?.Id;
         for (int attempt = 0; attempt < 8; attempt++)
         {
             await context.Game.KeyAsync(0x48, 0x23);
             await Task.Delay(300, CancellationToken.None);
-            if (context.Reader.Observe().Hero is not null) break;
+            var hero = context.Reader.Observe().Hero;
+            if (hero is not null && hero.Id != before) break;
+            if (hero is not null && before is null) break;
         }
     };
 

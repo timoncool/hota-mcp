@@ -46,8 +46,9 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
         capabilities=new[]{"observe_own_hero","observe_adventure_ui","open_system_options","return_to_game",
             "visible_targets","route_preview","move_to_target","move_to_tile","own_towns","town_construction",
             "town_recruitment","tavern_hero","hero_exchange","combat_actions","battle_result","spellbook",
-            "save_game","save_list_and_load","inspect_element"},
-        unavailable=new[]{"full_map_coverage","in_game_load_browser","hero_switch_on_map","full_scenario_setup",
+            "save_game","save_list_and_load","inspect_element","hero_switch_on_map","map_terrain",
+            "game_reference","hotkeys"},
+        unavailable=new[]{"full_map_coverage","in_game_load_browser","full_scenario_setup",
             "hotseat","lan","installer","cost_measurement"}
     };
 
