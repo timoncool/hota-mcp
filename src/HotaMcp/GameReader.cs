@@ -20,6 +20,20 @@ public record Observation(string Revision,int Player,int[] Date,int[] Resources,
 
 internal sealed class GameReader(WindowsGame game,int player)
 {
+    /// Dialog classes this adapter can name. Everything else is an unmapped screen.
+    private static readonly Dictionary<uint,string> ScreenNames=new()
+    {
+        [0x63a5e4]="adventure",[0x63db40]="message",[0x642478]="system_options",
+        [0x63ff60]="main_menu",[0x63e6d8]="game_type",[0x641cbc]="scenario_selection",
+        [0x64373c]="town",[0x6437b0]="town_hall",[0x643954]="building_confirmation",
+        [0x640c5c]="recruitment",[0x643990]="tavern",[0x643c24]="split_stack",
+        [0x63eae8]="hero_screen",[0x642438]="exchange",[0x63fe74]="level_up",
+        [0x63d528]="combat",[0x63d46c]="battle_result",[0x641ddc]="spellbook",
+        [0x640330]="kingdom_overview",[0x63a610]="adventure_options",[0x643c64]="world_view",
+        [0x640610]="puzzle_map",[0x641720]="scenario_info",[0x643774]="thieves_guild",
+        [0x643a08]="marketplace",
+    };
+
     private readonly string epoch=Guid.NewGuid().ToString("N");
     public Observation Observe()
     {
@@ -92,6 +106,38 @@ internal sealed class GameReader(WindowsGame game,int player)
         current=game.I32(0x69ccf4), other=game.I32(0x6995a4), active=game.U32(0x69ccfc),
         main=game.U32(0x699538), mode=game.I32(0x698a40),managers,inputCandidates
     };}
+    public record ScreenProbe(uint Vtable,string? Name,int Controls,object[] Items);
+    /// Names whatever dialog is on top and lists its controls, even when the screen reader has no
+    /// name for it yet. This is how an unmapped screen gets mapped: it is the developer's view,
+    /// never part of a player observation.
+    public ScreenProbe ProbeScreen()
+    {
+        uint manager=game.U32(0x6992d0),dlg=game.U32(manager+0x54);
+        if(dlg==0)throw new InvalidOperationException("No dialog on screen");
+        uint vtable=game.U32(dlg);
+        int dx=game.I32(dlg+0x18),dy=game.I32(dlg+0x1c);
+        var items=new List<object>();
+        var seen=new HashSet<uint>();
+        for(uint item=game.U32(dlg+0x2c);item!=0&&seen.Add(item)&&items.Count<512;item=game.U32(item+8))
+        {
+            uint vt=game.U32(item);
+            ushort state=BitConverter.ToUInt16(game.Read(item+0x16,2));
+            items.Add(new{
+                id=(int)BitConverter.ToUInt16(game.Read(item+0x10,2)),
+                vtable=vt,state,
+                x=dx+BitConverter.ToInt16(game.Read(item+0x18,2),0),
+                y=dy+BitConverter.ToInt16(game.Read(item+0x1a,2),0),
+                w=(int)BitConverter.ToUInt16(game.Read(item+0x1c,2)),
+                h=(int)BitConverter.ToUInt16(game.Read(item+0x1e,2)),
+                asset=vt is 0x63bb54 or 0x63bb88?game.Text(game.U32(item+0x30)+4,16):null,
+                text=vt is 0x642dc0 or 0x642df8 or 0x642d50?game.Text(game.U32(item+0x34))
+                    :vt==0x63bb88?game.Text(game.U32(item+0x5c)):null});
+        }
+        return new(vtable,NameOf(vtable),items.Count,items.ToArray());
+    }
+
+    public static string? NameOf(uint vtable)=>ScreenNames.TryGetValue(vtable,out var name)?name:null;
+
     public record CardView(uint Vtable,string[] Texts);
     /// Reads the plain text of whatever dialog is on top right now, without classifying it as a
     /// supported screen. Used for the game's own info cards, which appear only while the right
@@ -213,7 +259,7 @@ internal sealed class GameReader(WindowsGame game,int player)
                 {PlannedDestination=[BitConverter.ToInt32(h,0x35),BitConverter.ToInt32(h,0x39),BitConverter.ToInt16(h,0x3d)]};
         }
         }
-        string screen=vtable switch {0x640c5c=>"recruitment",0x643990=>"tavern",0x63d46c=>"battle_result",0x641ddc=>"spellbook",0x63d528=>"combat",0x63db40=>"message",0x63ff60=>"main_menu",0x63e6d8=>"game_type",0x641cbc=>"scenario_selection",0x63a5e4=>"adventure",0x642478=>"system_options",0x64373c=>"town",0x6437b0=>"town_hall",0x643954=>"building_confirmation",0x643c24=>"split_stack",0x63eae8=>"hero_screen",0x642438=>"exchange",0x63fe74=>"level_up",_=>"unsupported"};
+        string screen=NameOf(vtable)??"unsupported";
         // Unvalidated dialog classes are not published to the player yet.
         if(screen=="unsupported") throw new InvalidOperationException("Current screen not supported by this adapter yet");
         uint surface=game.U32(manager+0x40);
@@ -225,7 +271,7 @@ internal sealed class GameReader(WindowsGame game,int player)
         if(start>end||end>cap||(end-start)%4!=0||end-start>8192) throw new InvalidOperationException("Invalid UI list");
         var items=new List<UiElement>();
         var controls=new List<uint>();
-        if(screen is "message" or "combat" or "spellbook" or "battle_result" or "tavern" or "recruitment" or "split_stack" or "hero_screen" or "exchange" or "level_up")
+        if(screen is "message" or "combat" or "spellbook" or "battle_result" or "tavern" or "recruitment" or "split_stack" or "hero_screen" or "exchange" or "level_up" or "kingdom_overview" or "adventure_options" or "world_view" or "puzzle_map" or "scenario_info" or "thieves_guild" or "marketplace")
         {
             var seen=new HashSet<uint>();
             for(uint item=game.U32(dlg+0x2c);item!=0;item=game.U32(item+8))

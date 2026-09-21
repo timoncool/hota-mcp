@@ -117,6 +117,9 @@ internal sealed class GameSession(int? requestedPid,int player,string directory,
     public Task<OperationResult> EnterText(TextRequest request,CancellationToken ct)=>WithGame(b=>b.EnterText(request,ct),ct);
     public Task<ElementCard> InspectElement(InspectRequest request,CancellationToken ct)=>WithGame(b=>b.InspectElement(request,ct),ct);
     public Task<CellCard> InspectCell(CellRequest request,CancellationToken ct)=>WithGame(b=>b.InspectCell(request,ct),ct);
+    public Task<object> ProbeScreen(CancellationToken ct)=>WithGame(b=>Task.FromResult(b.ProbeScreen()),ct);
+    public Task<object> SendKey(KeyRequest request,CancellationToken ct)=>WithGame(b=>b.SendKey(request,ct),ct);
+    public Task<object> Press(PressRequest request,CancellationToken ct)=>WithGame(b=>b.Press(request,ct),ct);
     public Task<object> Journal(int limit,CancellationToken ct)=>WithGame(b=>b.GetJournal(limit,ct),ct);
     public Task<object> Plan(string? value,CancellationToken ct)=>WithGame(b=>b.Plan(value,ct),ct);
     public Task<MapView> ReadMap(int x,int y,int z,int radius,CancellationToken ct)=>WithGame(b=>b.ReadMap(x,y,z,radius,ct),ct);

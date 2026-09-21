@@ -17,6 +17,8 @@ public sealed record MapClickRequest(int X,int Y);
 public sealed record TextRequest(string Revision,string Element,string Text);
 public sealed record InspectRequest(string Revision,string Element);
 public sealed record CellRequest(string Revision,int X,int Y,int Z);
+public sealed record KeyRequest(int Key,int Scan,bool Control);
+public sealed record PressRequest(int X,int Y);
 public sealed record CellCard(int X,int Y,int Z,string[] Card,Observation Observation);
 public sealed record ElementCard(string Element,string[] Card,Observation Observation);
 
@@ -56,6 +58,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
 
     public object Diagnostic()=>reader.DiagnosticPointers();
     public object RawUi()=>reader.DiagnosticDialog();
+    public object ProbeScreen()=>reader.ProbeScreen();
     public object MapDiagnostic()=>new MapReader(game,player).Diagnostic(reader.Observe());
 
     public async Task<MapView> ReadMap(int x,int y,int z,int radius,CancellationToken ct)
@@ -298,6 +301,44 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             &&!(after.Hero is not null&&before.Hero is not null
                 &&(!after.Hero.Position.SequenceEqual(before.Hero.Position)||after.Hero.Movement<before.Hero.Movement)))return false;
         return true;
+    }
+
+    /// Developer mapping only: presses one point of the game surface, so a screen the adapter has
+    /// no actions for yet can still be left. Not part of the agent surface.
+    public async Task<object> Press(PressRequest request,CancellationToken ct)
+    {
+        await gate.WaitAsync(ct);
+        try
+        {
+            var probe=reader.ProbeScreen();
+            uint manager=game.U32(0x6992d0),surface=game.U32(manager+0x40);
+            int width=game.I32(surface+0x24),height=game.I32(surface+0x28);
+            if(request.X<0||request.Y<0||request.X>=width||request.Y>=height)
+                throw new InvalidOperationException("Point is outside the game surface");
+            await game.MouseAsync(request.X,request.Y,width,height,true,CancellationToken.None);
+            await Task.Delay(300,CancellationToken.None);
+            Record("developer_press",new{request.X,request.Y,From=probe.Vtable});
+            return new{pressed=true,request.X,request.Y};
+        }
+        finally{gate.Release();}
+    }
+
+    /// Developer mapping only: sends one ordinary key to the game so an unmapped screen can be
+    /// opened and identified. Not part of the agent surface — every playable action has its own
+    /// semantic key, and this one carries no precondition or postcondition checks.
+    public async Task<object> SendKey(KeyRequest request,CancellationToken ct)
+    {
+        await gate.WaitAsync(ct);
+        try
+        {
+            if(request.Key is <0 or >255||request.Scan is <0 or >255)
+                throw new InvalidOperationException("Key and scan code must be single bytes");
+            if(request.Control)await game.KeyWithControlAsync((ushort)request.Key,(ushort)request.Scan);
+            else await game.KeyAsync((ushort)request.Key,(ushort)request.Scan);
+            Record("developer_key",new{request.Key,request.Scan,request.Control});
+            return new{sent=true,request.Key,request.Scan,request.Control};
+        }
+        finally{gate.Release();}
     }
 
     public async Task<OperationResult> EnterText(TextRequest request,CancellationToken ct)
@@ -631,6 +672,9 @@ public interface IGameEndpoint
     Task<OperationResult> EnterText(TextRequest request,CancellationToken ct);
     Task<ElementCard> InspectElement(InspectRequest request,CancellationToken ct);
     Task<CellCard> InspectCell(CellRequest request,CancellationToken ct);
+    Task<object> ProbeScreen(CancellationToken ct);
+    Task<object> SendKey(KeyRequest request,CancellationToken ct);
+    Task<object> Press(PressRequest request,CancellationToken ct);
     Task<object> Journal(int limit,CancellationToken ct);
     Task<object> Plan(string? value,CancellationToken ct);
     Task<MapView> ReadMap(int x,int y,int z,int radius,CancellationToken ct);
@@ -660,6 +704,9 @@ internal sealed class LocalEndpoint(Bridge bridge) : IGameEndpoint
     public Task<OperationResult> EnterText(TextRequest request,CancellationToken ct)=>bridge.EnterText(request,ct);
     public Task<ElementCard> InspectElement(InspectRequest request,CancellationToken ct)=>bridge.InspectElement(request,ct);
     public Task<CellCard> InspectCell(CellRequest request,CancellationToken ct)=>bridge.InspectCell(request,ct);
+    public Task<object> ProbeScreen(CancellationToken ct)=>Task.FromResult(bridge.ProbeScreen());
+    public Task<object> SendKey(KeyRequest request,CancellationToken ct)=>bridge.SendKey(request,ct);
+    public Task<object> Press(PressRequest request,CancellationToken ct)=>bridge.Press(request,ct);
     public Task<object> Journal(int limit,CancellationToken ct)=>bridge.GetJournal(limit,ct);
     public Task<object> Plan(string? value,CancellationToken ct)=>bridge.Plan(value,ct);
     public Task<MapView> ReadMap(int x,int y,int z,int radius,CancellationToken ct)=>bridge.ReadMap(x,y,z,radius,ct);
@@ -694,6 +741,9 @@ internal sealed class RemoteEndpoint(HttpClient client) : IGameEndpoint
     public Task<OperationResult> EnterText(TextRequest request,CancellationToken ct)=>Call<OperationResult>("bridge/text",request,ct);
     public Task<ElementCard> InspectElement(InspectRequest request,CancellationToken ct)=>Call<ElementCard>("bridge/inspect-element",request,ct);
     public Task<CellCard> InspectCell(CellRequest request,CancellationToken ct)=>Call<CellCard>("bridge/inspect-cell",request,ct);
+    public Task<object> ProbeScreen(CancellationToken ct)=>Call<object>("bridge/probe-screen",new{},ct);
+    public Task<object> SendKey(KeyRequest request,CancellationToken ct)=>Call<object>("bridge/key",request,ct);
+    public Task<object> Press(PressRequest request,CancellationToken ct)=>Call<object>("bridge/press",request,ct);
     public Task<object> Journal(int limit,CancellationToken ct)=>Call<object>("bridge/journal",new{limit},ct);
     public Task<object> Plan(string? value,CancellationToken ct)=>Call<object>("bridge/plan",new{value},ct);
     public Task<MapView> ReadMap(int x,int y,int z,int radius,CancellationToken ct)=>Call<MapView>("bridge/map",new{x,y,z,radius},ct);

@@ -65,6 +65,24 @@ internal static class Deliveries
         await Press(context, button, ct);
     };
 
+    /// Leaves an informational window the way the manual describes: "Return - Okay, Accept, or
+    /// Yes". Esc is the game's Quit and several of these windows ignore it outright, and their own
+    /// exit buttons do not always take a plain press, so Return is what actually closes them.
+    /// The window's own button is still tried first where it exists.
+    public static Deliver Dismiss => async (context, ct) =>
+    {
+        string[] assets = ["OvButn1.def", "iokay.def", "soretrn.def", "scnrback.def", "gspexit.def"];
+        var exit = context.Before.Elements.LastOrDefault(e => e.Interactive && assets.Contains(e.Asset));
+        if (exit is not null)
+        {
+            await Press(context, exit, ct);
+            await Task.Delay(250, CancellationToken.None);
+            try { if (context.Reader.Observe().Screen != context.Before.Screen) return; }
+            catch (InvalidOperationException) { return; }
+        }
+        await context.Game.KeyAsync(0x0d, 0x1c);
+    };
+
     /// Press the control the request itself names.
     public static Deliver Requested => async (context, ct) =>
         await Press(context, context.Before.Elements.Single(e => e.Key == context.Element), ct);
@@ -168,6 +186,12 @@ internal static class GameCommands
         "hero:sleep" => new("adventure", Deliveries.Key(0x5a, 0x2c)),
         "hero:wake" => new("adventure", Deliveries.Key(0x57, 0x11)),
         "game:kingdom" => new("kingdom_overview", Deliveries.Key(0x4b, 0x25)),
+        // Screens the manual reaches with a single letter; all of them read-only except the market.
+        "game:world_view" => new("world_view", Deliveries.Key(0x56, 0x2f)),
+        "game:puzzle" => new("puzzle_map", Deliveries.Key(0x50, 0x19)),
+        "game:marketplace" => new("marketplace", Deliveries.Key(0x42, 0x30)),
+        "game:thieves_guild" => new("thieves_guild", Deliveries.Key(0x47, 0x22)),
+        "game:adventure_options" => new("adventure_options", Deliveries.Key(0x41, 0x1e)),
         "game:quest_log" => new("quest_log", Deliveries.Key(0x51, 0x10)),
         "game:scenario_info" => new("scenario_info", Deliveries.Key(0x49, 0x17)),
 
@@ -214,6 +238,11 @@ internal static class GameCommands
         // Hero screens.
         // Esc returns to whichever screen opened this one, so both are legitimate landings.
         "hero:close" => new("adventure,town", Deliveries.Key(0x1b, 0x01)),
+        // The kingdom overview has no Esc: it closes on its own exit button, bottom right.
+        "kingdom:close" => new("adventure,town", Deliveries.Dismiss),
+        // Every one of these windows closes on its own button; Esc is the fallback when the
+        // window does not publish one.
+        "screen:close" => new("adventure,town,combat", Deliveries.Dismiss),
         "split:cancel" => new("town,hero_screen,exchange", Deliveries.Key(0x1b, 0x01)),
         // The exchange window closes with the game's ordinary Esc, like the other hero screens.
         // It opens both from a meeting on the map and from the town screen.

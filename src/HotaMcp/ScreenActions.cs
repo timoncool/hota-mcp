@@ -13,6 +13,10 @@ internal static class ScreenActions
         if(actions.Any(a=>a.Key=="message:confirm"))actions.Add(new("message:decline","Отказаться от действия в текущем диалоге"));
         if(screen=="split_stack")actions.Add(new("split:cancel","Закрыть окно отряда (Esc)"));
         if(screen=="hero_screen")actions.Add(new("hero:close","Закрыть экран героя (Esc)"));
+        if(screen=="kingdom_overview")actions.Add(new("kingdom:close","Закрыть обзор королевства"));
+        if(screen is "adventure_options" or "world_view" or "puzzle_map" or "scenario_info"
+            or "thieves_guild" or "marketplace")
+            actions.Add(new("screen:close","Закрыть окно и вернуться"));
         if(screen=="exchange")actions.Add(new("exchange:done","Закрыть окно обмена (ОК)"));
         if(screen=="level_up")
         {
@@ -59,7 +63,12 @@ internal static class ScreenActions
         {
             foreach(var (key,label) in new[]{("north","вверх"),("south","вниз"),("west","влево"),("east","вправо")})
                 actions.Add(new($"view:scroll:{key}",$"Прокрутить карту {label} (Ctrl+стрелка)"));
-            actions.Add(new("game:kingdom","Обзор королевства (K)"));
+            actions.Add(new("game:kingdom","Обзор королевства: все герои, города, шахты и доход (K)"));
+            actions.Add(new("game:world_view","Просмотр мира: вся известная карта с фильтрами (V)"));
+            actions.Add(new("game:marketplace","Рынок королевства: обмен ресурсов (B)"));
+            actions.Add(new("game:thieves_guild","Гильдия воров: сведения о соперниках (G)"));
+            actions.Add(new("game:puzzle","Карта-загадка обелисков (P)"));
+            actions.Add(new("game:adventure_options","Меню карты: просмотр мира, загадка, копать, сведения (A)"));
             actions.Add(new("game:quest_log","Журнал заданий (Q)"));
             actions.Add(new("game:scenario_info","Сведения о сценарии (I)"));
         }
