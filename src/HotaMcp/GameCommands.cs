@@ -80,6 +80,11 @@ internal static class Deliveries
     {
         var button = context.Before.Elements.FirstOrDefault(e =>
             e.Id == id && (assets.Length == 0 || assets.Contains(e.Asset)) && e.Interactive);
+        // A named picture is a stronger identity than a number: ids shift between screens and
+        // builds, the picture does not. When the id misses but the picture is on screen, that is
+        // the button.
+        button ??= assets.Length == 0 ? null : context.Before.Elements.FirstOrDefault(e =>
+            e.Asset is not null && assets.Contains(e.Asset) && e.Interactive);
         if (button is not null) { await Press(context, button, ct); return; }
         var box = context.Reader.FindControlById(id)
             ?? throw new InvalidOperationException($"No control with id {id} on this screen");

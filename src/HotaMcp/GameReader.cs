@@ -6,6 +6,10 @@ namespace HotaMcp;
 
 public record UiElement(string Key,int Id,string? Text,string? Asset,int X,int Y,int Width,int Height,bool Interactive)
 {
+    /// What this control is, by the picture it draws. Most buttons in the game carry no caption,
+    /// and a control id names nothing; the picture is their identity.
+    public string? Means=>UiAssets.Name(Asset);
+
     /// Picture frame the control is drawing. The game uses it to colour a row: in the town hall
     /// 0 marks a building that already stands, 2 one that can be built now, 3 one that cannot.
     public int Frame {get;init;}
