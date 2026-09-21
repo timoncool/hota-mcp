@@ -179,6 +179,7 @@ internal static class GameCommands
         // Adventure map. Keys are the ones the manual lists under Section IV, Keyboard Shortcuts.
         "turn:end" => new("adventure", Deliveries.Key(0x45, 0x12)) { Confirm = Confirm.TurnAdvanced },
         "hero:select" => new("adventure", SelectOwnHero),
+        _ when action.Key.StartsWith("hero:sheet:") => new("hero_screen,adventure", OpenHeroSheet),
         // "M - Moves current hero" along the planned path.
         "hero:move" => new("adventure", Deliveries.Key(0x4d, 0x32)),
         // "Arrow Keys - Moves current hero": one step in a direction, no route planning involved.
@@ -381,6 +382,18 @@ internal static class GameCommands
     {
         int id = Suffix(context.Element, 2);
         await Deliveries.Press(context, context.Before.Elements.Single(e => e.Id == id), ct);
+    };
+
+    /// One press on a hero portrait selects that hero; a press on the hero already selected opens
+    /// his screen. Both cases are covered by pressing, looking, and pressing once more.
+    private static readonly Deliver OpenHeroSheet = async (context, ct) =>
+    {
+        var portrait = context.Before.Elements.First(e => e.Id == 15 + Suffix(context.Element, 2));
+        await Deliveries.Press(context, portrait, ct);
+        await Task.Delay(400, CancellationToken.None);
+        try { if (context.Reader.Observe().Screen == "hero_screen") return; }
+        catch (InvalidOperationException) { return; }
+        await Deliveries.Press(context, portrait, ct);
     };
 
     private static readonly Deliver RecruitFromFort = async (context, ct) =>

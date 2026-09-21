@@ -65,6 +65,18 @@ internal static class ScreenActions
         if(screen=="adventure")foreach(var town in towns)actions.Add(new($"town:open:{town.Id}",$"Открыть город: {town.Name}"));
         if(screen=="adventure")actions.Add(new("hero:select","Перейти к следующему своему герою на карте (штатная клавиша H)"));
         if(screen=="adventure"&&hero is not null)actions.Add(new("hero:move","Переместить героя по проложенному пути (штатная клавиша M)"));
+        if(screen=="adventure")
+        {
+            // The sidebar hero list: pressing a portrait selects that hero, and pressing the
+            // portrait of the hero already selected opens his own screen with skills, spells and
+            // artefacts. Occupied slots are the ones the game keeps visible.
+            for(int slot=0;slot<5;slot++)
+            {
+                var portrait=items.FirstOrDefault(i=>i.Id==15+slot);
+                if(portrait is null||!portrait.Interactive)continue;
+                actions.Add(new($"hero:sheet:{slot}",$"Открыть экран героя из списка, место {slot+1}"));
+            }
+        }
         if(screen=="adventure"&&hero is not null)
         {
             // Manual, Section IV: the arrow keys move the current hero one step. This needs no
