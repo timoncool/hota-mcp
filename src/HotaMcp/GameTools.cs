@@ -27,7 +27,7 @@ public sealed class GameTools(IGameEndpoint endpoint)
     [McpServerTool,Description("Read the known map around a cell: terrain, roads, cells blocked by terrain, and the recognized visible objects with their coordinates. Cells the player has not uncovered come back as '?'. Use it to decide where a hero can step and what is worth walking to. Radius is capped at 12. No input is sent to the game.")]
     public Task<MapView> ReadMap(int x,int y,int z,int radius,CancellationToken cancellationToken)=>endpoint.ReadMap(x,y,z,radius,cancellationToken);
 
-    [McpServerTool,Description("Read recognized visible destinations by target ID and available game route data. Reads game memory without UI input. No hidden objects, terrain-rule explanations or strategic recommendations. Object coverage and route support are incomplete.")]
+    [McpServerTool,Description("Read recognized visible destinations near the selected hero. Reads game memory and sends no input at all. Route data attached to each target is whatever the game last computed, and the game keeps a route for a single destination which any action invalidates — so a target can read not_available while the hero can plainly reach it. To get a real route, call inspect_target for the one destination you are considering. Object coverage is not exhaustive and hidden objects are never reported.")]
     public Task<NearbyTargets> NearbyTargets(CancellationToken cancellationToken)=>endpoint.Nearby(cancellationToken);
 
     [McpServerTool,Description("Read a visible target and available game route data directly from memory by target ID. Does not send keyboard or mouse input, move the hero, or add reference knowledge. Unavailable route data is not evidence that the target is unreachable.")]

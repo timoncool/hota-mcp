@@ -100,10 +100,13 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
                 }
                 list.Add(new(id,target.Kind,new RouteReader(game,player).Read(observation,target),target.X,target.Y,target.Z));
             }
-            if(reader.Observe().Revision!=observation.Revision)
+            var settled=reader.Observe();
+            if(settled.Hero is null||settled.Screen!="adventure")
                 throw new InvalidOperationException("State changed; request targets again");
-            return new(observation.Revision,hero.Id,hero.Movement,list,
-                "Recognized visible objects near selected hero; list is not exhaustive");
+            return new(settled.Revision,hero.Id,hero.Movement,list,
+                "Recognized visible objects near selected hero; list is not exhaustive. Route data is "
+                +"whatever the game had cached and any action invalidates it — inspect_target computes "
+                +"the route for one destination you choose.");
         }
         finally{gate.Release();}
     }
