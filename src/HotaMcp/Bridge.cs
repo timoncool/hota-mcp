@@ -661,12 +661,49 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
         finally{gate.Release();}
     }
 
+    /// The journal answers "what happened a turn ago", so it carries the game's own date and one
+    /// compact line per event. Embedding a whole observation in every entry made it unreadable and
+    /// expensive: the state belongs in observe, the history belongs here.
     private void Record(string kind,object data)
     {
         Directory.CreateDirectory(stateDirectory);
-        var entry=new JournalEntry(journal.Count+1,DateTimeOffset.UtcNow,kind,data);
+        var node=System.Text.Json.Nodes.JsonNode.Parse(JsonSerializer.Serialize(data));
+        Strip(node);
+        int[] day=[];
+        try{day=reader.Observe().Date;}catch{}
+        var entry=new JournalEntry(journal.Count+1,DateTimeOffset.UtcNow,kind,new{day,detail=node});
         File.AppendAllText(Path.Combine(stateDirectory,"journal.jsonl"),JsonSerializer.Serialize(entry)+"\n");
         journal.Add(entry);
+    }
+
+    /// Drops the observation snapshots that actions carry back, keeping the few fields that say
+    /// what the action actually achieved.
+    private static void Strip(System.Text.Json.Nodes.JsonNode? node)
+    {
+        if(node is System.Text.Json.Nodes.JsonObject map)
+        {
+            foreach(var key in map.Select(pair=>pair.Key).ToArray())
+            {
+                if(string.Equals(key,"observation",StringComparison.OrdinalIgnoreCase))
+                {
+                    var observation=map[key];
+                    var hero=observation?["hero"];
+                    map[key]=new System.Text.Json.Nodes.JsonObject
+                    {
+                        ["screen"]=observation?["screen"]?.DeepClone(),
+                        ["hero"]=hero?["name"]?.DeepClone(),
+                        ["position"]=hero?["position"]?.DeepClone(),
+                        ["movement"]=hero?["movement"]?.DeepClone(),
+                    };
+                    continue;
+                }
+                if(string.Equals(key,"elements",StringComparison.OrdinalIgnoreCase)
+                   ||string.Equals(key,"actions",StringComparison.OrdinalIgnoreCase)){map.Remove(key);continue;}
+                Strip(map[key]);
+            }
+        }
+        else if(node is System.Text.Json.Nodes.JsonArray list)
+            foreach(var item in list)Strip(item);
     }
 }
 

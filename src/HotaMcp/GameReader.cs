@@ -44,7 +44,15 @@ public record Observation(string Revision,int Player,int[] Date,int[] Resources,
     /// Every hero this player owns, not only the selected one. A player sees them all on the
     /// sidebar at a glance; without this an agent has to cycle the selection to learn what it has.
     public List<HeroView> Heroes {get;init;}=[];
+    /// Who this session plays and whether the game is currently waiting for that side. In a shared
+    /// game — hotseat, or a human on another colour — acting for the wrong side is the one mistake
+    /// that cannot be undone, so the answer is stated rather than assumed.
+    public SideView? Side {get;init;}
 }
+
+/// The side this bridge is bound to, the side the game is currently asking for, and whether they
+/// are the same. `Yours` is the only safe condition for an action.
+public sealed record SideView(int Player,string Colour,int ActivePlayer,string ActiveColour,bool Yours);
 
 /// The building purchase card as a player reads it: what is offered, what it gives, whether the
 /// game will take the order right now and, when it will not, why. A missing button is an answer,
@@ -74,6 +82,14 @@ internal sealed class GameReader(WindowsGame game,int player)
         }
         return new(Text(3),Text(4),conditions,numbers,canBuy,blocked);
     }
+
+    /// The eight player colours in the order the game numbers them.
+    private static string Colour(int index)=>index switch
+    {
+        0=>"красный",1=>"синий",2=>"коричневый",3=>"зелёный",
+        4=>"оранжевый",5=>"фиолетовый",6=>"бирюзовый",7=>"розовый",
+        _=>"неизвестный ("+index+")"
+    };
 
     /// Dialog classes this adapter can name. Everything else is an unmapped screen.
     private static readonly Dictionary<uint,string> ScreenNames=new()
@@ -451,7 +467,13 @@ internal sealed class GameReader(WindowsGame game,int player)
                 items.FirstOrDefault(e=>e.Id==140)?.Text?.Trim()??"",skills,equipped,"id:118"){Inspect=inspect};
         }
         var build=screen=="building_confirmation"?ReadBuildOffer(items,towns,resources):null;
-        var result=new Observation("",player,date,resources,hero,screen,width,height,items){Towns=towns,Actions=actions,Setup=setup,Combat=combat,Saves=saves,Sheet=sheet,Build=build,Heroes=roster};
+        SideView? side=null;
+        if(!frontend)
+        {
+            int active=game.I32(0x69ccf4);
+            side=new(player,Colour(player),active,Colour(active),active==player);
+        }
+        var result=new Observation("",player,date,resources,hero,screen,width,height,items){Towns=towns,Actions=actions,Setup=setup,Combat=combat,Saves=saves,Sheet=sheet,Build=build,Heroes=roster,Side=side};
         string revision=Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(epoch+JsonSerializer.Serialize(result))))[..24];
         return result with {Revision=revision};
     }
