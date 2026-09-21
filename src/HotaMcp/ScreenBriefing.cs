@@ -40,6 +40,10 @@ internal static class ScreenBriefing
             lines.Add("Размер отряда игра показывает вилкой, а не числом — точное число даёт только заклинание Видения "
                 +"или существо Разбойник в армии. Закрыть карточку — screen:close.");
         }
+        if(screen=="message")
+            lines.Add("На экране сообщение игры, и пока оно висит, ничего другого сделать нельзя: "
+                +"ни походить, ни открыть город. Текст лежит в Elements; закрой его действием "
+                +"message:accept, а вопрос с двумя кнопками — message:confirm или message:decline.");
         if(screen=="town")TownBrief(lines,resources,towns,roster,selectedStack,openTown);
         if(screen=="adventure")AdventureBrief(lines,resources,towns,roster,selected);
         if(screen=="building_confirmation"&&offer is not null)

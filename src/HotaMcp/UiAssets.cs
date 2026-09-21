@@ -44,6 +44,13 @@ internal static class UiAssets
         ["icm007.def"]="Защищаться",
         ["icm011.def"]="Настройки битвы",
         ["icm012.def"]="Начать бой (тактическая фаза)",
+        // Hero exchange: the picture names say what each button does.
+        ["SwCMR.def"]="Переместить все войска правому герою",
+        ["SwCML.def"]="Переместить все войска левому герою",
+        ["SwAMR_M.def"]="Переместить все артефакты правому герою",
+        ["SwAML_M.def"]="Переместить все артефакты левому герою",
+        ["SwXCh.def"]="Обменять армии героев местами",
+        ["mov1lm.def"]="Передать одно существо из отряда",
         // Random map panel.
         ["RanWeak.def"]="Слабые монстры",
         ["RanNorm.def"]="Монстры обычной силы",

@@ -319,6 +319,15 @@ internal static class GameCommands
         // The exchange window closes with the game's ordinary Esc, like the other hero screens.
         // It opens both from a meeting on the map and from the town screen.
         "exchange:done" => new("adventure,town", Deliveries.Key(0x1b, 0x01)),
+        "exchange:army:right" => new("exchange",Deliveries.Control(400,"SwCMR.def")){Confirm=Confirm.GarrisonChanged},
+        "exchange:army:left" => new("exchange",Deliveries.Control(402,"SwCML.def")){Confirm=Confirm.GarrisonChanged},
+        "exchange:army:swap" => new("exchange",Deliveries.Control(401,"SwXCh.def")){Confirm=Confirm.GarrisonChanged},
+        "exchange:artifacts:right" => new("exchange",Deliveries.Control(450,"SwAMR_M.def")),
+        "exchange:artifacts:left" => new("exchange",Deliveries.Control(452,"SwAML_M.def")),
+        _ when action.Key.StartsWith("exchange:give:",StringComparison.Ordinal)
+            => new("exchange",ExchangeStack(true)){Confirm=Confirm.GarrisonChanged},
+        _ when action.Key.StartsWith("exchange:take:",StringComparison.Ordinal)
+            => new("exchange",ExchangeStack(false)){Confirm=Confirm.GarrisonChanged},
 
         // Tavern and recruitment.
         "tavern:close" => new("town", Deliveries.Key(0x1b, 0x01)),
@@ -625,6 +634,47 @@ internal static class GameCommands
                 $"Нажатие по клетке {first} не взяло отряд: рамка выделения не появилась там, где ожидалась. "
                 +"Ничего не слито, состояние не изменилось.");
         await Deliveries.Press(context, target.X, target.Y, ct);
+    };
+
+    /// Moving a stack between two heroes who met on the map. The gesture is the one every army
+    /// row in this game uses — press the stack, press the cell it should land in — and the cells
+    /// here are the pictures: 13 plus the slot on the left, 20 plus the slot on the right.
+    private static Deliver ExchangeStack(bool give) => async (context, ct) =>
+    {
+        string wanted = context.Element[(context.Element.IndexOf(':') + 1)..];
+        wanted = wanted[(wanted.IndexOf(':') + 1)..];
+        int fromBase = give ? 13 : 20, toBase = give ? 20 : 13;
+        int fromCount = give ? 65 : 72, toCount = give ? 72 : 65;
+        int source = -1, target = -1, sourceType = -1;
+        for (int slot = 0; slot < 7 && source < 0; slot++)
+        {
+            var image = context.Before.Elements.FirstOrDefault(e => e.Id == fromBase + slot && e.Frame > 0);
+            var number = context.Before.Elements.FirstOrDefault(e => e.Id == fromCount + slot && !string.IsNullOrWhiteSpace(e.Text));
+            if (image is null || number is null) continue;
+            if (!string.Equals(GameReference.Creature(image.Frame - 2), wanted, StringComparison.OrdinalIgnoreCase)) continue;
+            source = slot; sourceType = image.Frame - 2;
+        }
+        if (source < 0) throw new InvalidOperationException($"Отряда «{wanted}» в этом ряду нет");
+        // A cell holding the same creature merges the two stacks; an empty one asks how to divide.
+        for (int slot = 0; slot < 7 && target < 0; slot++)
+        {
+            var image = context.Before.Elements.FirstOrDefault(e => e.Id == toBase + slot && e.Frame > 0);
+            if (image is not null && image.Frame - 2 == sourceType) target = slot;
+        }
+        if (target < 0)
+            for (int slot = 0; slot < 7 && target < 0; slot++)
+            {
+                var number = context.Before.Elements.FirstOrDefault(e => e.Id == toCount + slot);
+                if (number is null || string.IsNullOrWhiteSpace(number.Text)) target = slot;
+            }
+        if (target < 0) throw new InvalidOperationException("У второго героя нет ни свободной клетки, ни такого же отряда");
+        var from = context.Reader.FindControlById(fromBase + source)
+            ?? throw new InvalidOperationException($"Клетка {source} не найдена");
+        var to = context.Reader.FindControlById(toBase + target)
+            ?? throw new InvalidOperationException($"Клетка назначения {target} не найдена");
+        await Deliveries.Press(context, from.X + from.Width / 2, from.Y + from.Height / 2, ct);
+        await Task.Delay(250, CancellationToken.None);
+        await Deliveries.Press(context, to.X + to.Width / 2, to.Y + to.Height / 2, ct);
     };
 
     private static readonly Deliver RecruitFromFort = async (context, ct) =>

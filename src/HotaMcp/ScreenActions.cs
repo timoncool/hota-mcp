@@ -81,7 +81,42 @@ internal static class ScreenActions
         if(screen is "adventure_options" or "world_view" or "puzzle_map" or "scenario_info"
             or "thieves_guild" or "marketplace" or "mage_guild" or "town_fort")
             actions.Add(new("screen:close","Закрыть окно и вернуться"));
-        if(screen=="exchange")actions.Add(new("exchange:done","Закрыть окно обмена (ОК)"));
+        if(screen=="exchange")
+        {
+            // Two heroes meeting on the map share one window: the left one is the hero who walked
+            // in, the right one stood there. Each row is seven cells — pictures 13..19 and 20..26,
+            // counts 65..71 and 72..78 — and the picture's frame is the creature, two ahead of the
+            // type the game stores, the same offset the town rows use.
+            string Named(int picture,int count)
+            {
+                var image=items.FirstOrDefault(i=>i.Id==picture&&i.Frame>0);
+                var number=items.FirstOrDefault(i=>i.Id==count&&!string.IsNullOrWhiteSpace(i.Text));
+                return image is null||number is null?"":GameReference.Creature(image.Frame-2);
+            }
+            string Count(int count)=>items.FirstOrDefault(i=>i.Id==count)?.Text?.Trim()??"";
+            for(int slot=0;slot<7;slot++)
+            {
+                var mine=Named(13+slot,65+slot);
+                if(mine.Length>0)
+                    actions.Add(new($"exchange:give:{mine}",
+                        $"Отдать «{mine}» x{Count(65+slot)} второму герою (левый ряд → правый). "
+                        +"Если у него уже есть такой отряд, они сольются."));
+                var theirs=Named(20+slot,72+slot);
+                if(theirs.Length>0)
+                    actions.Add(new($"exchange:take:{theirs}",
+                        $"Забрать «{theirs}» x{Count(72+slot)} у второго героя (правый ряд → левый). "
+                        +"Если у тебя уже есть такой отряд, они сольются."));
+            }
+            // Six buttons between the rows do wholesale moves. Their pictures name them: SwCMR and
+            // SwCML move every stack to one hero, SwXCh swaps the two armies outright, and the
+            // pair below does the same for artefacts.
+            if(items.Any(i=>i.Id==400))actions.Add(new("exchange:army:right","Отдать ВСЁ войско правому герою одной кнопкой"));
+            if(items.Any(i=>i.Id==402))actions.Add(new("exchange:army:left","Забрать ВСЁ войско левому герою одной кнопкой"));
+            if(items.Any(i=>i.Id==401))actions.Add(new("exchange:army:swap","Обменять армии героев местами целиком"));
+            if(items.Any(i=>i.Id==450))actions.Add(new("exchange:artifacts:right","Отдать все артефакты правому герою"));
+            if(items.Any(i=>i.Id==452))actions.Add(new("exchange:artifacts:left","Забрать все артефакты левому герою"));
+            actions.Add(new("exchange:done","Закрыть окно обмена (ОК)"));
+        }
         if(screen=="level_up")
         {
             // The level-up screen offers its skills as two picture buttons with a label under each.
