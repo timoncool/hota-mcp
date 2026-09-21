@@ -69,6 +69,12 @@ foreach ($tree in @('docs', 'skills')) {
     Copy-Item (Join-Path $repo $tree) $destination -Recurse -Force
 }
 
+# A client connecting to a cold machine needs to know which launcher to raise.
+$state = Join-Path $env:LOCALAPPDATA 'HotaMcp'
+New-Item -ItemType Directory -Path $state -Force | Out-Null
+Set-Content -Path (Join-Path $state 'install.ini') -Encoding utf8 `
+    -Value ("Launcher=" + (Join-Path $game 'HD_Launcher.exe'))
+
 $watcher = Join-Path $app 'launcher-attach.exe'
 $dll = Join-Path $app 'hota_launcher_tab.dll'
 $command = '"{0}" --watch "{1}"' -f $watcher, $dll

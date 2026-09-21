@@ -17,6 +17,9 @@ if(!endpointUri.IsLoopback||endpointUri.Scheme!="http")throw new InvalidOperatio
 
 if(stdio)
 {
+    // A client may connect before anything is running. Bring the player's own launcher up and let
+    // its MCP tab raise the service, instead of requiring a hand-started stack.
+    Console.Error.WriteLine(await ServiceBootstrap.EnsureRunning(endpoint,directory,CancellationToken.None));
     string token=File.ReadAllText(tokenFile).Trim();
     var http=new HttpClient{BaseAddress=new Uri(endpoint.TrimEnd('/')+"/"),Timeout=TimeSpan.FromSeconds(15)};
     http.DefaultRequestHeaders.Authorization=new AuthenticationHeaderValue("Bearer",token);
@@ -67,6 +70,10 @@ Directory.CreateDirectory(directory);
 using var serviceLock=new FileStream(Path.Combine(directory,"service.lock"),FileMode.OpenOrCreate,FileAccess.ReadWrite,FileShare.None);
 int? hostLauncherPid=int.TryParse(Value("--launcher-pid"),out int parsedLauncherPid)?parsedLauncherPid:null;
 using var session=new GameSession(pid,player,directory,hostLauncherPid);
+// Remember where the launcher lives so a later cold start can raise this same service again.
+if(hostLauncherPid is int knownLauncher)
+    try{ServiceBootstrap.RememberLauncher(directory,Process.GetProcessById(knownLauncher).MainModule!.FileName);}
+    catch(Exception e)when(e is InvalidOperationException or System.ComponentModel.Win32Exception or ArgumentException){}
 string secret=Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
 // Starts as an owner-local development service; per-player credentials are added with hotseat.
 var builder=WebApplication.CreateBuilder();
