@@ -18,6 +18,8 @@ internal enum Confirm
     SetupChoice = 16,
     /// A real party must exist: own hero and a date.
     PartyLoaded = 32,
+    /// The hero must actually stand somewhere else, or have spent movement getting there.
+    HeroMoved = 64,
 }
 
 /// Everything a delivery needs about the game and the action being performed.
@@ -103,18 +105,19 @@ internal static class Deliveries
 /// Adding an action means adding one row here; nothing else in the bridge changes.
 internal static class GameCommands
 {
-    /// Direction suffix to the key the game listens for. Orthogonals are the arrow keys the manual
-    /// names; diagonals are the numeric keypad corners, which the game accepts for the same move.
+    /// Direction suffix to the key the game listens for. The orthogonals are the arrow keys the
+    /// manual names; the diagonals are the corners of the numeric keypad, which with the numeric
+    /// lock off arrive as Home, Page Up, End and Page Down.
     private static (ushort Key, ushort Scan) StepKey(string actionKey) => actionKey[(actionKey.LastIndexOf(':') + 1)..] switch
     {
         "north" => ((ushort)0x26, (ushort)0x48),
         "south" => ((ushort)0x28, (ushort)0x50),
         "west" => ((ushort)0x25, (ushort)0x4b),
         "east" => ((ushort)0x27, (ushort)0x4d),
-        "northwest" => ((ushort)0x67, (ushort)0x47),
-        "northeast" => ((ushort)0x69, (ushort)0x49),
-        "southwest" => ((ushort)0x61, (ushort)0x4f),
-        "southeast" => ((ushort)0x63, (ushort)0x51),
+        "northwest" => ((ushort)0x24, (ushort)0x47),
+        "northeast" => ((ushort)0x21, (ushort)0x49),
+        "southwest" => ((ushort)0x23, (ushort)0x4f),
+        "southeast" => ((ushort)0x22, (ushort)0x51),
         _ => throw new InvalidOperationException("Unknown direction"),
     };
 
@@ -151,7 +154,7 @@ internal static class GameCommands
         // "Arrow Keys - Moves current hero": one step in a direction, no route planning involved.
         // The diagonals are the numeric keypad, the way the game has always taken them.
         _ when action.Key.StartsWith("hero:step:") => new("adventure,message,town,hero_screen,combat,battle_result",
-            Deliveries.Key(StepKey(action.Key).Key, StepKey(action.Key).Scan)),
+            Deliveries.Key(StepKey(action.Key).Key, StepKey(action.Key).Scan)) { Confirm = Confirm.HeroMoved },
         // "Ctrl + Arrow Keys - Scrolls Adventure Map".
         _ when action.Key.StartsWith("view:scroll:") => new("adventure",
             Deliveries.KeyWithControl(StepKey(action.Key).Key, StepKey(action.Key).Scan)),

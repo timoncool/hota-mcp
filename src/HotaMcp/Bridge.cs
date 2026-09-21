@@ -260,6 +260,11 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             &&!(after.Combat?.OwnTurn==true
                 &&(after.Combat.ActiveStack!=before.Combat?.ActiveStack||after.Combat.Round!=before.Combat?.Round)))return false;
         if(confirm.HasFlag(Confirm.PartyLoaded)&&!(after.Hero is not null&&after.Date.Length>0))return false;
+        // A step counts only when the hero is somewhere else or paid movement for it; a dialog
+        // opening on the way is the move having happened too.
+        if(confirm.HasFlag(Confirm.HeroMoved)&&after.Screen=="adventure"
+            &&!(after.Hero is not null&&before.Hero is not null
+                &&(!after.Hero.Position.SequenceEqual(before.Hero.Position)||after.Hero.Movement<before.Hero.Movement)))return false;
         return true;
     }
 

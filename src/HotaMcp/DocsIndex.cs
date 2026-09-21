@@ -23,7 +23,10 @@ public sealed record DocText(string Path,string? Heading,bool Found,string? Note
 /// </summary>
 public sealed class DocsIndex
 {
-    private const double K1=1.2,B=0.75;
+    // The corpus mixes two very different shapes: a few hundred prose sections and well over a
+    // thousand one-line reference cards. Full length normalisation would let any card outrank a
+    // long section that actually answers the question, so it is kept light.
+    private const double K1=1.2,B=0.3;
 
     private sealed record Section(string File,string Heading,string Body,
         Dictionary<string,int> Terms,HashSet<string> HeadingTerms,int Length);
@@ -189,9 +192,11 @@ public sealed class DocsIndex
         foreach(var section in sections)
         {
             double score=0;
+            int matched=0;
             foreach(var term in terms)
             {
                 if(!section.Terms.TryGetValue(term,out int frequency))continue;
+                matched++;
                 int documents=documentFrequency.GetValueOrDefault(term,1);
                 double idf=Math.Log(1+(total-documents+0.5)/(documents+0.5));
                 double norm=frequency*(K1+1)/(frequency+K1*(1-B+B*section.Length/averageLength));
@@ -199,7 +204,9 @@ public sealed class DocsIndex
                 // A term in the heading names the subject of the section rather than mentioning it.
                 if(section.HeadingTerms.Contains(term))score+=idf*1.5;
             }
-            if(score>0)scored.Add((score,section));
+            // A section that answers "guards of the dragon utopia" mentions all three words. One
+            // that merely shares the word "dragon" is a different subject, however short it is.
+            if(score>0)scored.Add((score*(0.25+0.75*matched/terms.Length),section));
         }
         var hits=scored.OrderByDescending(s=>s.Score).Take(Math.Clamp(limit,1,8)).Select(s=>
         {
