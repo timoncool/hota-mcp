@@ -81,9 +81,13 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
         await gate.WaitAsync(ct);
         try
         {
+            var initial=reader.Observe();
+            if(initial.Hero is null)throw new InvalidOperationException("Select a hero first");
+            // The hover changes what the game reports under the cursor, so the consistency window
+            // starts after it: otherwise this call always invalidates its own observation.
+            await RefreshRouteTree(initial);
             var observation=reader.Observe();
-            var hero=observation.Hero??throw new InvalidOperationException("Select a hero first");
-            await RefreshRouteTree(observation);
+            var hero=observation.Hero??throw new InvalidOperationException("Hero selection lost while refreshing routes");
             var region=new MapReader(game,player).Read(observation,hero.Position[0],hero.Position[1],hero.Position[2],12);
             var list=new List<TargetView>();
             foreach(var target in region.Objects)
@@ -111,9 +115,19 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
         {
             if(!targets.TryGetValue(targetId,out var target))
                 throw new InvalidOperationException("Unknown target; request nearby_targets first");
-            var before=reader.Observe();
-            if(before.Revision!=revision)throw new InvalidOperationException("State changed; request nearby_targets again");
+            var stale=reader.Observe();
+            if(stale.Revision!=revision)throw new InvalidOperationException("State changed; request nearby_targets again");
             var map=new MapReader(game,player);
+            map.ValidateTarget(stale,target);
+            // The game computes a path only to the cell under the cursor, the way it does for a
+            // player moving the mouse onto an object. Pointing at this target is what makes its
+            // route exist at all; without it every route reads as unavailable.
+            if(stale.Screen=="adventure"&&stale.Hero is not null)
+            {
+                var point=map.ScreenPoint(stale,target.X,target.Y,target.Z);
+                await HoverAndSettle(stale,point.X,point.Y);
+            }
+            var before=reader.Observe();
             map.ValidateTarget(before,target);
             var route=new RouteReader(game,player).Read(before,target);
             var after=reader.Observe();
