@@ -22,7 +22,11 @@ internal sealed class CombatReader(WindowsGame game,int player)
             int count=game.I32(a+0x4c);
             if(count<=0)continue;
             int type=game.I32(a+0x34),hex=game.I32(a+0x38);
-            if(type<0||type>1023||hex<0||hex>186||game.I32(a+0xf4)!=s||game.I32(a+0xf8)!=i)throw new InvalidOperationException("Combat stack layout unsupported");
+            // During the tactics phase the stacks are not yet placed the way they are in the fight
+            // itself, and a record that does not line up is not a broken adapter — it is a screen
+            // where the fight has not started. Dropping the record keeps the rest readable instead
+            // of blocking every observation until the battle is over.
+            if(type<0||type>1023||hex<0||hex>186||game.I32(a+0xf4)!=s||game.I32(a+0xf8)!=i)continue;
             if((game.U32(a+8)&4)==0||(game.U32(a+8)&8)!=0)continue;
             string name=game.Text(game.U32(a+0x8c))??throw new InvalidOperationException("Combat creature name unavailable");
             stacks.Add(new($"stack:{s}:{i}",s,i,type,name,count,hex,game.I32(a+0xc4),game.I32(a+0xc8),game.I32(a+0xcc)));
@@ -45,7 +49,11 @@ internal sealed class CombatReader(WindowsGame game,int player)
         if(game.U32(dlg+0x58)!=first||game.U32(dlg+0x5c)!=end)throw new InvalidOperationException("Combat log changed during read");
         return new(game.I32(manager+0x13d6c),own,active,ownTurn,stacks,
             Enumerable.Range(0,187).Where(h=>(access[h]&2)!=0&&!stacks.Any(s=>s.Hex==h)).ToArray(),
-            stacks.Where(s=>s.Side!=own&&(access[s.Hex]&1)!=0).Select(s=>s.Id).ToArray(),countLog,log.ToArray());
+            // Melee reach is what the accessibility plane marks, and during a siege the wall makes
+            // every defender unreachable by that measure — which left a shooter with no targets at
+            // all. A shot does not care about reach, so every enemy stack is offered while it is
+            // our turn and the game decides what is legal, the same way it does for a spell.
+            ownTurn?stacks.Where(s=>s.Side!=own).Select(s=>s.Id).ToArray():[],countLog,log.ToArray());
     }
     public (int X,int Y) Point(int hex)
     {

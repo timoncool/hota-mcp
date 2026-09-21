@@ -125,6 +125,26 @@ internal static class Deliveries
         var point = new CombatReader(context.Game, context.Player).Point(hex(context));
         await Press(context, point.X, point.Y, ct);
     };
+
+    /// Aiming a melee attack. The game reads the direction of the blow from WHERE inside the
+    /// defender's cell the cursor is: a press on the dead centre is not an attack from anywhere,
+    /// and the order is dropped without a word. Pressing on the side that faces the attacker is
+    /// what a player does without thinking, and it is what makes the stack walk up and strike.
+    public static Deliver CombatAttack(Func<CommandContext, int> target) => async (context, ct) =>
+    {
+        var reader = new CombatReader(context.Game, context.Player);
+        var combat = context.Before.Combat ?? throw new InvalidOperationException("Бой не прочитан");
+        var active = combat.Stacks.FirstOrDefault(s => s.Id == combat.ActiveStack)
+            ?? throw new InvalidOperationException("Активный отряд не определён");
+        _ = active;
+        var to = reader.Point(target(context));
+        // The game works out what a click means from where the cursor already is: it decides
+        // «attack this stack» while the mouse travels over the defender, and a click that arrives
+        // without that journey is discarded. So the cursor is moved first, exactly as a hand does.
+        await context.Game.MouseAsync(to.X, to.Y, context.Before.Width, context.Before.Height, false, ct);
+        await Task.Delay(200, CancellationToken.None);
+        await Press(context, to.X, to.Y, ct);
+    };
 }
 
 /// Maps every published action key and every clickable UI element to its command.
@@ -317,7 +337,7 @@ internal static class GameCommands
             Deliveries.CombatHex(c => Suffix(c.Element, 2)))
             { Confirm = Confirm.CombatTurn, TimeoutSeconds = 10, BattleMayEnd = true },
         _ when action.Key.StartsWith("combat:attack:") => new("combat",
-            Deliveries.CombatHex(c => StackHex(c, c.Element[14..])))
+            Deliveries.CombatAttack(c => StackHex(c, c.Element[14..])))
             { Confirm = Confirm.CombatTurn | Confirm.CombatLog, TimeoutSeconds = 10, BattleMayEnd = true },
         "battle:accept" => new("adventure", Deliveries.Key(0x0d, 0x1c)),
 

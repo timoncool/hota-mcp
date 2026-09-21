@@ -261,7 +261,18 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             var route=new RouteReader(game,player).Read(before,target);
             var after=reader.Observe();
             if(after.Revision!=before.Revision)throw new InvalidOperationException("State changed while reading target");
-            return new(targetId,target.Kind,route,after.Revision);
+            // Walking into somebody else's town or onto his hero is a battle, but the route is
+            // computed as if the cell were empty and nothing on the map shows a stack. Saying it
+            // here, where the decision to go is made, is the difference between a siege and a
+            // scout walking to his death.
+            string kind=target.Kind;
+            if(target.Type==98&&!after.Towns.Any(t=>t.Id==target.Id))
+                kind+=" — вход в чужой город это штурм его гарнизона, состав которого не виден; "
+                    +"сначала посмотри, кто там, и приходи силой";
+            if(target.Type==34&&!after.Heroes.Any(h=>h.Id==target.Id))
+                kind+=" — шаг на чужого героя это бой с его армией; "
+                    +"его состав показывает карточка героя по правому щелчку";
+            return new(targetId,kind,route,after.Revision);
         }
         finally{gate.Release();}
     }

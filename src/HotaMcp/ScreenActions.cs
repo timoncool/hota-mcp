@@ -300,7 +300,13 @@ internal static class ScreenActions
         if(setup is not null)foreach(var choice in setup.Fields.SelectMany(f=>f.Choices).Where(c=>c.Enabled&&!c.Selected))actions.Add(new(choice.Action,choice.Label));
         if(combat?.OwnTurn==true)
         {
-            if(items.Any(i=>i.Id==2005&&i.Text=="Выберите цель заклинания"))
+            // The game announces target mode in its status line, but the wording changes the moment
+            // the cursor crosses a stack: «Выберите цель заклинания» becomes «Направить <спелл> на
+            // <отряд>». Both mean the same thing — a spell is waiting for a target — and missing
+            // the second one left a cast hanging with no way to finish it.
+            if(items.Any(i=>i.Id==2005&&i.Text is not null
+                &&(i.Text.Contains("цель заклинания",StringComparison.Ordinal)
+                   ||i.Text.StartsWith("Направить",StringComparison.Ordinal))))
             {
                 foreach(var stack in combat.Stacks)actions.Add(new("spell:target:"+stack.Id,"Выбрать цель заклинания: "+stack.Name+"; допустимость проверяет игра"));
                 actions.Add(new("spell:cancel","Отменить выбор цели"));
@@ -315,7 +321,12 @@ internal static class ScreenActions
             actions.Add(new("combat:surrender","Сдаться: сохранить героя и армию за золото (S)"));
             actions.Add(new("combat:options","Настройки боя (O)"));
             foreach(int hex in combat.ReachableHexes)actions.Add(new($"combat:move:{hex}",$"Переместиться на клетку {hex}"));
-            foreach(string id in combat.AttackableTargets)actions.Add(new("combat:attack:"+id,"Атаковать: "+combat.Stacks.Single(s=>s.Id==id).Name));
+            foreach(string id in combat.AttackableTargets)
+            {
+                var victim=combat.Stacks.Single(s=>s.Id==id);
+                actions.Add(new("combat:attack:"+id,
+                    $"Атаковать: {victim.Name} ({victim.Count}) — стрелок бьёт с места, ближний бой требует подойти; законность проверяет игра"));
+            }
             }
         }
         return actions;
