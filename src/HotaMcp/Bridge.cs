@@ -32,9 +32,41 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
     /// not been reconciled with what happened since, and the difference is worth saying out loud.
     private int[] planDay=[];
 
+    /// Half of what goes wrong in a long game is not a wrong decision but no decision: the same
+    /// state read again and again while nothing moves. The bridge therefore keeps the last state
+    /// that mattered — date, positions, movement, army, resources — and counts the observations
+    /// that changed none of it.
+    private string lastProgress="";
+    private int idleReads;
+
+    /// An environment an agent can act in needs three things: what it sees, what it can do, and
+    /// whether it is getting anywhere. The first two are the observation and the actions; this is
+    /// the third. Without it a turn feels the same whether the army doubled or the day was wasted.
+    private (int[] Day,int Gold,int Army,int Towns) yesterday=([],0,0,0);
+
     private readonly Dictionary<string,MapObject> targets=new();
     private readonly Dictionary<MapObject,string> targetIds=new();
-    private string plan="";
+    private string? planCache;
+    private string plan
+    {
+        get
+        {
+            if(planCache is null)
+                try{planCache=File.Exists(PlanFile)?File.ReadAllText(PlanFile):"";}
+                catch(IOException){planCache="";}
+            return planCache;
+        }
+        set
+        {
+            planCache=value;
+            try{File.WriteAllText(PlanFile,value);}catch(IOException){}
+        }
+    }
+    /// The plan is the controller's memory across turns, and a turn outlives the process: the
+    /// service is restarted on every install. Keeping it only in memory silently threw the goal
+    /// away mid-game, so it lives in the session directory and is read back on start.
+    private string PlanFile=>Path.Combine(
+        Directory.GetParent(stateDirectory)?.Parent?.FullName??stateDirectory,$"plan-player{player}.txt");
 
     public void Dispose(){game.Dispose();gate.Dispose();}
 
@@ -54,6 +86,26 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
     private Observation WithMemory(Observation state)
     {
         var lines=new List<string>(state.Brief);
+        string progress=string.Join("|",
+            [string.Join(",",state.Date),string.Join(",",state.Resources),
+             string.Join(";",state.Heroes.Select(h=>$"{h.Id}:{string.Join(",",h.Position)}:{h.Movement}:{string.Join(",",h.ArmyCounts)}")),
+             string.Join(";",state.Towns.Select(t=>$"{t.Id}:{t.Buildings.Length}:{t.BuiltToday}"))]);
+        if(progress==lastProgress)idleReads++;
+        else {lastProgress=progress;idleReads=0;}
+        int army=state.Heroes.Sum(h=>h.ArmyCounts.Sum())+state.Towns.Sum(t=>t.GarrisonCounts.Sum());
+        int gold=state.Resources.Length>6?state.Resources[6]:0;
+        if(state.Date.Length>0&&!yesterday.Day.SequenceEqual(state.Date))
+        {
+            if(yesterday.Day.Length>0)
+                lines.Add($"За прошлый день: золото {Delta(gold-yesterday.Gold)}, войско {Delta(army-yesterday.Army)} существ, "
+                    +$"городов {Delta(state.Towns.Count-yesterday.Towns)}. "
+                    +"Если день не дал ничего из этого, он потрачен зря — сверься с планом.");
+            yesterday=(state.Date,gold,army,state.Towns.Count);
+        }
+        if(idleReads>=6)
+            lines.Add($"Топтание: {idleReads} наблюдений подряд без единого изменения — ни шага, ни ресурса, ни постройки. "
+                +"Так теряется ход. Либо выполни активную задачу из плана, либо признай её невыполнимой сейчас, "
+                +"запиши это в план и возьми следующую.");
         if(!string.IsNullOrWhiteSpace(plan))
         {
             lines.Add("Записанный план (tool plan, перепиши его в конце хода):");
@@ -63,6 +115,10 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
         else lines.Add("План пуст. Запиши через plan цель партии и задачи — иначе следующий ход начнётся вслепую. "
             +"Форма: ЦЕЛЬ (одна строка, не меняется) / ЗАДАЧИ СЕЙЧАС (по герою, с координатами) / "
             +"СДЕЛАНО (одна строка на день) / ЗАПРЕТЫ / НЕ ВЗЯТО ПОБЛИЗОСТИ.");
+        if(state.Date.Length>2&&state.Date[0]==1)
+            lines.Add("Первый день недели — время разбора: сверь по плану, что из задач прошлой недели сделано, "
+                +"что нет и почему, сожми прошлую неделю в одну строку СДЕЛАНО и поставь задачи на новую. "
+                +"Сегодня же приходит прирост существ и обновляются недельные объекты.");
         if(!string.IsNullOrWhiteSpace(plan)&&state.Date.Length>0&&!planDay.SequenceEqual(state.Date))
             lines.Add($"План записан {(planDay.Length>2?$"в день {planDay[0]} недели {planDay[1]}":"раньше")}, "
                 +"а сейчас другой день — перечитай его, выполни, и в конце хода перепиши: цель оставь дословно, "
@@ -84,6 +140,8 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
         Encoder=System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
     };
 
+    private static string Delta(int value)=>value>0?"+"+value:value.ToString();
+
     private static string Summarise(JournalEntry entry)
     {
         string text=System.Text.Json.JsonSerializer.Serialize(entry.Data,Readable);
@@ -100,7 +158,13 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             "save_game","save_list_and_load","inspect_element","hero_switch_on_map","map_terrain",
             "game_reference","hotkeys","installer","launcher_tab"},
         unavailable=new[]{"full_map_coverage","in_game_load_browser","full_scenario_setup",
-            "hotseat","lan","cost_measurement"}
+            "hotseat","lan","cost_measurement"},
+        howToPlay=new[]{
+            "Партия ведётся состояниями: осмотреться, экономика, накопление, штурм, сведение тиров, расширение, оборона. Активно одно, переход по условию.",
+            "У каждого героя роль: главный берёт охраняемое и всю армию, сборщик — свободное и разведку, подвозчик возит прирост на фронт.",
+            "День решается деревом по приоритету: угроза, постройка в городе, первый день недели, цель главного, ближайшее свободное для сборщика, остаток ходов, переписать план.",
+            "Полностью — hota_docs(\"машина состояний партии\"); циклы игры — hota_docs(\"игровые циклы\"); решения по ситуациям — hota_docs(\"реестр ситуаций\").",
+            "План возвращается в каждом observe и переписывается в конце хода: состояние, роли, активная задача со сроком, очередь, сделано одной строкой."}
     };
 
     public object Diagnostic()=>reader.DiagnosticPointers();
@@ -197,6 +261,19 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             var before=reader.Observe();
             if(before.Revision!=revision)throw new InvalidOperationException("Observation is stale; observe again");
             var map=new MapReader(game,player);
+            // The camera follows the selected hero, so a cell the player knows about is often off
+            // screen. A player brings it into view by pressing the minimap; the bridge does the
+            // same instead of refusing to look. The press moves the camera only.
+            if(!map.IsOnScreen(before,x,y,z))
+            {
+                var onMinimap=map.MinimapPoint(before,x,y,z);
+                await game.MouseAsync(onMinimap.X,onMinimap.Y,before.Width,before.Height,true,ct);
+                await Task.Delay(250,ct);
+                before=reader.Observe();
+                if(!map.IsOnScreen(before,x,y,z))
+                    throw new InvalidOperationException(
+                        "Клетка не попала в окно даже после доводки камеры по миникарте");
+            }
             var point=map.ScreenPoint(before,x,y,z);
             await game.MouseAsync(point.X,point.Y,before.Width,before.Height,false,ct);
             await Task.Delay(150,ct);

@@ -107,10 +107,12 @@ public sealed class GameTools(IGameEndpoint endpoint)
      Description("Reads your stored plan, or replaces it when a value is given. This is the controller's memory between "
         +"turns and it is handed back inside every observation, so it is read whether or not it is asked for. "
         +"Returns the stored text. Writing REPLACES the whole plan, so carry forward what still matters. "
-        +"Shape that survives a long game: GOAL — one line, unchanged for the whole game; TASKS NOW — one block per hero "
-        +"with map coordinates; DONE — one compressed line per day, not a retelling; BANS — what the player forbade; "
-        +"NOT TAKEN NEARBY — objects seen and left, so they are not rediscovered every turn. Keep decisions and their "
-        +"reason, not a narration of events; what happened is in read_journal. "
+        +"Shape that survives a long game: GOAL — one line, unchanged for the whole game; ACTIVE TASK — exactly one, with "
+        +"the game day it must be done by, so stalling is visible; QUEUE — the tasks after it, in order; DONE — one "
+        +"compressed line per day, not a retelling; BANS — what the player forbade; NOT TAKEN NEARBY — objects seen and "
+        +"left, so they are not rediscovered every turn. Keep decisions and their reason, not a narration of events; what "
+        +"happened is in read_journal. Rewrite it at the end of every turn, and whenever the active task turns out to be "
+        +"impossible — an active task nobody can finish is how a game stalls. "
         +"Does NOT execute anything or change the game.")]
     public Task<object> Plan(
         [Description("New plan text, or null to read the stored one without changing it.")] string? value,

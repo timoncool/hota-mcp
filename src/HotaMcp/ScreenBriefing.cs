@@ -17,6 +17,18 @@ internal static class ScreenBriefing
             lines.Add(side.Yours
                 ?$"Ход твой, играешь за {side.Colour}. День {Part(date,0)}, неделя {Part(date,1)}, месяц {Part(date,2)}." + (Part(date,0)=="1"?" Первый день недели: в городах появился прирост существ, мельницы и водяные колёса снова дают ресурс.":"")
                 :$"Сейчас ходит {side.ActiveColour}, а ты играешь за {side.Colour} — не действуй за чужой цвет.");
+        if(date.Length>2)
+        {
+            int left=8-date[0];
+            // The hall pays every morning and the dwellings fill on the first day of a week; both
+            // are known in advance, so planning a purchase does not need a turn to find out.
+            int income=towns.Sum(t=>t.Buildings.Contains(13)?4000:t.Buildings.Contains(12)?2000
+                :t.Buildings.Contains(11)?1000:t.Buildings.Contains(10)?500:0);
+            lines.Add($"Завтра утром придёт {income} золота с ратуш"
+                +(towns.Count>0?" плюс дневная добыча шахт (их список и общий доход — экран game:kingdom)":"")
+                +$". До конца недели {left} " +(left==1?"день":left<5?"дня":"дней")
+                +", прирост существ придёт в первый день новой недели — до него имеет смысл достроить жилища.");
+        }
         if(screen=="town")TownBrief(lines,resources,towns,roster,selectedStack);
         if(screen=="adventure")AdventureBrief(lines,resources,towns,roster,selected);
         if(screen=="building_confirmation"&&offer is not null)
@@ -87,6 +99,12 @@ internal static class ScreenBriefing
         foreach(var town in towns)
             lines.Add($"Город {town.Name}: {(town.BuiltToday?"постройка дня потрачена":"постройка дня свободна")}, "
                 +$"гарнизон {Stacks(town.GarrisonTypes,town.GarrisonCounts)}. Открыть — town:open:{town.Id}.");
+        lines.Add("Рамка решений: у партии одно состояние (осмотреться, экономика, накопление, штурм, сведение тиров, "
+            +"расширение, оборона), у каждого героя роль (главный берёт охраняемое, сборщик — свободное), "
+            +"а день решается деревом по приоритету. Целиком — hota_docs(\"машина состояний партии\"). "
+            +"Текущее состояние и активную задачу держи в плане.");
+        lines.Add("Чем мерить: бродячий отряд даёт только опыт, шахта — ресурс каждый день, захваченный город — "
+            +"и доход, и прирост; поэтому город и шахты важнее драки ради драки.");
         lines.Add("Что рядом с выбранным героем — nearby_targets, живой маршрут до одной цели — inspect_target, "
             +"кто стоит на клетке — inspect_cell. День закрывается действием turn:end.");
     }
