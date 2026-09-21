@@ -36,6 +36,9 @@ public record Observation(string Revision,int Player,int[] Date,int[] Resources,
     /// Filled on the building purchase card: what the game shows there, including a price the
     /// player can read while the button is grey.
     public BuildOffer? Build {get;init;}
+    /// Every hero this player owns, not only the selected one. A player sees them all on the
+    /// sidebar at a glance; without this an agent has to cycle the selection to learn what it has.
+    public List<HeroView> Heroes {get;init;}=[];
 }
 
 /// The building purchase card as a player reads it: what is offered, what it gives, whether the
@@ -329,6 +332,36 @@ internal sealed class GameReader(WindowsGame game,int player)
                 {PlannedDestination=[BitConverter.ToInt32(h,0x35),BitConverter.ToInt32(h,0x39),BitConverter.ToInt16(h,0x3d)]};
         }
         }
+        var roster=new List<HeroView>();
+        if(!frontend)
+        {
+            uint main2=game.U32(0x699538);
+            byte[] code2=game.Read(0x4317e1,19);
+            if(code2.AsSpan(0,13).SequenceEqual(Convert.FromHexString("8BC2C1E00603C28D04C08D8441")))
+            {
+                uint baseAddress=checked(main2+BitConverter.ToUInt32(code2,13));
+                // Heroes live in one array; ownership is a byte inside each record, so the roster
+                // is read by walking it rather than by cycling the selection in the interface.
+                for(int id=0;id<256;id++)
+                {
+                    uint at=checked(baseAddress+(uint)id*0x492);
+                    byte[] head;
+                    // The array ends where the game says it does, not where a guessed count does:
+                    // the first unreadable record is the end, and one bad record never costs the
+                    // whole observation.
+                    try{head=game.Read(at,0x24);}catch{break;}
+                    if(BitConverter.ToInt32(head,0x1a)!=id||head[0x22]!=player)continue;
+                    byte[] h2;
+                    try{h2=game.Read(at,0x492);}catch{continue;}
+                    string name2=Encoding.GetEncoding(1251).GetString(h2,0x23,13).Split(' ')[0];
+                    roster.Add(new(id,name2,Enumerable.Range(0,3).Select(i=>(int)BitConverter.ToInt16(h2,i*2)).ToArray(),
+                        BitConverter.ToInt16(h2,0x18),BitConverter.ToInt32(h2,0x4d),BitConverter.ToInt32(h2,0x49),
+                        h2.Skip(0x476).Take(4).Select(v=>(int)v).ToArray(),
+                        Enumerable.Range(0,7).Select(i=>BitConverter.ToInt32(h2,0x91+i*4)).ToArray(),
+                        Enumerable.Range(0,7).Select(i=>BitConverter.ToInt32(h2,0xad+i*4)).ToArray()));
+                }
+            }
+        }
         string screen=NameOf(vtable)??"unsupported";
         // Unvalidated dialog classes are not published to the player yet.
         if(screen=="unsupported") throw new InvalidOperationException("Current screen not supported by this adapter yet");
@@ -413,7 +446,7 @@ internal sealed class GameReader(WindowsGame game,int player)
                 items.FirstOrDefault(e=>e.Id==140)?.Text?.Trim()??"",skills,equipped,"id:118"){Inspect=inspect};
         }
         var build=screen=="building_confirmation"?ReadBuildOffer(items,towns,resources):null;
-        var result=new Observation("",player,date,resources,hero,screen,width,height,items){Towns=towns,Actions=actions,Setup=setup,Combat=combat,Saves=saves,Sheet=sheet,Build=build};
+        var result=new Observation("",player,date,resources,hero,screen,width,height,items){Towns=towns,Actions=actions,Setup=setup,Combat=combat,Saves=saves,Sheet=sheet,Build=build,Heroes=roster};
         string revision=Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(epoch+JsonSerializer.Serialize(result))))[..24];
         return result with {Revision=revision};
     }
