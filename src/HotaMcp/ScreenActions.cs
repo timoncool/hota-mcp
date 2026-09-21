@@ -14,6 +14,24 @@ internal static class ScreenActions
         if(screen=="split_stack")actions.Add(new("split:cancel","Закрыть окно отряда (Esc)"));
         if(screen=="hero_screen")actions.Add(new("hero:close","Закрыть экран героя (Esc)"));
         if(screen=="kingdom_overview")actions.Add(new("kingdom:close","Закрыть обзор королевства"));
+        if(screen=="town_fort")
+        {
+            // The castle screen shows every tier at once: name, dwelling, how many are available
+            // and the weekly growth. Pressing a tier's dwelling opens its recruitment.
+            for(int tier=0;tier<7;tier++)
+            {
+                var name=items.FirstOrDefault(i=>i.Id==25+tier);
+                if(name is null||string.IsNullOrWhiteSpace(name.Text))continue;
+                var available=items.FirstOrDefault(i=>i.Id==33+tier)?.Text?.Trim();
+                var growth=items.FirstOrDefault(i=>i.Id==129+tier)?.Text?.Trim();
+                var dwelling=items.FirstOrDefault(i=>i.Id==9+tier)?.Text?.Trim();
+                if(items.All(i=>i.Id!=1+tier))continue;
+                bool built=!string.IsNullOrWhiteSpace(available);
+                actions.Add(new($"fort:recruit:{tier}",built
+                    ?$"Нанять {name.Text} (уровень {tier+1}, {dwelling}): {available}, прирост {growth}"
+                    :$"{name.Text} (уровень {tier+1}): жилище {dwelling} не построено"));
+            }
+        }
         if(screen is "adventure_options" or "world_view" or "puzzle_map" or "scenario_info"
             or "thieves_guild" or "marketplace" or "mage_guild" or "town_fort")
             actions.Add(new("screen:close","Закрыть окно и вернуться"));

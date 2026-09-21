@@ -302,7 +302,7 @@ internal sealed class GameReader(WindowsGame game,int player)
             bool interactive=(vt is 0x63bb54 or 0x63bb88||(screen=="spellbook"||screen=="adventure")&&vt==0x63ec48)&&(state&2)!=0&&(state&0x28)==0;
             // Some controls carry no text and no button graphic yet still say something: the town
             // hall colours a bare picture next to each row to mark built, buildable or blocked.
-            bool bareControlMatters=screen=="town_hall"||(screen is "message" or "exchange" or "level_up")&&(state&2)!=0;
+            bool bareControlMatters=screen is "town_hall" or "town_fort"||(screen is "message" or "exchange" or "level_up")&&(state&2)!=0;
             if(string.IsNullOrEmpty(text)&&asset==null&&!bareControlMatters) continue;
             items.Add(new UiElement($"ui:{controlIndex}",BitConverter.ToUInt16(b,0x10),text,asset,
                 dx+BitConverter.ToInt16(b,0x18),dy+BitConverter.ToInt16(b,0x1a),iw,ih,interactive)

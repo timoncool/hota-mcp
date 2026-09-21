@@ -223,6 +223,9 @@ internal static class GameCommands
         // A building opens whatever screen it owns; the landing is therefore not fixed.
         _ when action.Key.StartsWith("town:building:") => new(AnyTownScreen,
             ClickBuilding(c => Suffix(c.Element, 2))),
+        // The castle screen lists every tier; pressing its dwelling opens that tier's recruitment.
+        _ when action.Key.StartsWith("fort:recruit:") => new("recruitment,town_fort,message",
+            RecruitFromFort),
         _ when action.Key.StartsWith("town:recruit:") =>
             new("recruitment", ClickBuilding(c => 30 + Suffix(c.Element, 2))),
         // Manual (Town Garrison): highlight the hero portrait, then click the banner left of the
@@ -378,6 +381,12 @@ internal static class GameCommands
     {
         int id = Suffix(context.Element, 2);
         await Deliveries.Press(context, context.Before.Elements.Single(e => e.Id == id), ct);
+    };
+
+    private static readonly Deliver RecruitFromFort = async (context, ct) =>
+    {
+        int tier = Suffix(context.Element, 2);
+        await Deliveries.Press(context, context.Before.Elements.First(e => e.Id == 1 + tier), ct);
     };
 
     private static readonly Deliver SelectSpell = async (context, ct) =>
