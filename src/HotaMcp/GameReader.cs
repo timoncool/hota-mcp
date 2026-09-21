@@ -213,7 +213,7 @@ internal sealed class GameReader(WindowsGame game,int player)
                 {PlannedDestination=[BitConverter.ToInt32(h,0x35),BitConverter.ToInt32(h,0x39),BitConverter.ToInt16(h,0x3d)]};
         }
         }
-        string screen=vtable switch {0x640c5c=>"recruitment",0x643990=>"tavern",0x63d46c=>"battle_result",0x641ddc=>"spellbook",0x63d528=>"combat",0x63db40=>"message",0x63ff60=>"main_menu",0x63e6d8=>"game_type",0x641cbc=>"scenario_selection",0x63a5e4=>"adventure",0x642478=>"system_options",0x64373c=>"town",0x6437b0=>"town_hall",0x643954=>"building_confirmation",0x643c24=>"split_stack",0x63eae8=>"hero_screen",0x642438=>"exchange",_=>"unsupported"};
+        string screen=vtable switch {0x640c5c=>"recruitment",0x643990=>"tavern",0x63d46c=>"battle_result",0x641ddc=>"spellbook",0x63d528=>"combat",0x63db40=>"message",0x63ff60=>"main_menu",0x63e6d8=>"game_type",0x641cbc=>"scenario_selection",0x63a5e4=>"adventure",0x642478=>"system_options",0x64373c=>"town",0x6437b0=>"town_hall",0x643954=>"building_confirmation",0x643c24=>"split_stack",0x63eae8=>"hero_screen",0x642438=>"exchange",0x63fe74=>"level_up",_=>"unsupported"};
         // Unvalidated dialog classes are not published to the player yet.
         if(screen=="unsupported") throw new InvalidOperationException("Current screen not supported by this adapter yet");
         uint surface=game.U32(manager+0x40);
@@ -225,7 +225,7 @@ internal sealed class GameReader(WindowsGame game,int player)
         if(start>end||end>cap||(end-start)%4!=0||end-start>8192) throw new InvalidOperationException("Invalid UI list");
         var items=new List<UiElement>();
         var controls=new List<uint>();
-        if(screen is "message" or "combat" or "spellbook" or "battle_result" or "tavern" or "recruitment" or "split_stack" or "hero_screen" or "exchange")
+        if(screen is "message" or "combat" or "spellbook" or "battle_result" or "tavern" or "recruitment" or "split_stack" or "hero_screen" or "exchange" or "level_up")
         {
             var seen=new HashSet<uint>();
             for(uint item=game.U32(dlg+0x2c);item!=0;item=game.U32(item+8))
@@ -248,7 +248,7 @@ internal sealed class GameReader(WindowsGame game,int player)
             if(vt is 0x63bb54 or 0x63bb88||(screen=="spellbook"||screen=="adventure")&&vt==0x63ec48) asset=game.Text(game.U32(a+0x30)+4,16);
             if(vt==0x63bb88)text=game.Text(game.U32(a+0x5c));
             bool interactive=(vt is 0x63bb54 or 0x63bb88||(screen=="spellbook"||screen=="adventure")&&vt==0x63ec48)&&(state&2)!=0&&(state&0x28)==0;
-            if(string.IsNullOrEmpty(text)&&asset==null&&!((screen is "message" or "exchange")&&(state&2)!=0)) continue;
+            if(string.IsNullOrEmpty(text)&&asset==null&&!((screen is "message" or "exchange" or "level_up")&&(state&2)!=0)) continue;
             items.Add(new($"ui:{controlIndex}",BitConverter.ToUInt16(b,0x10),text,asset,
                 dx+BitConverter.ToInt16(b,0x18),dy+BitConverter.ToInt16(b,0x1a),iw,ih,interactive));
         }

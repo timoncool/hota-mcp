@@ -53,9 +53,14 @@ internal static class BuildProfile
             uint dialog=game.U32(manager+0x54);
             if(dialog<0x10000)throw new InvalidOperationException("no active dialog");
             uint vtable=game.U32(dialog);
-            if(!ScreenVtables.Contains(vtable))
-                throw new InvalidOperationException($"active dialog class 0x{vtable:x} is not one this adapter names");
-            return $"active dialog class 0x{vtable:x}";
+            // A dialog class the screen reader has no name for is an unsupported screen, not a
+            // different build: the layout is still this one. Only a class that cannot be a class
+            // at all says the manager is being read wrongly.
+            if(vtable<0x400000||vtable>0x700000)
+                throw new InvalidOperationException($"active dialog class 0x{vtable:x} is not a class pointer");
+            return ScreenVtables.Contains(vtable)
+                ?$"active dialog class 0x{vtable:x}"
+                :$"active dialog class 0x{vtable:x} is a screen this adapter does not name yet";
         });
 
         Check(checks,"surface geometry",()=>

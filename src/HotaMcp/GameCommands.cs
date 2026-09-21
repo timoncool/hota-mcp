@@ -205,6 +205,12 @@ internal static class GameCommands
         "hero:out" => new("town", Deliveries.TwoSlots(387, 483)),
         _ when action.Key.StartsWith("town:take:") => new("town", TakeGarrisonStack) { Confirm = Confirm.GarrisonChanged },
 
+        // Level-up: the two offered skills are picture buttons, and the confirm button only
+        // becomes usable once one of them is chosen.
+        _ when action.Key.StartsWith("level:choose:") => new("level_up", SelectLevelSkill),
+        "level:accept" => new("adventure,town,message,combat,battle_result",
+            Deliveries.Control(30722, "iokay.def")),
+
         // Hero screens.
         // Esc returns to whichever screen opened this one, so both are legitimate landings.
         "hero:close" => new("adventure,town", Deliveries.Key(0x1b, 0x01)),
@@ -329,6 +335,12 @@ internal static class GameCommands
         if (entry.Folder != folder || entry.Width < 1 || entry.Height < 1)
             throw new InvalidOperationException("Save row is not selectable in the visible window");
         await Deliveries.Press(context, entry.X + entry.Width / 2, entry.Y + entry.Height / 2, ct);
+    };
+
+    private static readonly Deliver SelectLevelSkill = async (context, ct) =>
+    {
+        int id = Suffix(context.Element, 2);
+        await Deliveries.Press(context, context.Before.Elements.Single(e => e.Id == id), ct);
     };
 
     private static readonly Deliver SelectSpell = async (context, ct) =>
