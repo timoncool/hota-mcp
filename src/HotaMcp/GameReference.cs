@@ -146,10 +146,21 @@ internal sealed class GameReference
 
     /// Names a stack by its type as the game stores it; an unknown type stays a number rather than
     /// becoming a guess.
+    /// Creatures of the three HotA towns are not in the game's text tables at all — they live in
+    /// HotA.dll — so a type beyond the table has no name to read. The ones already seen in play are
+    /// listed here with the name the game itself printed on their card; anything still unknown says
+    /// so plainly and points at the card, instead of pretending a number is an answer.
+    private static readonly Dictionary<int,string> HotaCreatures=new()
+    {
+        [174]="Броненосец",
+    };
+
     public static string Creature(int type)
     {
         var names=CreatureNames();
-        return type>=0&&type<names.Count?names[type]:"тип "+type;
+        if(type>=0&&type<names.Count)return names[type];
+        if(HotaCreatures.TryGetValue(type,out var known))return known;
+        return $"существо HotA, тип {type} (имя показывает карточка отряда: army:open)";
     }
 
     public ReferenceAnswer Find(string name,string? kind,int limit)

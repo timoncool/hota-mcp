@@ -61,6 +61,21 @@ internal static class Deliveries
     /// out controls that carry neither text nor a button image — the army slot pictures of a town
     /// are exactly that — so when the id is not among the published elements the control is looked
     /// up in the dialog itself rather than reported as missing.
+    /// The НАЧАТЬ button of the scenario screen, found by its own caption rather than by a code:
+    /// pressing it is the only path that commits the map and the player slots before the game
+    /// starts.
+    public static Deliver StartScenario => async (context, ct) =>
+    {
+        // НАЧАТЬ is control 186, drawn from scnrbeg.def, beside ВЫЙТИ at 188. It carries no text of
+        // its own, so it is addressed by id; the caption lives in the picture.
+        var box = context.Reader.FindControlById(186)
+            ?? throw new InvalidOperationException(
+                "Кнопка НАЧАТЬ (контрол 186) на экране не найдена: панель выбора сценария не "
+                +"открыта. Открой её и убедись, что карта выбрана — иначе игра начнётся без города "
+                +"и героя и будет проиграна сразу.");
+        await Press(context, box.X + box.Width / 2, box.Y + box.Height / 2, ct);
+    };
+
     public static Deliver Control(int id, params string[] assets) => async (context, ct) =>
     {
         var button = context.Before.Elements.FirstOrDefault(e =>
@@ -190,7 +205,14 @@ internal static class GameCommands
         "scenario:maps" => new("scenario_selection", Deliveries.Native(23, 128)),
         "scenario:players" => new("scenario_selection", Deliveries.Native(23, 129)),
         "scenario:random" => new("scenario_selection", Deliveries.Native(23, 130)),
-        "scenario:start" => new("adventure", Deliveries.Native(25)) { TimeoutSeconds = 10 },
+        _ when action.Key.StartsWith("scenario:difficulty:",StringComparison.Ordinal)
+            && int.TryParse(action.Key["scenario:difficulty:".Length..],out int level) && level is >=1 and <=5
+            => new("scenario_selection",Deliveries.Control(106+level)),
+        // Starting a scenario goes through the button, not through the screen's own command code.
+        // The command started the map while the setup panel had never been committed, and the game
+        // began with no town and no hero — an instant defeat. The button does what a player's press
+        // does: it fixes the chosen map and the player slots first.
+        "scenario:start" => new("adventure", Deliveries.StartScenario) { TimeoutSeconds = 10 },
         _ when action.Key.StartsWith("setup:") => new("scenario_selection",
             Deliveries.Native(24, c => ScenarioReader.Controls.Single(x => ScenarioReader.Key(x) == c.Element).Id))
             { Confirm = Confirm.SetupChoice },

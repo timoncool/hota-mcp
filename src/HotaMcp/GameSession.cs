@@ -118,6 +118,7 @@ internal sealed class GameSession(int? requestedPid,int player,string directory,
     public Task<ElementCard> InspectElement(InspectRequest request,CancellationToken ct)=>WithGame(b=>b.InspectElement(request,ct),ct);
     public Task<CellCard> InspectCell(CellRequest request,CancellationToken ct)=>WithGame(b=>b.InspectCell(request,ct),ct);
     public Task<object> ProbeScreen(CancellationToken ct)=>WithGame(b=>Task.FromResult(b.ProbeScreen()),ct);
+    public Task<object> Memory(uint address,int length,CancellationToken ct)=>WithGame(b=>Task.FromResult(b.Memory(address,length)),ct);
     public Task<object> TileBytes(int x,int y,int z,CancellationToken ct)=>WithGame(b=>Task.FromResult(b.TileBytes(x,y,z)),ct);
     public Task<object> SendKey(KeyRequest request,CancellationToken ct)=>WithGame(b=>b.SendKey(request,ct),ct);
     public Task<object> Press(PressRequest request,CancellationToken ct)=>WithGame(b=>b.Press(request,ct),ct);

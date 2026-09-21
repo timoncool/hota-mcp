@@ -101,6 +101,7 @@ app.MapPost("/bridge/text",(TextRequest request,CancellationToken ct)=>session.E
 app.MapPost("/bridge/inspect-element",(InspectRequest request,CancellationToken ct)=>session.InspectElement(request,ct));
 app.MapPost("/bridge/inspect-cell",(CellRequest request,CancellationToken ct)=>session.InspectCell(request,ct));
 app.MapPost("/bridge/probe-screen",(CancellationToken ct)=>session.ProbeScreen(ct));
+app.MapPost("/bridge/mem",(MemRequest request,CancellationToken ct)=>session.Memory(request.Address,request.Length,ct));
 app.MapPost("/bridge/tile-raw",(TileRequest request,CancellationToken ct)=>session.TileBytes(request.X,request.Y,request.Z,ct));
 app.MapPost("/bridge/key",(KeyRequest request,CancellationToken ct)=>session.SendKey(request,ct));
 app.MapPost("/bridge/press",(PressRequest request,CancellationToken ct)=>session.Press(request,ct));
@@ -129,7 +130,7 @@ File.WriteAllText(tokenFile,secret);
 await app.StartAsync();
 await app.WaitForShutdownAsync();
 record JournalRequest(int Limit);record PlanRequest(string? Value);
-record TargetRequest(string TargetId,string Revision);
+record TargetRequest(string TargetId,string Revision);record MemRequest(uint Address,int Length);
 record GraphicsRequest(string? Renderer);
 record DocsReadRequest(string Path,string? Heading,int Offset,int MaxChars);
 record DocsCatalogRequest(string? Path);

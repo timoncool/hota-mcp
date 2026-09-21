@@ -297,6 +297,18 @@ internal static class ScreenActions
             foreach(var label in items.Where(i=>i.Id>=749&&i.Id<=772&&!string.IsNullOrEmpty(i.Text)))
                 if(items.Any(i=>i.Id==label.Id-280&&i.Interactive))actions.Add(new($"spellbook:select:{label.Id-280}",label.Text!));
         }
+        if(screen=="scenario_selection")
+        {
+            // The five chess pieces under «Уровень сложности» are controls 107 to 111, easiest
+            // first. The chosen one is the only one whose state carries the selection bit, and the
+            // choice decides starting resources and how hard the opponents play — it was not
+            // published at all, so a game could start on the hardest setting unnoticed.
+            string[] names=["самый лёгкий","лёгкий","обычный","трудный","самый трудный"];
+            for(int level=0;level<5;level++)
+                if(items.Any(i=>i.Id==107+level))
+                    actions.Add(new($"scenario:difficulty:{level+1}",
+                        $"Сложность: {names[level]} (фигура {level+1} из 5, слева направо от лёгкой к трудной)"));
+        }
         if(setup is not null)foreach(var choice in setup.Fields.SelectMany(f=>f.Choices).Where(c=>c.Enabled&&!c.Selected))actions.Add(new(choice.Action,choice.Label));
         if(combat?.OwnTurn==true)
         {

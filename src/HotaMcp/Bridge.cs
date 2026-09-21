@@ -183,6 +183,14 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
     public object Diagnostic()=>reader.DiagnosticPointers();
     public object RawUi()=>reader.DiagnosticDialog();
     public object ProbeScreen()=>reader.ProbeScreen();
+    /// Developer mapping only: raw bytes at an address, so a table can be located by comparing
+    /// what the game shows with what lies in memory instead of guessing an offset.
+    public object Memory(uint address,int length)=>new
+    {
+        address,length,
+        bytes=Convert.ToHexString(game.Read(address,Math.Clamp(length,1,4096)))
+    };
+
     public object TileBytes(int x,int y,int z)=>new MapReader(game,player).TileBytes(reader.Observe(),x,y,z);
     public object MapDiagnostic()=>new MapReader(game,player).Diagnostic(reader.Observe());
 
