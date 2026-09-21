@@ -286,17 +286,27 @@ internal static class GameCommands
             { Confirm = Confirm.CombatTurn | Confirm.CombatLog, TimeoutSeconds = 10, BattleMayEnd = true },
         "combat:retreat" => new("combat", Deliveries.Control(2002)),
         "combat:auto" => new("combat", Deliveries.Control(2004)),
-        // The stack pictures sit at 101 plus the slot on the town screen — 108 and up are only the
-        // count labels. Pressing a picture opens the creature card the player sees, with upgrade
-        // and dismiss on it.
+        // Pressing a stack's cell opens the creature card the player sees, with upgrade and
+        // dismiss on it; the cells themselves are addressed by ArmyCell.
         "army:upgrade" => new("creature_card",Deliveries.Control(300)),
         "army:dismiss" => new("creature_card",Deliveries.Control(30723)),
         "army:close" => new("creature_card",Deliveries.Control(30722)),
         "split:confirm" => new("split_army",Deliveries.Control(30722)),
         "split:decline" => new("split_army",Deliveries.Control(30721)),
-        var army when army.StartsWith("army:open:",StringComparison.Ordinal)
-            && int.TryParse(army["army:open:".Length..],out int armySlot) && armySlot is >=0 and <7
-            => new("town",Deliveries.Control(101+armySlot)),
+        // Stacks are addressed the way the agent thinks about them — by creature name — and the
+        // adapter finds the row and the slot. The numeric form stays legal for the rare case where
+        // the same creature stands in two slots of one row.
+        _ when action.Key.StartsWith("army:open:",StringComparison.Ordinal)
+            => new("town",OpenArmyStack),
+        _ when action.Key.StartsWith("army:give:",StringComparison.Ordinal)
+            => new("town",MoveStack(true,false)){Confirm=Confirm.GarrisonChanged},
+        _ when action.Key.StartsWith("army:take:",StringComparison.Ordinal)
+            => new("town",MoveStack(false,false)){Confirm=Confirm.GarrisonChanged},
+        _ when action.Key.StartsWith("army:merge:",StringComparison.Ordinal)
+            => new("town",MoveStack(false,true)){Confirm=Confirm.GarrisonChanged},
+        _ when action.Key.StartsWith("army:join:",StringComparison.Ordinal)
+            => new("town",JoinStacks){Confirm=Confirm.GarrisonChanged},
+        "army:deselect" => new("town",async(context,ct)=>await ClearSelection(context,ct)),
         // Combat screen: "R - Retreat", "S - Surrender", "O - Combat Options", "T - View troop".
         "combat:surrender" => new("combat,message", Deliveries.Key(0x53, 0x1f)),
         "combat:options" => new("combat,system_options", Deliveries.Key(0x4f, 0x18)),
@@ -413,6 +423,42 @@ internal static class GameCommands
         await Deliveries.Press(context, portrait, ct);
     };
 
+    /// The two army rows of the town screen are a fixed grid: seven 58x64 cells starting at x=305
+    /// with a 62 pixel step, the garrison row at y=387 and the visiting hero's at y=483 — the same
+    /// coordinates the town's own portrait and banner controls use. Addressing a cell by control id
+    /// was wrong: ids are not handed out per display slot, so a press could land two cells away.
+    private static (int X,int Y) ArmyCell(CommandContext context,bool garrison,int slot)
+    {
+        if (slot is < 0 or > 6) throw new InvalidOperationException("Слот вне диапазона 0..6");
+        return context.Reader.FindControl(305 + 62 * slot, garrison ? 387 : 483, 58, 64)
+            ?? throw new InvalidOperationException(
+                $"Клетка {slot} {(garrison ? "верхнего" : "нижнего")} ряда не найдена на экране города");
+    }
+
+    /// Leaves the screen with nothing picked up. A stack stays selected until it is put somewhere,
+    /// so a gesture that starts while an unrelated stack is held would move that stack instead of
+    /// the wanted one. Pressing the held cell a second time opens its card, and closing the card
+    /// releases it — that is the player's own way out, and it is verified rather than assumed.
+    private static async Task ClearSelection(CommandContext context,CancellationToken ct)
+    {
+        var held=context.Reader.SelectedArmyCell();
+        if(held is not {} cell)return;
+        var (x,y)=ArmyCell(context,cell.Garrison,cell.Slot);
+        await Deliveries.Press(context,x,y,ct);
+        await Task.Delay(400,CancellationToken.None);
+        if(context.Reader.Observe().Screen=="creature_card")
+        {
+            var close=context.Reader.FindControlById(30722);
+            if(close is not null)
+                await Deliveries.Press(context,close.X+close.Width/2,close.Y+close.Height/2,ct);
+            await Task.Delay(400,CancellationToken.None);
+        }
+        if(context.Reader.SelectedArmyCell() is not null)
+            throw new InvalidOperationException(
+                "На экране остался выделенный отряд, и его не удалось снять. "
+                +"Сними его вручную действием army:deselect и повтори.");
+    }
+
     /// A stack answers the way a hero portrait does: the first press selects it, the second opens
     /// its card. The pictures sit at 101 plus the slot — 108 and up are only the count labels — and
     /// they carry neither text nor a button image, so they are found in the dialog itself.
@@ -422,10 +468,8 @@ internal static class GameCommands
         // garrison's first. The two rows are different controls, so both have to be addressable.
         string where = context.Element.Split(':')[^1];
         bool garrison = where.StartsWith("g", StringComparison.OrdinalIgnoreCase);
-        int slot = int.Parse(where[1..]);
-        var box = context.Reader.FindControlById((garrison ? 101 : 126) + slot)
-            ?? throw new InvalidOperationException($"No army slot {slot} on this screen");
-        int x = box.X + box.Width / 2, y = box.Y + box.Height / 2;
+        await ClearSelection(context, ct);
+        var (x, y) = ArmyCell(context, garrison, int.Parse(where[1..]));
         await Deliveries.Press(context, x, y, ct);
         await Task.Delay(400, CancellationToken.None);
         try { if (context.Reader.Observe().Screen == "creature_card") return; }
@@ -435,26 +479,98 @@ internal static class GameCommands
 
     /// Moving a stack is two plain presses, the way a player does it: press the stack, then press
     /// the slot it should land in. The garrison pictures are at 101 plus the slot, the visiting
-    /// hero's at 126 plus the slot; a free slot is found by reading the count labels.
-    private static Deliver MoveStack(bool toGarrison) => async (context, ct) =>
+    /// hero's at 126 plus the slot.
+    ///
+    /// Where it lands decides what happens: a slot holding the same creature merges the two stacks
+    /// silently, an empty slot makes the game ask how to divide. Merging is nearly always the
+    /// intent, so a matching slot is preferred; `requireMerge` refuses the move outright when there
+    /// is nothing to merge with, so "объединить" never turns into a split dialog by accident.
+    private static Deliver MoveStack(bool toGarrison,bool requireMerge) => async (context, ct) =>
     {
-        int slot = Suffix(context.Element, 2);
-        int fromBase = toGarrison ? 126 : 101, toBase = toGarrison ? 101 : 126;
+        string wanted = context.Element[(context.Element.IndexOf(':') + 1)..];
+        wanted = wanted[(wanted.IndexOf(':') + 1)..];
+        var town = context.Before.Towns.FirstOrDefault()
+            ?? throw new InvalidOperationException("Экран города не прочитан");
+        var visiting = context.Before.Heroes.FirstOrDefault(h => h.Id == town.VisitingHero);
+        var keeper = context.Before.Heroes.FirstOrDefault(h => h.Id == town.GarrisonHero);
+        int[] upperTypes = keeper?.ArmyTypes ?? town.GarrisonTypes;
+        int[] upperCounts = keeper?.ArmyCounts ?? town.GarrisonCounts;
+        int[] fromTypes = (toGarrison ? visiting?.ArmyTypes : upperTypes) ?? [];
+        int[] fromCounts = (toGarrison ? visiting?.ArmyCounts : upperCounts) ?? [];
+        int[] toTypes = (toGarrison ? upperTypes : visiting?.ArmyTypes) ?? [];
+        int slot = ResolveStack(wanted, fromTypes, fromCounts,
+            toGarrison ? "в армии героя" : "в гарнизоне");
+        int moving = slot < fromTypes.Length ? fromTypes[slot] : -1;
+        int target = moving >= 0 ? Array.FindIndex(toTypes, type => type == moving) : -1;
+        if (target < 0 && requireMerge)
+            throw new InvalidOperationException(
+                $"Объединять не с чем: {(toGarrison ? "в гарнизоне" : "у героя")} нет отряда «{GameReference.Creature(moving)}». " +
+                $"Перенести отдельным отрядом — army:{(toGarrison ? "give" : "take")}:{wanted}");
         int countBase = toGarrison ? 108 : 133;
-        var source = context.Reader.FindControlById(fromBase + slot)
-            ?? throw new InvalidOperationException($"No stack in slot {slot}");
-        int free = -1;
-        for (int candidate = 0; candidate < 7 && free < 0; candidate++)
-        {
-            var label = context.Before.Elements.FirstOrDefault(e => e.Id == countBase + candidate);
-            if (label is null || string.IsNullOrWhiteSpace(label.Text)) free = candidate;
-        }
-        if (free < 0) throw new InvalidOperationException("No free slot on the other side");
-        var destination = context.Reader.FindControlById(toBase + free)
-            ?? throw new InvalidOperationException($"Destination slot {free} not found");
-        await Deliveries.Press(context, source.X + source.Width / 2, source.Y + source.Height / 2, ct);
+        if (target < 0)
+            for (int candidate = 0; candidate < 7 && target < 0; candidate++)
+            {
+                var label = context.Before.Elements.FirstOrDefault(e => e.Id == countBase + candidate);
+                if (label is null || string.IsNullOrWhiteSpace(label.Text)) target = candidate;
+            }
+        if (target < 0) throw new InvalidOperationException(
+            "Свободных клеток нет и сливать не с чем — семь слотов заняты другими существами");
+        await ClearSelection(context, ct);
+        var source = ArmyCell(context, !toGarrison, slot);
+        var destination = ArmyCell(context, toGarrison, target);
+        await Deliveries.Press(context, source.X, source.Y, ct);
         await Task.Delay(250, CancellationToken.None);
-        await Deliveries.Press(context, destination.X + destination.Width / 2, destination.Y + destination.Height / 2, ct);
+        var held = context.Reader.SelectedArmyCell();
+        if (held is null || held.Value.Garrison == toGarrison || held.Value.Slot != slot)
+            throw new InvalidOperationException(
+                $"Нажатие по клетке {slot} не взяло отряд: рамка выделения не появилась там, где ожидалась. "
+                +"Ничего не перенесено, состояние не изменилось.");
+        await Deliveries.Press(context, destination.X, destination.Y, ct);
+    };
+
+    /// A stack is named either by creature — the way the agent asks for it — or by slot number for
+    /// the case where the same creature stands twice in one row.
+    private static int ResolveStack(string wanted,int[] types,int[] counts,string where)
+    {
+        if (int.TryParse(wanted, out int index))
+        {
+            if (index is < 0 or > 6) throw new InvalidOperationException("Слот вне диапазона 0..6");
+            return index;
+        }
+        int hash = wanted.IndexOf('#');
+        if (hash > 0 && int.TryParse(wanted[(hash + 1)..], out int pinned) && pinned is >= 0 and < 7)
+            return pinned;
+        for (int slot = 0; slot < types.Length; slot++)
+            if (slot < counts.Length && counts[slot] > 0
+                && string.Equals(GameReference.Creature(types[slot]), wanted, StringComparison.OrdinalIgnoreCase))
+                return slot;
+        string present = string.Join(", ", types.Zip(counts)
+            .Where(s => s.First >= 0 && s.Second > 0)
+            .Select(s => $"{GameReference.Creature(s.First)} x{s.Second}"));
+        throw new InvalidOperationException(
+            $"Отряда «{wanted}» {where} нет. Есть: {(present.Length > 0 ? present : "пусто")}");
+    }
+
+    /// Two stacks of one creature in the same row are joined by the same two presses as a move
+    /// across rows: press one, press the other. The key spells the row and both slots, because the
+    /// name alone does not tell them apart.
+    private static readonly Deliver JoinStacks = async (context, ct) =>
+    {
+        string where = context.Element["army:join:".Length..];
+        int plus = where.IndexOf('+');
+        bool garrison = where[0] is 'g' or 'G';
+        int first = int.Parse(where[1..plus]), second = int.Parse(where[(plus + 1)..]);
+        await ClearSelection(context, ct);
+        var source = ArmyCell(context, garrison, first);
+        var target = ArmyCell(context, garrison, second);
+        await Deliveries.Press(context, source.X, source.Y, ct);
+        await Task.Delay(250, CancellationToken.None);
+        var held = context.Reader.SelectedArmyCell();
+        if (held is null || held.Value.Garrison != garrison || held.Value.Slot != first)
+            throw new InvalidOperationException(
+                $"Нажатие по клетке {first} не взяло отряд: рамка выделения не появилась там, где ожидалась. "
+                +"Ничего не слито, состояние не изменилось.");
+        await Deliveries.Press(context, target.X, target.Y, ct);
     };
 
     private static readonly Deliver RecruitFromFort = async (context, ct) =>

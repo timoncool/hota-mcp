@@ -44,6 +44,15 @@ public record Observation(string Revision,int Player,int[] Date,int[] Resources,
     /// Every hero this player owns, not only the selected one. A player sees them all on the
     /// sidebar at a glance; without this an agent has to cycle the selection to learn what it has.
     public List<HeroView> Heroes {get;init;}=[];
+    /// The screen in words, the way a player takes it in at a glance: who is here, what is theirs,
+    /// what is still pending today and which action key answers each of those. Read it first — it
+    /// is written so the obvious follow-up questions do not have to be asked as separate calls.
+    public List<string> Brief {get;init;}=[];
+
+    /// Which army cell of the town screen is picked up right now, or null when none is. A picked
+    /// stack makes the next press on another cell a transfer, so this says whether a gesture
+    /// starts from a clean screen.
+    public string? SelectedStack {get;init;}
     /// Who this session plays and whether the game is currently waiting for that side. In a shared
     /// game — hotseat, or a human on another colour — acting for the wrong side is the one mistake
     /// that cannot be undone, so the answer is stated rather than assumed.
@@ -180,6 +189,30 @@ internal sealed class GameReader(WindowsGame game,int player)
         main=game.U32(0x699538), mode=game.I32(0x698a40),managers,inputCandidates
     };}
     public record ControlBox(int Id,int X,int Y,int Width,int Height);
+    /// Which army cell of the town screen currently carries the selection frame.
+    ///
+    /// The frame is a control of its own, one per cell: 115 plus the slot over the upper row and
+    /// 140 plus the slot over the lower one, hidden (state 2) until the player picks that stack
+    /// and visible (state 6) while it is picked. Reading it is what keeps a transfer honest — a
+    /// selection left over from an earlier gesture turns the next press into a move nobody asked
+    /// for, and that is exactly how two stacks once swapped instead of merging.
+    public (bool Garrison,int Slot)? SelectedArmyCell()
+    {
+        uint manager=game.U32(0x6992d0),dlg=game.U32(manager+0x54);
+        if(dlg==0)return null;
+        var seen=new HashSet<uint>();
+        for(uint item=game.U32(dlg+0x2c);item!=0&&seen.Add(item)&&seen.Count<2048;item=game.U32(item+8))
+        {
+            int id=BitConverter.ToUInt16(game.Read(item+0x10,2));
+            bool upper=id is >=115 and <=121,lower=id is >=140 and <=146;
+            if(!upper&&!lower)continue;
+            if((BitConverter.ToUInt16(game.Read(item+0x16,2))&4)==0)continue;
+            return (upper,id-(upper?115:140));
+        }
+        return null;
+    }
+
+
     /// Finds any control of the active dialog by its own id, whether or not the observation
     /// publishes it. Observations stay compact; inspection still reaches every cell on screen.
     public ControlBox? FindControlById(int id,int occurrence=0)
@@ -440,7 +473,13 @@ internal sealed class GameReader(WindowsGame game,int player)
         var towns=frontend?new List<TownView>():new TownReader(game,player).Read();
         var setup=screen=="scenario_selection"?new ScenarioReader(game).Read(dlg,items):null;
         var combat=screen=="combat"?new CombatReader(game,player).Read():null;
-        var actions=ScreenActions.Build(game,player,screen,items,towns,hero,saves,setup,combat);
+        string? selected=null;
+        if(screen=="town")
+        {
+            var cell=SelectedArmyCell();
+            if(cell is {} picked)selected=$"{(picked.Garrison?"верхний":"нижний")} ряд, слот {picked.Slot}";
+        }
+        var actions=ScreenActions.Build(game,player,screen,items,towns,hero,roster,saves,setup,combat,selected);
         HeroSheet? sheet=null;
         if(screen=="hero_screen")
         {
@@ -475,7 +514,7 @@ internal sealed class GameReader(WindowsGame game,int player)
             int active=game.I32(0x69ccf4);
             side=new(player,Colour(player),active,Colour(active),active==player);
         }
-        var result=new Observation("",player,date,resources,hero,screen,width,height,items){Towns=towns,Actions=actions,Setup=setup,Combat=combat,Saves=saves,Sheet=sheet,Build=build,Heroes=roster,Side=side};
+        var result=new Observation("",player,date,resources,hero,screen,width,height,items){Towns=towns,Actions=actions,Setup=setup,Combat=combat,Saves=saves,Sheet=sheet,Build=build,Heroes=roster,Side=side,SelectedStack=selected,Brief=ScreenBriefing.Build(screen,date,resources,towns,roster,hero,side,selected)};
         string revision=Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(epoch+JsonSerializer.Serialize(result))))[..24];
         return result with {Revision=revision};
     }

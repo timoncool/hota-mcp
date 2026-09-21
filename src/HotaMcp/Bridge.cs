@@ -279,13 +279,44 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
                     BeforeLogCount=before.Combat.LogCount,AfterLogCount=after.Combat.LogCount,
                     Entries=after.Combat.Log.Where(e=>e.Index>=before.Combat.LogCount).ToArray()});
             var result=new OperationResult("completed",
-                screenChanged?"Screen transition confirmed by revision change":"Same screen, state change confirmed by revision",after);
+                (screenChanged?"Screen transition confirmed by revision change":"Same screen, state change confirmed by revision")
+                +(command.Confirm.HasFlag(Confirm.GarrisonChanged)?ArmyChange(before,after):""),after);
             operations[request.OperationId]=(request,result);
             Record("operation_completed",new{request.OperationId,after.Revision,after.Screen,BeforeScreen=before.Screen});
             return result;
         }
         Record("operation_uncertain",new{request.OperationId});
         return pending;
+    }
+
+    /// Everything this side holds in troops, in one comparable string: every hero's army and every
+    /// town's garrison. Two observations with the same signature hold the same troops in the same
+    /// places, whatever the screen did.
+    private static string ArmySignature(Observation state)=>string.Join("|",
+        state.Heroes.OrderBy(h=>h.Id).Select(h=>$"h{h.Id}:"+string.Join(",",h.ArmyTypes.Zip(h.ArmyCounts).Select(s=>$"{s.First}x{s.Second}")))
+        .Concat(state.Towns.OrderBy(t=>t.Id).Select(t=>$"t{t.Id}:"+string.Join(",",t.GarrisonTypes.Zip(t.GarrisonCounts).Select(s=>$"{s.First}x{s.Second}")))));
+
+    /// What actually happened to the troops, in the words a player would use. The agent asked for
+    /// a merge; if the game instead swapped two stacks or split one, it is told so plainly rather
+    /// than being left to infer it from a later observation.
+    private static string ArmyChange(Observation before,Observation after)
+    {
+        var lines=new List<string>();
+        foreach(var now in after.Heroes)
+        {
+            var was=before.Heroes.FirstOrDefault(h=>h.Id==now.Id);
+            if(was is null)continue;
+            string oldArmy=string.Join(", ",was.Army),newArmy=string.Join(", ",now.Army);
+            if(oldArmy!=newArmy)lines.Add($"{now.Name}: было [{oldArmy}] стало [{newArmy}]");
+        }
+        foreach(var now in after.Towns)
+        {
+            var was=before.Towns.FirstOrDefault(t=>t.Id==now.Id);
+            if(was is null)continue;
+            string oldArmy=string.Join(", ",was.Garrison),newArmy=string.Join(", ",now.Garrison);
+            if(oldArmy!=newArmy)lines.Add($"гарнизон {now.Name}: было [{oldArmy}] стало [{newArmy}]");
+        }
+        return lines.Count==0?"":" Войска: "+string.Join("; ",lines)+".";
     }
 
     private static bool Confirmed(Confirm confirm,string element,Observation before,Observation after)
@@ -301,14 +332,12 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             &&!(after.Combat?.OwnTurn==true
                 &&(after.Combat.ActiveStack!=before.Combat?.ActiveStack||after.Combat.Round!=before.Combat?.Round)))return false;
         if(confirm.HasFlag(Confirm.PartyLoaded)&&!(after.Hero is not null&&after.Date.Length>0))return false;
-        // Handing a stack over must actually change what the garrison holds. Pressing a slot only
-        // selects it, and selection alone already changes the observed revision.
-        if(confirm.HasFlag(Confirm.GarrisonChanged))
-        {
-            var was=before.Towns.SelectMany(t=>t.GarrisonCounts).ToArray();
-            var now=after.Towns.SelectMany(t=>t.GarrisonCounts).ToArray();
-            if(was.Length==now.Length&&was.SequenceEqual(now))return false;
-        }
+        // Handing a stack over must actually change the armies of this side. Counting only the
+        // town's own garrison was not enough: when a garrison hero stands in the town the upper
+        // row is HIS army and the town garrison stays empty, so a real transfer looked like
+        // nothing happening. Pressing a slot only selects it, and selection alone already changes
+        // the observed revision, so the revision is not evidence.
+        if(confirm.HasFlag(Confirm.GarrisonChanged)&&ArmySignature(before)==ArmySignature(after))return false;
         // A step counts only when the hero is somewhere else or paid movement for it; a dialog
         // opening on the way is the move having happened too.
         if(confirm.HasFlag(Confirm.HeroMoved)&&after.Screen=="adventure"

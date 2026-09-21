@@ -5,7 +5,7 @@ namespace HotaMcp;
 internal static class ScreenActions
 {
     public static List<AvailableAction> Build(WindowsGame game,int player,string screen,
-        List<UiElement> items,List<TownView> towns,HeroView? hero,SaveList? saves,ScenarioSetup? setup,CombatView? combat)
+        List<UiElement> items,List<TownView> towns,HeroView? hero,List<HeroView> roster,SaveList? saves,ScenarioSetup? setup,CombatView? combat,string? selected)
     {
         var actions=new List<AvailableAction>();
         if(screen=="message"&&items.Count(i=>i.Interactive)==1&&items.Any(i=>i.Id==30722&&i.Asset=="iokay.def"&&i.Interactive))actions.Add(new("message:accept","Подтвердить прочитанное сообщение"));
@@ -143,28 +143,93 @@ internal static class ScreenActions
                 actions.Add(new("town:next","Следующий город (стрелка вниз)"));
             }
             if(currentTown is not null&&currentTown.GarrisonHero>=0)actions.Add(new("hero:out","Вытащить гарнизонного героя на карту: клик по портрету героя, затем клик по строке ниже"));
-            // The town shows two rows of seven slots: the garrison above and the visiting hero
-            // below. The counts give away which slots hold anything — garrison at 108 and up,
-            // hero at 133 and up — and the pictures a player presses are at 101 and 126.
-            string? Count(int id)=>items.FirstOrDefault(i=>i.Id==id&&!string.IsNullOrWhiteSpace(i.Text))?.Text;
-            var garrison=Enumerable.Range(0,7).Select(slot=>Count(108+slot)).ToArray();
-            var carried=Enumerable.Range(0,7).Select(slot=>Count(133+slot)).ToArray();
+            // The town shows two rows of seven slots. The lower one is the visiting hero's army;
+            // the upper one belongs to the garrison hero when a hero stands there, and to the town
+            // garrison otherwise — the player sees one row either way, so the actions must not
+            // care which of the two it is.
+            var visitingHero=roster.FirstOrDefault(h=>h.Id==currentTown?.VisitingHero);
+            var garrisonHero=roster.FirstOrDefault(h=>h.Id==currentTown?.GarrisonHero);
+            int[] heroTypes=visitingHero?.ArmyTypes??[];
+            int[] heroCounts=visitingHero?.ArmyCounts??[];
+            int[] garrisonTypes=garrisonHero?.ArmyTypes??currentTown?.GarrisonTypes??[];
+            int[] garrisonCounts=garrisonHero?.ArmyCounts??currentTown?.GarrisonCounts??[];
+            string upper=garrisonHero is null?"гарнизон города":$"ряд гарнизонного героя {garrisonHero.Name}";
+            string lower=visitingHero is null?"нижний ряд":$"ряд героя {visitingHero.Name}";
+            string Named(int[] types,int[] counts,int slot)=>
+                slot<types.Length&&slot<counts.Length&&types[slot]>=0&&counts[slot]>0
+                    ?GameReference.Creature(types[slot]):"";
+            // The same creature can stand in two slots of one row; then the name alone is not an
+            // address and the slot is appended, the way the player tells them apart by position.
+            string Address(int[] types,int[] counts,int slot)
+            {
+                var name=Named(types,counts,slot);
+                return Enumerable.Range(0,7).Count(other=>Named(types,counts,other)==name)>1
+                    ?$"{name}#{slot}":name;
+            }
+            int FindSlot(int[] types,int[] counts,int type)=>Enumerable.Range(0,7)
+                .FirstOrDefault(slot=>slot<types.Length&&slot<counts.Length&&types[slot]==type&&counts[slot]>0,-1);
+            bool garrisonFull=Enumerable.Range(0,7).All(slot=>Named(garrisonTypes,garrisonCounts,slot).Length>0);
+            bool heroFull=Enumerable.Range(0,7).All(slot=>Named(heroTypes,heroCounts,slot).Length>0);
             for(int slot=0;slot<7;slot++)
             {
-                if(carried[slot] is not null)
-                    actions.Add(new($"army:open:h{slot}",$"Карточка отряда героя в слоте {slot} ({carried[slot]}): улучшение и роспуск"));
-                if(garrison[slot] is not null)
-                    actions.Add(new($"army:open:g{slot}",$"Карточка отряда гарнизона в слоте {slot} ({garrison[slot]})"));
+                var name=Named(heroTypes,heroCounts,slot);
+                if(name.Length==0)continue;
+                string address=Address(heroTypes,heroCounts,slot);
+                int count=heroCounts[slot];
+                actions.Add(new($"army:open:h{slot}",
+                    $"Открыть карточку отряда «{name}» x{count} из нижнего ряда ({lower}). На карточке улучшение за золото и роспуск; армию она не двигает. Случай: узнать, во что и почём улучшается отряд."));
+                int twin=FindSlot(garrisonTypes,garrisonCounts,heroTypes[slot]);
+                if(twin>=0)
+                    actions.Add(new($"army:give:{address}",
+                        $"Отдать «{name}» x{count} снизу вверх, в {upper}: там уже стоит такой же отряд ({garrisonCounts[twin]}), отряды сольются в один на {count+garrisonCounts[twin]}. Случай: герой уходит налегке, войско остаётся держать город."));
+                else if(!garrisonFull)
+                    actions.Add(new($"army:give:{address}",
+                        $"Отдать «{name}» x{count} снизу вверх, в {upper}, на свободную клетку. Сливать не с чем, поэтому игра откроет экран split_army и спросит, сколько перенести: split:confirm переносит выставленное, split:decline отменяет целиком. Случай: оставить городу охрану или освободить слот у героя."));
             }
-            int freeGarrison=Array.FindIndex(garrison,c=>c is null);
-            int freeCarried=Array.FindIndex(carried,c=>c is null);
             for(int slot=0;slot<7;slot++)
             {
-                if(carried[slot] is not null&&freeGarrison>=0)
-                    actions.Add(new($"army:give:{slot}",$"Отдать отряд героя из слота {slot} ({carried[slot]}) в гарнизон"));
-                if(garrison[slot] is not null&&freeCarried>=0)
-                    actions.Add(new($"army:take:{slot}",$"Забрать отряд гарнизона из слота {slot} ({garrison[slot]}) герою"));
+                var name=Named(garrisonTypes,garrisonCounts,slot);
+                if(name.Length==0)continue;
+                string address=Address(garrisonTypes,garrisonCounts,slot);
+                int count=garrisonCounts[slot];
+                actions.Add(new($"army:open:g{slot}",
+                    $"Открыть карточку отряда «{name}» x{count} из верхнего ряда ({upper}). На карточке улучшение за золото и роспуск. Случай: улучшить войско, пришедшее с недельным приростом."));
+                int twin=FindSlot(heroTypes,heroCounts,garrisonTypes[slot]);
+                if(twin>=0)
+                {
+                    int mine=heroCounts[twin];
+                    bool lastOfKeeper=garrisonHero is not null&&garrisonCounts.Count(c=>c>0)==1;
+                    actions.Add(new($"army:merge:{address}",
+                        $"Объединить «{name}» в один отряд у героя: {mine} внизу ({lower}) плюс {count} наверху ({upper}) равно {mine+count}."
+                        +(lastOfKeeper
+                            ?$" Но это единственный отряд {garrisonHero!.Name}, а герой не может остаться без войска, поэтому перейдёт {count-1}, а одно существо останется наверху."
+                            :"")
+                        +" Случай: перед выходом из города собрать войско в один кулак, чтобы оно било одним ударом, а не двумя мелкими."));
+                    actions.Add(new($"army:take:{address}",
+                        $"То же самое другими словами: забрать «{name}» x{count} сверху вниз, к герою, где отряд сольётся с его собственными {mine}."
+                        +(garrisonHero is not null&&garrisonCounts.Count(c=>c>0)==1
+                            ?$" Это единственный отряд {garrisonHero.Name}, а герой не может остаться без войска — одно существо останется наверху."
+                            :"")));
+                }
+                else if(!heroFull)
+                    actions.Add(new($"army:take:{address}",
+                        $"Забрать «{name}» x{count} сверху вниз, из {upper} в {lower}, на свободную клетку. Сливать не с чем, поэтому игра спросит, сколько перенести (экран split_army). Случай: забрать недельный прирост перед походом."));
             }
+            // Two stacks of one creature in the same row waste a slot and a blow.
+            foreach(var row in new[]{(Types:heroTypes,Counts:heroCounts,Row:"h",Where:lower),
+                                     (Types:garrisonTypes,Counts:garrisonCounts,Row:"g",Where:upper)})
+                for(int slot=0;slot<7;slot++)
+                {
+                    var name=Named(row.Types,row.Counts,slot);
+                    if(name.Length==0)continue;
+                    int other=Enumerable.Range(slot+1,6-slot).FirstOrDefault(o=>Named(row.Types,row.Counts,o)==name,-1);
+                    if(other<0)continue;
+                    actions.Add(new($"army:join:{row.Row}{slot}+{other}",
+                        $"Слить два отряда «{name}» внутри одного ряда ({row.Where}): {row.Counts[slot]} и {row.Counts[other]} станут одним отрядом на {row.Counts[slot]+row.Counts[other]} и освободят слот. Случай: после найма или приёма подкрепления одно существо оказалось в двух клетках."));
+                }
+            if(selected is not null)
+                actions.Add(new("army:deselect",
+                    $"Снять выделение с отряда ({selected}). Пока отряд выделен, щелчок по другой клетке переносит его туда; действия переноса снимают выделение сами, это на случай, когда его надо просто сбросить."));
             if(currentTown is not null)for(int slot=0;slot<7;slot++)
                 if(currentTown.GarrisonCounts.Length>slot&&currentTown.GarrisonCounts[slot]>0)
                     actions.Add(new($"town:take:{slot}",$"Передать отряд из гарнизона герою: {currentTown.GarrisonCounts[slot]} существ в слоте {slot+1}"));
