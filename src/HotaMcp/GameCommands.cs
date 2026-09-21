@@ -57,12 +57,18 @@ internal static class Deliveries
     public static Deliver KeyWithControl(ushort key, ushort scan) =>
         (context, _) => context.Game.KeyWithControlAsync(key, scan);
 
-    /// Press one dialog control identified by its own id and button asset.
+    /// Press one dialog control identified by its own id and button asset. An observation leaves
+    /// out controls that carry neither text nor a button image — the army slot pictures of a town
+    /// are exactly that — so when the id is not among the published elements the control is looked
+    /// up in the dialog itself rather than reported as missing.
     public static Deliver Control(int id, params string[] assets) => async (context, ct) =>
     {
-        var button = context.Before.Elements.Single(e =>
+        var button = context.Before.Elements.FirstOrDefault(e =>
             e.Id == id && (assets.Length == 0 || assets.Contains(e.Asset)) && e.Interactive);
-        await Press(context, button, ct);
+        if (button is not null) { await Press(context, button, ct); return; }
+        var box = context.Reader.FindControlById(id)
+            ?? throw new InvalidOperationException($"No control with id {id} on this screen");
+        await Press(context, box.X + box.Width / 2, box.Y + box.Height / 2, ct);
     };
 
     /// Leaves an informational window the way the manual describes: "Return - Okay, Accept, or
@@ -280,6 +286,15 @@ internal static class GameCommands
             { Confirm = Confirm.CombatTurn | Confirm.CombatLog, TimeoutSeconds = 10, BattleMayEnd = true },
         "combat:retreat" => new("combat", Deliveries.Control(2002)),
         "combat:auto" => new("combat", Deliveries.Control(2004)),
+        // The stack pictures sit at 101 plus the slot on the town screen — 108 and up are only the
+        // count labels. Pressing a picture opens the creature card the player sees, with upgrade
+        // and dismiss on it.
+        "army:upgrade" => new("split_stack",Deliveries.Control(300)),
+        "army:dismiss" => new("split_stack",Deliveries.Control(30723)),
+        "army:close" => new("split_stack",Deliveries.Control(30722)),
+        var army when army.StartsWith("army:open:",StringComparison.Ordinal)
+            && int.TryParse(army["army:open:".Length..],out int armySlot) && armySlot is >=0 and <7
+            => new("town",Deliveries.Control(101+armySlot)),
         // Combat screen: "R - Retreat", "S - Surrender", "O - Combat Options", "T - View troop".
         "combat:surrender" => new("combat,message", Deliveries.Key(0x53, 0x1f)),
         "combat:options" => new("combat,system_options", Deliveries.Key(0x4f, 0x18)),
@@ -394,6 +409,22 @@ internal static class GameCommands
         try { if (context.Reader.Observe().Screen == "hero_screen") return; }
         catch (InvalidOperationException) { return; }
         await Deliveries.Press(context, portrait, ct);
+    };
+
+    /// A stack answers the way a hero portrait does: the first press selects it, the second opens
+    /// its card. The pictures sit at 101 plus the slot — 108 and up are only the count labels — and
+    /// they carry neither text nor a button image, so they are found in the dialog itself.
+    private static readonly Deliver OpenArmyStack = async (context, ct) =>
+    {
+        int slot = Suffix(context.Element, 2);
+        var box = context.Reader.FindControlById(101 + slot)
+            ?? throw new InvalidOperationException($"No army slot {slot} on this screen");
+        int x = box.X + box.Width / 2, y = box.Y + box.Height / 2;
+        await Deliveries.Press(context, x, y, ct);
+        await Task.Delay(400, CancellationToken.None);
+        try { if (context.Reader.Observe().Screen == "split_stack") return; }
+        catch (InvalidOperationException) { return; }
+        await Deliveries.Press(context, x, y, ct);
     };
 
     private static readonly Deliver RecruitFromFort = async (context, ct) =>

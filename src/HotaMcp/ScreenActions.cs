@@ -11,7 +11,19 @@ internal static class ScreenActions
         if(screen=="message"&&items.Count(i=>i.Interactive)==1&&items.Any(i=>i.Id==30722&&i.Asset=="iokay.def"&&i.Interactive))actions.Add(new("message:accept","Подтвердить прочитанное сообщение"));
         if(screen=="message"&&items.Count(i=>i.Interactive)==2&&items.Any(i=>i.Id==30725&&i.Asset=="iokay.def"&&i.Interactive)&&items.Any(i=>i.Id==30726&&i.Asset=="icancel.def"&&i.Interactive))actions.Add(new("message:confirm","Согласиться с вопросом текущего диалога"));
         if(actions.Any(a=>a.Key=="message:confirm"))actions.Add(new("message:decline","Отказаться от действия в текущем диалоге"));
-        if(screen=="split_stack")actions.Add(new("split:cancel","Закрыть окно отряда (Esc)"));
+        if(screen=="split_stack")
+        {
+            // The game reuses this dialog for the creature card of a stack. Its two small buttons
+            // are the arrows that upgrade the stack and the crossed circle that dismisses it; the
+            // price of the upgrade is a hover hint, so it is not in the label here.
+            if(items.Any(i=>i.Id==300&&i.Interactive))
+                actions.Add(new("army:upgrade","Улучшить этот отряд за золото (кнопка со стрелками)"));
+            if(items.Any(i=>i.Id==30723&&i.Interactive))
+                actions.Add(new("army:dismiss","Распустить этот отряд — необратимо"));
+            if(items.Any(i=>i.Id==30722&&i.Interactive))
+                actions.Add(new("army:close","Закрыть карточку отряда"));
+            actions.Add(new("split:cancel","Закрыть окно отряда (Esc)"));
+        }
         if(screen=="hero_screen")actions.Add(new("hero:close","Закрыть экран героя (Esc)"));
         if(screen=="kingdom_overview")actions.Add(new("kingdom:close","Закрыть обзор королевства"));
         if(screen=="town_fort")
@@ -124,6 +136,14 @@ internal static class ScreenActions
                 actions.Add(new("town:next","Следующий город (стрелка вниз)"));
             }
             if(currentTown is not null&&currentTown.GarrisonHero>=0)actions.Add(new("hero:out","Вытащить гарнизонного героя на карту: клик по портрету героя, затем клик по строке ниже"));
+            // A player opens a stack by pressing it, and the card that appears is where upgrading
+            // and dismissing live. Without this the agent can read an army but never act on one.
+            for(int slot=0;slot<7;slot++)
+            {
+                var stack=items.FirstOrDefault(i=>i.Id==108+slot&&!string.IsNullOrWhiteSpace(i.Text));
+                if(stack is null)continue;
+                actions.Add(new($"army:open:{slot}",$"Открыть карточку отряда в слоте {slot} ({stack.Text}): там улучшение и роспуск"));
+            }
             if(currentTown is not null)for(int slot=0;slot<7;slot++)
                 if(currentTown.GarrisonCounts.Length>slot&&currentTown.GarrisonCounts[slot]>0)
                     actions.Add(new($"town:take:{slot}",$"Передать отряд из гарнизона герою: {currentTown.GarrisonCounts[slot]} существ в слоте {slot+1}"));
