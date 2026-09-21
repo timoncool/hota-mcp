@@ -121,6 +121,9 @@ internal static class GameCommands
         _ => throw new InvalidOperationException("Unknown direction"),
     };
 
+    /// Where answering a modal question can legitimately land.
+    private const string AfterMessage="adventure,message,combat,battle_result,town,hero_screen,exchange";
+
     private static int Suffix(string key, int part) => int.Parse(key.Split(':')[part]);
 
     public static GameCommand ForAction(AvailableAction action, Observation before) => action.Key switch
@@ -141,10 +144,12 @@ internal static class GameCommands
             Deliveries.Native(24, c => ScenarioReader.Controls.Single(x => ScenarioReader.Key(x) == c.Element).Id))
             { Confirm = Confirm.SetupChoice },
 
-        // Modal questions: ordinary presses on the dialog's own buttons.
-        "message:accept" => new("adventure", Deliveries.Control(30722, "iokay.def")),
-        "message:confirm" => new("adventure", Deliveries.Control(30725, "iokay.def")),
-        "message:decline" => new("adventure", Deliveries.Control(30726, "icancel.def")),
+        // Modal questions: ordinary presses on the dialog's own buttons. Answering one can start a
+        // battle, open a town or a hero screen, or chain into the next message, so the landing is
+        // not always the map.
+        "message:accept" => new(AfterMessage, Deliveries.Control(30722, "iokay.def")),
+        "message:confirm" => new(AfterMessage, Deliveries.Control(30725, "iokay.def")),
+        "message:decline" => new(AfterMessage, Deliveries.Control(30726, "icancel.def")),
 
         // Adventure map. Keys are the ones the manual lists under Section IV, Keyboard Shortcuts.
         "turn:end" => new("adventure", Deliveries.Key(0x45, 0x12)) { Confirm = Confirm.TurnAdvanced },
