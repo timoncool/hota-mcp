@@ -233,6 +233,8 @@ internal static class GameCommands
         // battle, open a town or a hero screen, or chain into the next message, so the landing is
         // not always the map.
         "message:accept" => new(AfterMessage, Deliveries.Control(30722, "iokay.def")),
+        "turn:end:anyway" => new("adventure", Deliveries.Control(30725,"iokay.def")) { Confirm = Confirm.TurnAdvanced, TimeoutSeconds = 20 },
+        "turn:end:cancel" => new("adventure", Deliveries.Control(30726,"icancel.def")),
         "message:confirm" => new(AfterMessage, Deliveries.Control(30725, "iokay.def")),
         "message:decline" => new(AfterMessage, Deliveries.Control(30726, "icancel.def")),
 

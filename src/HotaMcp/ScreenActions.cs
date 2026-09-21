@@ -11,6 +11,16 @@ internal static class ScreenActions
         if(screen=="message"&&items.Count(i=>i.Interactive)==1&&items.Any(i=>i.Id==30722&&i.Asset=="iokay.def"&&i.Interactive))actions.Add(new("message:accept","Подтвердить прочитанное сообщение"));
         if(screen=="message"&&items.Count(i=>i.Interactive)==2&&items.Any(i=>i.Id==30725&&i.Asset=="iokay.def"&&i.Interactive)&&items.Any(i=>i.Id==30726&&i.Asset=="icancel.def"&&i.Interactive))actions.Add(new("message:confirm","Согласиться с вопросом текущего диалога"));
         if(actions.Any(a=>a.Key=="message:confirm"))actions.Add(new("message:decline","Отказаться от действия в текущем диалоге"));
+        // The game asks one question that must never be answered out of habit: ending a turn while
+        // heroes can still walk. Movement does not carry over, so a blind «да» throws away part of
+        // the day. The question is given its own keys so it cannot be confirmed by a loop that
+        // clears dialogs.
+        if(screen=="message"&&items.Any(i=>i.Text is not null&&i.Text.Contains("ещё могут ходить",StringComparison.Ordinal)))
+        {
+            actions.RemoveAll(a=>a.Key is "message:confirm" or "message:decline");
+            actions.Add(new("turn:end:anyway","ДА, закончить ход, хотя у героев остались очки хода — они сгорят"));
+            actions.Add(new("turn:end:cancel","НЕТ, вернуться и дойти оставшимися ходами"));
+        }
         if(screen=="creature_card")
         {
             // The game reuses this dialog for the creature card of a stack. Its two small buttons
