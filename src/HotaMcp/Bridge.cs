@@ -122,13 +122,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             // The game computes a path only to the cell under the cursor, the way it does for a
             // player moving the mouse onto an object. Pointing at this target is what makes its
             // route exist at all; without it every route reads as unavailable.
-            if(stale.Screen=="adventure"&&stale.Hero is not null)
-            {
-                var point=map.ScreenPoint(stale,target.X,target.Y,target.Z);
-                await HoverAndSettle(stale,point.X,point.Y);
-            }
-            var before=reader.Observe();
-            map.ValidateTarget(before,target);
+            var before=stale;
             var route=new RouteReader(game,player).Read(before,target);
             var after=reader.Observe();
             if(after.Revision!=before.Revision)throw new InvalidOperationException("State changed while reading target");
@@ -442,6 +436,23 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
                 throw new InvalidOperationException("Danger: this cell holds a creature stack, and stepping there starts a battle. Approach a neighbouring cell instead, or use attack_target when the fight is intended");
         }
         catch(InvalidOperationException e)when(!e.Message.StartsWith("Danger:")){}
+    }
+
+    /// Brings a cell into view the way a player does: a press on the sidebar minimap. The game
+    /// plans routes and accepts map targets only inside the visible part of the map, so anything
+    /// further away is unreachable until the camera is moved.
+    private async Task<Observation> EnsureVisible(Observation observation,int x,int y,int z)
+    {
+        var map=new MapReader(game,player);
+        if(map.IsOnScreen(observation,x,y,z))return observation;
+        var point=map.MinimapPoint(observation,x,y,z);
+        await game.MouseAsync(point.X,point.Y,observation.Width,observation.Height,true,CancellationToken.None);
+        await Task.Delay(300,CancellationToken.None);
+        var moved=reader.Observe();
+        if(!map.IsOnScreen(moved,x,y,z))
+            throw new InvalidOperationException($"The camera did not reach ({x},{y},{z}); the cell stays outside the visible map");
+        Record("view_centered",new{x,y,z});
+        return moved;
     }
 
     private Task RefreshRouteTree(Observation observation)=>

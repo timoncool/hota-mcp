@@ -139,6 +139,22 @@ internal sealed class WindowsGame : IDisposable
         finally{PostMessageW(Window,0x101,key,(nint)((long)data|0xc0000000));}
         await Task.Delay(100);
     }
+    /// Holds Ctrl while the key is pressed. The game reads the modifier from the message flags of
+    /// the key it receives, which is how "Ctrl + Arrow Keys - Scrolls Adventure Map" reaches it.
+    public async Task KeyWithControlAsync(ushort key,ushort scan)
+    {
+        const ushort control=0x11;
+        nint controlData=(nint)((0x1d<<16)|1);
+        if(!PostMessageW(Window,0x100,control,controlData))throw new InvalidOperationException("Key dispatch failed");
+        try
+        {
+            await Task.Delay(30,CancellationToken.None);
+            await KeyAsync(key,scan);
+        }
+        finally{PostMessageW(Window,0x101,control,(nint)((long)controlData|0xc0000000));}
+        await Task.Delay(60,CancellationToken.None);
+    }
+
     public async Task TextAsync(string text)
     {
         // Ordinary window character messages into the focused game edit control.

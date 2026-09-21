@@ -24,6 +24,9 @@ public sealed class GameTools(IGameEndpoint endpoint)
     public Task<object> LauncherGraphics(string? renderer,CancellationToken cancellationToken)=>endpoint.Graphics(renderer,cancellationToken);
     [McpServerTool,Description("Explicit developer diagnostic only: save the game's current rendered framebuffer as a local PNG without window activation, cursor movement, keyboard input or desktop capture. Returns file metadata only, never inline image data. Do not use in normal gameplay loops; observe provides economical structured game state.")]
     public Task<CaptureResult> DebugCapture(CancellationToken cancellationToken)=>endpoint.Capture(cancellationToken);
+    [McpServerTool,Description("Read the known map around a cell: terrain, roads, cells blocked by terrain, and the recognized visible objects with their coordinates. Cells the player has not uncovered come back as '?'. Use it to decide where a hero can step and what is worth walking to. Radius is capped at 12. No input is sent to the game.")]
+    public Task<MapView> ReadMap(int x,int y,int z,int radius,CancellationToken cancellationToken)=>endpoint.ReadMap(x,y,z,radius,cancellationToken);
+
     [McpServerTool,Description("Read recognized visible destinations by target ID and available game route data. Reads game memory without UI input. No hidden objects, terrain-rule explanations or strategic recommendations. Object coverage and route support are incomplete.")]
     public Task<NearbyTargets> NearbyTargets(CancellationToken cancellationToken)=>endpoint.Nearby(cancellationToken);
 

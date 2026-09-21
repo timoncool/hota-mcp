@@ -9,10 +9,12 @@ internal sealed class RouteReader(WindowsGame game,int player)
     // anything it cannot fully verify; Detail carries the honest reason for a refusal.
     //
     // Node layout, measured on the running game (stride 0x1e):
-    //   +0x00 u16 x, +0x02 u16 y      the cell this node describes
-    //   +0x08 u16 x, +0x0a u16 y      the previous cell on the path; equal to its own cell at the hero
+    //   +0x00 byte x, +0x02 byte y    the cell this node describes; +0x01 and +0x03 carry flags
+    //   +0x08 byte x, +0x0a byte y    the previous cell on the path; equal to its own cell at the hero
     //   +0x18 u16                     movement spent to reach this cell
     //   +0x1c u16                     movement left on arrival
+    // The cache covers the whole map and is rebuilt by the game whenever the hero's movement
+    // changes, so no cursor work is needed to make a route exist.
     public RouteView Read(Observation observation,MapObject target)
     {
         RouteView Unknown(string why)=>new("not_available",null,null,null,why);
@@ -41,12 +43,12 @@ internal sealed class RouteReader(WindowsGame game,int player)
             if((game.Read(vision+(uint)index*2,1)[0]&(1<<player))==0)
                 return Unknown("Part of the route lies in the fog of war");
             byte[] node=game.Read(nodes+(uint)index*0x1e,0x1e);
-            int nodeX=BitConverter.ToUInt16(node,0),nodeY=BitConverter.ToUInt16(node,2);
-            if(nodeX==0&&nodeY==0&&BitConverter.ToUInt16(node,8)==0&&BitConverter.ToUInt16(node,10)==0)
-                return Unknown($"The game has not extended its route cache to ({x},{y},{level})");
+            int nodeX=node[0],nodeY=node[2];
+            if(node.All(b=>b==0))
+                return Unknown($"The game found no path to ({x},{y},{level})");
             if(nodeX!=x||nodeY!=y)
                 return Unknown($"A route cache node does not match its cell: step {steps} at ({x},{y},{level}) carries ({nodeX},{nodeY})");
-            int fromX=BitConverter.ToUInt16(node,8),fromY=BitConverter.ToUInt16(node,10);
+            int fromX=node[8],fromY=node[10];
             if(steps==0){cost=BitConverter.ToUInt16(node,0x18);remaining=BitConverter.ToUInt16(node,0x1c);}
             // The hero's own cell is its own predecessor and costs nothing to stand on.
             if(fromX==x&&fromY==y)

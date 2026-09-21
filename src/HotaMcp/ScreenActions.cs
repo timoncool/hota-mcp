@@ -31,6 +31,26 @@ internal static class ScreenActions
         if(screen=="adventure")foreach(var town in towns)actions.Add(new($"town:open:{town.Id}",$"Открыть город: {town.Name}"));
         if(screen=="adventure"&&hero is null)actions.Add(new("hero:select","Выбрать своего героя на карте (штатная клавиша H)"));
         if(screen=="adventure"&&hero is not null)actions.Add(new("hero:move","Переместить героя по проложенному пути (штатная клавиша M)"));
+        if(screen=="adventure"&&hero is not null)
+        {
+            // Manual, Section IV: the arrow keys move the current hero one step. This needs no
+            // route planning and no cursor, so it is the plain way to walk.
+            foreach(var (key,label) in new[]{
+                ("north","на север"),("south","на юг"),("west","на запад"),("east","на восток"),
+                ("northwest","на северо-запад"),("northeast","на северо-восток"),
+                ("southwest","на юго-запад"),("southeast","на юго-восток")})
+                actions.Add(new($"hero:step:{key}",$"Шаг героя {label} (штатная клавиша-стрелка)"));
+            actions.Add(new("hero:sleep","Усыпить героя, чтобы он не предлагался в этом ходу (Z)"));
+            actions.Add(new("hero:wake","Разбудить героя (W)"));
+        }
+        if(screen=="adventure")
+        {
+            foreach(var (key,label) in new[]{("north","вверх"),("south","вниз"),("west","влево"),("east","вправо")})
+                actions.Add(new($"view:scroll:{key}",$"Прокрутить карту {label} (Ctrl+стрелка)"));
+            actions.Add(new("game:kingdom","Обзор королевства (K)"));
+            actions.Add(new("game:quest_log","Журнал заданий (Q)"));
+            actions.Add(new("game:scenario_info","Сведения о сценарии (I)"));
+        }
         if(screen=="adventure"&&items.Any(i=>i.Id==12&&i.Asset=="iam001.def"&&i.Interactive))actions.Add(new("turn:end","Закончить ход; игра может запросить подтверждение"));
         if(screen=="town")
         {
@@ -43,6 +63,11 @@ internal static class ScreenActions
             if(currentTown is not null)actions.Add(new("town:lead","Соединить армию героя с гарнизоном: портрет, затем знамя"));
             if(currentTown is not null)actions.Add(new("town:banner","Клик по знамени гарнизона (переключить гарнизонного героя)"));
             if(currentTown is not null)actions.Add(new("hero:switch","Переключиться между гарнизонным героем и посетителем города (Space)"));
+            if(towns.Count>1)
+            {
+                actions.Add(new("town:previous","Предыдущий город (стрелка вверх)"));
+                actions.Add(new("town:next","Следующий город (стрелка вниз)"));
+            }
             if(currentTown is not null&&currentTown.GarrisonHero>=0)actions.Add(new("hero:out","Вытащить гарнизонного героя на карту: клик по портрету героя, затем клик по строке ниже"));
             if(currentTown is not null)for(int slot=0;slot<7;slot++)
                 if(currentTown.GarrisonCounts.Length>slot&&currentTown.GarrisonCounts[slot]>0)
@@ -91,6 +116,8 @@ internal static class ScreenActions
         if(screen=="spellbook")
         {
             actions.Add(new("spellbook:close","Закрыть книгу"));
+            actions.Add(new("spellbook:adventure","Показать заклинания карты приключений (A)"));
+            actions.Add(new("spellbook:combat","Показать боевые заклинания (C)"));
             foreach(var label in items.Where(i=>i.Id>=749&&i.Id<=772&&!string.IsNullOrEmpty(i.Text)))
                 if(items.Any(i=>i.Id==label.Id-280&&i.Interactive))actions.Add(new($"spellbook:select:{label.Id-280}",label.Text!));
         }
@@ -109,6 +136,8 @@ internal static class ScreenActions
             if(items.Any(i=>i.Id==2010&&i.Interactive))actions.Add(new("combat:defend","Защищаться"));
             if(items.Any(i=>i.Id==2002&&i.Interactive))actions.Add(new("combat:retreat","Отступить: сохранить героя, потерять армию"));
             if(items.Any(i=>i.Id==2004&&i.Interactive))actions.Add(new("combat:auto","Автобой: игра сама разыгрывает бой за обе стороны"));
+            actions.Add(new("combat:surrender","Сдаться: сохранить героя и армию за золото (S)"));
+            actions.Add(new("combat:options","Настройки боя (O)"));
             foreach(int hex in combat.ReachableHexes)actions.Add(new($"combat:move:{hex}",$"Переместиться на клетку {hex}"));
             foreach(string id in combat.AttackableTargets)actions.Add(new("combat:attack:"+id,"Атаковать: "+combat.Stacks.Single(s=>s.Id==id).Name));
             }

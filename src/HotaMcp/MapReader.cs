@@ -70,6 +70,40 @@ internal sealed class MapReader(WindowsGame game,int player)
             throw new InvalidOperationException("Tile is outside the current viewport; camera control required");
         return(sx,sy);
     }
+
+    public bool IsOnScreen(Observation observation,int x,int y,int z)
+    {
+        try{_=ScreenPoint(observation,x,y,z);return true;}
+        catch(InvalidOperationException){return false;}
+    }
+
+    /// Where to press on the sidebar minimap to bring a cell into view. This is the player's own
+    /// way of moving the camera: the minimap covers the whole map, so the press is a plain
+    /// proportional position inside the control the dialog reports.
+    public (int X,int Y) MinimapPoint(Observation observation,int x,int y,int z)
+    {
+        var context=Context(observation);
+        if(x<0||y<0||x>=context.Size||y>=context.Size)throw new InvalidOperationException("Map coordinates out of bounds");
+        if(z!=GetViewport().Z)
+            throw new InvalidOperationException("The minimap shows the current map level only; use the level switch first");
+        var map=Minimap();
+        return(map.X+(int)((x+0.5)*map.Width/context.Size),map.Y+(int)((y+0.5)*map.Height/context.Size));
+    }
+
+    private (int X,int Y,int Width,int Height) Minimap()
+    {
+        uint adventure=game.U32(0x6992b8),dlg=game.U32(adventure+0x44),start=game.U32(dlg+0x34),end=game.U32(dlg+0x38);
+        if(end<start||(end-start)%4!=0||end-start>8192)throw new InvalidOperationException("Invalid adventure UI layout");
+        for(uint pos=start;pos<end;pos+=4)
+        {
+            byte[] b=game.Read(game.U32(pos),0x20);
+            if(BitConverter.ToUInt16(b,0x10)!=1||BitConverter.ToUInt32(b,4)!=dlg)continue;
+            int width=BitConverter.ToUInt16(b,0x1c),height=BitConverter.ToUInt16(b,0x1e);
+            if(width<64||height<64||width!=height)continue;
+            return(BitConverter.ToInt16(b,0x18),BitConverter.ToInt16(b,0x1a),width,height);
+        }
+        throw new InvalidOperationException("Minimap control not found in the adventure screen");
+    }
     public void ValidateTarget(Observation observation,MapObject target)
     {
         uint tile=VisibleTile(observation,target.X,target.Y,target.Z);

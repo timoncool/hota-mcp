@@ -50,6 +50,9 @@ internal static class Deliveries
     /// Ordinary game hotkey delivered as a window message to the game window only.
     public static Deliver Key(ushort key, ushort scan) => (context, _) => context.Game.KeyAsync(key, scan);
 
+    public static Deliver KeyWithControl(ushort key, ushort scan) =>
+        (context, _) => context.Game.KeyWithControlAsync(key, scan);
+
     /// Press one dialog control identified by its own id and button asset.
     public static Deliver Control(int id, params string[] assets) => async (context, ct) =>
     {
@@ -100,6 +103,21 @@ internal static class Deliveries
 /// Adding an action means adding one row here; nothing else in the bridge changes.
 internal static class GameCommands
 {
+    /// Direction suffix to the key the game listens for. Orthogonals are the arrow keys the manual
+    /// names; diagonals are the numeric keypad corners, which the game accepts for the same move.
+    private static (ushort Key, ushort Scan) StepKey(string actionKey) => actionKey[(actionKey.LastIndexOf(':') + 1)..] switch
+    {
+        "north" => ((ushort)0x26, (ushort)0x48),
+        "south" => ((ushort)0x28, (ushort)0x50),
+        "west" => ((ushort)0x25, (ushort)0x4b),
+        "east" => ((ushort)0x27, (ushort)0x4d),
+        "northwest" => ((ushort)0x67, (ushort)0x47),
+        "northeast" => ((ushort)0x69, (ushort)0x49),
+        "southwest" => ((ushort)0x61, (ushort)0x4f),
+        "southeast" => ((ushort)0x63, (ushort)0x51),
+        _ => throw new InvalidOperationException("Unknown direction"),
+    };
+
     private static int Suffix(string key, int part) => int.Parse(key.Split(':')[part]);
 
     public static GameCommand ForAction(AvailableAction action, Observation before) => action.Key switch
@@ -125,11 +143,23 @@ internal static class GameCommands
         "message:confirm" => new("adventure", Deliveries.Control(30725, "iokay.def")),
         "message:decline" => new("adventure", Deliveries.Control(30726, "icancel.def")),
 
-        // Adventure map.
+        // Adventure map. Keys are the ones the manual lists under Section IV, Keyboard Shortcuts.
         "turn:end" => new("adventure", Deliveries.Key(0x45, 0x12)) { Confirm = Confirm.TurnAdvanced },
         "hero:select" => new("adventure", SelectOwnHero),
-        // Manual, Section IV: "M - Moves current hero" along the planned path.
+        // "M - Moves current hero" along the planned path.
         "hero:move" => new("adventure", Deliveries.Key(0x4d, 0x32)),
+        // "Arrow Keys - Moves current hero": one step in a direction, no route planning involved.
+        // The diagonals are the numeric keypad, the way the game has always taken them.
+        _ when action.Key.StartsWith("hero:step:") => new("adventure,message,town,hero_screen,combat,battle_result",
+            Deliveries.Key(StepKey(action.Key).Key, StepKey(action.Key).Scan)),
+        // "Ctrl + Arrow Keys - Scrolls Adventure Map".
+        _ when action.Key.StartsWith("view:scroll:") => new("adventure",
+            Deliveries.KeyWithControl(StepKey(action.Key).Key, StepKey(action.Key).Scan)),
+        "hero:sleep" => new("adventure", Deliveries.Key(0x5a, 0x2c)),
+        "hero:wake" => new("adventure", Deliveries.Key(0x57, 0x11)),
+        "game:kingdom" => new("kingdom_overview", Deliveries.Key(0x4b, 0x25)),
+        "game:quest_log" => new("quest_log", Deliveries.Key(0x51, 0x10)),
+        "game:scenario_info" => new("scenario_info", Deliveries.Key(0x49, 0x17)),
 
         // System options, save and load.
         "game:save" => new("save_game", Deliveries.Key(0x53, 0x1f)),
@@ -157,8 +187,11 @@ internal static class GameCommands
         // first garrison slot; the game then merges garrison and hero army under the hero.
         "town:lead" => new("town", Deliveries.TwoSlots(483, 387)),
         "town:banner" => new("town", Deliveries.Slot(241, 387, 58, 64, "Garrison banner control not found in the town dialog")),
-        // Manual, Section IV, town screen: "Space - Switches visiting/garrison heroes".
+        // Town screen: "Space - Switches visiting/garrison heroes", "Up Arrow - Previous town",
+        // "Down Arrow - Next town".
         "hero:switch" => new("town", Deliveries.Key(0x20, 0x39)),
+        "town:previous" => new("town", Deliveries.Key(0x26, 0x48)),
+        "town:next" => new("town", Deliveries.Key(0x28, 0x50)),
         "hero:out" => new("town", Deliveries.TwoSlots(387, 483)),
         _ when action.Key.StartsWith("town:take:") => new("town", TakeGarrisonStack),
 
@@ -190,6 +223,12 @@ internal static class GameCommands
             { Confirm = Confirm.CombatTurn | Confirm.CombatLog, TimeoutSeconds = 10, BattleMayEnd = true },
         "combat:retreat" => new("combat", Deliveries.Control(2002)),
         "combat:auto" => new("combat", Deliveries.Control(2004)),
+        // Combat screen: "R - Retreat", "S - Surrender", "O - Combat Options", "T - View troop".
+        "combat:surrender" => new("combat,message", Deliveries.Key(0x53, 0x1f)),
+        "combat:options" => new("combat,system_options", Deliveries.Key(0x4f, 0x18)),
+        // Spell book: "A - Displays adventure spells", "C - Combat spells".
+        "spellbook:adventure" => new("spellbook", Deliveries.Key(0x41, 0x1e)),
+        "spellbook:combat" => new("spellbook", Deliveries.Key(0x43, 0x2e)),
         _ when action.Key.StartsWith("combat:move:") => new("combat",
             Deliveries.CombatHex(c => Suffix(c.Element, 2)))
             { Confirm = Confirm.CombatTurn, TimeoutSeconds = 10, BattleMayEnd = true },

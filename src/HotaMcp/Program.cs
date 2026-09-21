@@ -109,6 +109,8 @@ app.MapPost("/bridge/reference",(ReferenceRequest request,CancellationToken ct)=
 app.MapPost("/bridge/docs-read",(DocsReadRequest request,CancellationToken ct)=>session.DocsRead(request.Path,request.Heading,ct));
 app.MapPost("/bridge/journal",(JournalRequest request,CancellationToken ct)=>session.Journal(request.Limit,ct));
 app.MapPost("/bridge/plan",(PlanRequest request,CancellationToken ct)=>session.Plan(request.Value,ct));
+app.MapPost("/bridge/map",(MapRequest request,CancellationToken ct)=>session.ReadMap(request.X,request.Y,request.Z,request.Radius,ct));
+app.MapPost("/bridge/inspect",(TileRequest request,CancellationToken ct)=>session.InspectTile(request.X,request.Y,request.Z,request.Revision,ct));
 app.MapPost("/bridge/nearby",(CancellationToken ct)=>session.Nearby(ct));
 app.MapPost("/bridge/target",(TargetRequest request,CancellationToken ct)=>session.InspectTarget(request.TargetId,request.Revision,ct));
 if(int.TryParse(Value("--launcher-pid"),out int launcherPid))
@@ -125,4 +127,6 @@ record JournalRequest(int Limit);record PlanRequest(string? Value);
 record TargetRequest(string TargetId,string Revision);
 record GraphicsRequest(string? Renderer);
 record DocsReadRequest(string Path,string? Heading);
+record MapRequest(int X,int Y,int Z,int Radius);
+record TileRequest(int X,int Y,int Z,string Revision);
 
