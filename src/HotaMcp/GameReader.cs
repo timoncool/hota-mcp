@@ -97,7 +97,9 @@ internal sealed class GameReader(WindowsGame game,int player)
         [0x63a5e4]="adventure",[0x63db40]="message",[0x642478]="system_options",
         [0x63ff60]="main_menu",[0x63e6d8]="game_type",[0x641cbc]="scenario_selection",
         [0x64373c]="town",[0x6437b0]="town_hall",[0x643954]="building_confirmation",
-        [0x640c5c]="recruitment",[0x643990]="tavern",[0x643c24]="split_stack",
+        [0x640c5c]="recruitment",[0x643990]="tavern",[0x643c24]="creature_card",
+        // The real split dialog: a slider between two halves of one stack, with its own confirm.
+        [0x63b8f8]="split_army",
         [0x63eae8]="hero_screen",[0x642438]="exchange",[0x63fe74]="level_up",
         [0x63d528]="combat",[0x63d46c]="battle_result",[0x641ddc]="spellbook",
         [0x640330]="kingdom_overview",[0x63a610]="adventure_options",[0x643c64]="world_view",
@@ -395,7 +397,7 @@ internal sealed class GameReader(WindowsGame game,int player)
         if(start>end||end>cap||(end-start)%4!=0||end-start>8192) throw new InvalidOperationException("Invalid UI list");
         var items=new List<UiElement>();
         var controls=new List<uint>();
-        if(screen is "message" or "combat" or "spellbook" or "battle_result" or "tavern" or "recruitment" or "split_stack" or "hero_screen" or "exchange" or "level_up" or "kingdom_overview" or "adventure_options" or "world_view" or "puzzle_map" or "scenario_info" or "thieves_guild" or "marketplace" or "mage_guild" or "town_fort")
+        if(screen is "message" or "combat" or "spellbook" or "battle_result" or "tavern" or "recruitment" or "creature_card" or "split_army" or "hero_screen" or "exchange" or "level_up" or "kingdom_overview" or "adventure_options" or "world_view" or "puzzle_map" or "scenario_info" or "thieves_guild" or "marketplace" or "mage_guild" or "town_fort")
         {
             var seen=new HashSet<uint>();
             for(uint item=game.U32(dlg+0x2c);item!=0;item=game.U32(item+8))

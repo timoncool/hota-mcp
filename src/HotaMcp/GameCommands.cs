@@ -289,9 +289,11 @@ internal static class GameCommands
         // The stack pictures sit at 101 plus the slot on the town screen — 108 and up are only the
         // count labels. Pressing a picture opens the creature card the player sees, with upgrade
         // and dismiss on it.
-        "army:upgrade" => new("split_stack",Deliveries.Control(300)),
-        "army:dismiss" => new("split_stack",Deliveries.Control(30723)),
-        "army:close" => new("split_stack",Deliveries.Control(30722)),
+        "army:upgrade" => new("creature_card",Deliveries.Control(300)),
+        "army:dismiss" => new("creature_card",Deliveries.Control(30723)),
+        "army:close" => new("creature_card",Deliveries.Control(30722)),
+        "split:confirm" => new("split_army",Deliveries.Control(30722)),
+        "split:decline" => new("split_army",Deliveries.Control(30721)),
         var army when army.StartsWith("army:open:",StringComparison.Ordinal)
             && int.TryParse(army["army:open:".Length..],out int armySlot) && armySlot is >=0 and <7
             => new("town",Deliveries.Control(101+armySlot)),
@@ -416,15 +418,43 @@ internal static class GameCommands
     /// they carry neither text nor a button image, so they are found in the dialog itself.
     private static readonly Deliver OpenArmyStack = async (context, ct) =>
     {
-        int slot = Suffix(context.Element, 2);
-        var box = context.Reader.FindControlById(101 + slot)
+        // The key names the row and the slot: h3 is the visiting hero's fourth stack, g0 the
+        // garrison's first. The two rows are different controls, so both have to be addressable.
+        string where = context.Element.Split(':')[^1];
+        bool garrison = where.StartsWith("g", StringComparison.OrdinalIgnoreCase);
+        int slot = int.Parse(where[1..]);
+        var box = context.Reader.FindControlById((garrison ? 101 : 126) + slot)
             ?? throw new InvalidOperationException($"No army slot {slot} on this screen");
         int x = box.X + box.Width / 2, y = box.Y + box.Height / 2;
         await Deliveries.Press(context, x, y, ct);
         await Task.Delay(400, CancellationToken.None);
-        try { if (context.Reader.Observe().Screen == "split_stack") return; }
+        try { if (context.Reader.Observe().Screen == "creature_card") return; }
         catch (InvalidOperationException) { return; }
         await Deliveries.Press(context, x, y, ct);
+    };
+
+    /// Moving a stack is two plain presses, the way a player does it: press the stack, then press
+    /// the slot it should land in. The garrison pictures are at 101 plus the slot, the visiting
+    /// hero's at 126 plus the slot; a free slot is found by reading the count labels.
+    private static Deliver MoveStack(bool toGarrison) => async (context, ct) =>
+    {
+        int slot = Suffix(context.Element, 2);
+        int fromBase = toGarrison ? 126 : 101, toBase = toGarrison ? 101 : 126;
+        int countBase = toGarrison ? 108 : 133;
+        var source = context.Reader.FindControlById(fromBase + slot)
+            ?? throw new InvalidOperationException($"No stack in slot {slot}");
+        int free = -1;
+        for (int candidate = 0; candidate < 7 && free < 0; candidate++)
+        {
+            var label = context.Before.Elements.FirstOrDefault(e => e.Id == countBase + candidate);
+            if (label is null || string.IsNullOrWhiteSpace(label.Text)) free = candidate;
+        }
+        if (free < 0) throw new InvalidOperationException("No free slot on the other side");
+        var destination = context.Reader.FindControlById(toBase + free)
+            ?? throw new InvalidOperationException($"Destination slot {free} not found");
+        await Deliveries.Press(context, source.X + source.Width / 2, source.Y + source.Height / 2, ct);
+        await Task.Delay(250, CancellationToken.None);
+        await Deliveries.Press(context, destination.X + destination.Width / 2, destination.Y + destination.Height / 2, ct);
     };
 
     private static readonly Deliver RecruitFromFort = async (context, ct) =>

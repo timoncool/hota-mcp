@@ -11,7 +11,7 @@ internal static class ScreenActions
         if(screen=="message"&&items.Count(i=>i.Interactive)==1&&items.Any(i=>i.Id==30722&&i.Asset=="iokay.def"&&i.Interactive))actions.Add(new("message:accept","Подтвердить прочитанное сообщение"));
         if(screen=="message"&&items.Count(i=>i.Interactive)==2&&items.Any(i=>i.Id==30725&&i.Asset=="iokay.def"&&i.Interactive)&&items.Any(i=>i.Id==30726&&i.Asset=="icancel.def"&&i.Interactive))actions.Add(new("message:confirm","Согласиться с вопросом текущего диалога"));
         if(actions.Any(a=>a.Key=="message:confirm"))actions.Add(new("message:decline","Отказаться от действия в текущем диалоге"));
-        if(screen=="split_stack")
+        if(screen=="creature_card")
         {
             // The game reuses this dialog for the creature card of a stack. Its two small buttons
             // are the arrows that upgrade the stack and the crossed circle that dismisses it; the
@@ -22,7 +22,14 @@ internal static class ScreenActions
                 actions.Add(new("army:dismiss","Распустить этот отряд — необратимо"));
             if(items.Any(i=>i.Id==30722&&i.Interactive))
                 actions.Add(new("army:close","Закрыть карточку отряда"));
-            actions.Add(new("split:cancel","Закрыть окно отряда (Esc)"));
+            actions.Add(new("split:cancel","Закрыть карточку (Esc)"));
+        }
+        if(screen=="split_army")
+        {
+            // Dropping a stack on an empty slot of the other row asks how to divide it: a slider
+            // between two halves and the game's own confirm. Cancelling leaves the stack whole.
+            if(items.Any(i=>i.Id==30722&&i.Interactive))actions.Add(new("split:confirm","Подтвердить разделение отряда"));
+            if(items.Any(i=>i.Id==30721&&i.Interactive))actions.Add(new("split:decline","Отменить разделение, отряд останется целым"));
         }
         if(screen=="hero_screen")actions.Add(new("hero:close","Закрыть экран героя (Esc)"));
         if(screen=="kingdom_overview")actions.Add(new("kingdom:close","Закрыть обзор королевства"));
@@ -136,13 +143,27 @@ internal static class ScreenActions
                 actions.Add(new("town:next","Следующий город (стрелка вниз)"));
             }
             if(currentTown is not null&&currentTown.GarrisonHero>=0)actions.Add(new("hero:out","Вытащить гарнизонного героя на карту: клик по портрету героя, затем клик по строке ниже"));
-            // A player opens a stack by pressing it, and the card that appears is where upgrading
-            // and dismissing live. Without this the agent can read an army but never act on one.
+            // The town shows two rows of seven slots: the garrison above and the visiting hero
+            // below. The counts give away which slots hold anything — garrison at 108 and up,
+            // hero at 133 and up — and the pictures a player presses are at 101 and 126.
+            string? Count(int id)=>items.FirstOrDefault(i=>i.Id==id&&!string.IsNullOrWhiteSpace(i.Text))?.Text;
+            var garrison=Enumerable.Range(0,7).Select(slot=>Count(108+slot)).ToArray();
+            var carried=Enumerable.Range(0,7).Select(slot=>Count(133+slot)).ToArray();
             for(int slot=0;slot<7;slot++)
             {
-                var stack=items.FirstOrDefault(i=>i.Id==108+slot&&!string.IsNullOrWhiteSpace(i.Text));
-                if(stack is null)continue;
-                actions.Add(new($"army:open:{slot}",$"Открыть карточку отряда в слоте {slot} ({stack.Text}): там улучшение и роспуск"));
+                if(carried[slot] is not null)
+                    actions.Add(new($"army:open:h{slot}",$"Карточка отряда героя в слоте {slot} ({carried[slot]}): улучшение и роспуск"));
+                if(garrison[slot] is not null)
+                    actions.Add(new($"army:open:g{slot}",$"Карточка отряда гарнизона в слоте {slot} ({garrison[slot]})"));
+            }
+            int freeGarrison=Array.FindIndex(garrison,c=>c is null);
+            int freeCarried=Array.FindIndex(carried,c=>c is null);
+            for(int slot=0;slot<7;slot++)
+            {
+                if(carried[slot] is not null&&freeGarrison>=0)
+                    actions.Add(new($"army:give:{slot}",$"Отдать отряд героя из слота {slot} ({carried[slot]}) в гарнизон"));
+                if(garrison[slot] is not null&&freeCarried>=0)
+                    actions.Add(new($"army:take:{slot}",$"Забрать отряд гарнизона из слота {slot} ({garrison[slot]}) герою"));
             }
             if(currentTown is not null)for(int slot=0;slot<7;slot++)
                 if(currentTown.GarrisonCounts.Length>slot&&currentTown.GarrisonCounts[slot]>0)
