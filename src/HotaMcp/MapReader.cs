@@ -71,6 +71,22 @@ internal sealed class MapReader(WindowsGame game,int player)
         return(sx,sy);
     }
 
+    /// The middle of the map area. Pointing here is the cheapest way to make the game recompute
+    /// its route cache, exactly as it does while a player moves the mouse across the map.
+    public (int X,int Y) ViewportCenter()
+    {
+        var viewport=GetViewport();
+        return(viewport.X+viewport.Width/2,viewport.Y+viewport.Height/2);
+    }
+
+    /// True when the game's route cache no longer matches the hero's movement, so every route
+    /// read from it would be about a hero that no longer exists.
+    public bool RoutesAreStale(Observation observation)
+    {
+        if(observation.Hero is null)return false;
+        return game.I32(game.U32(0x6992d4)+8)!=observation.Hero.Movement;
+    }
+
     public bool IsOnScreen(Observation observation,int x,int y,int z)
     {
         try{_=ScreenPoint(observation,x,y,z);return true;}

@@ -20,11 +20,6 @@ public sealed record ElementCard(string Element,string[] Card,Observation Observ
 
 internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) : IDisposable
 {
-    /// The game rebuilds its route tree from the cursor position. A plain hover over the map area
-    /// refreshes that tree exactly as a human moving the mouse does; without it routes can read as
-    /// not_available right after the hero leaves a garrison.
-    private const int RouteHoverX=304,RouteHoverY=280;
-
     private readonly GameReader reader=new(game,player);
     private readonly SemaphoreSlim gate=new(1,1);
     private readonly Dictionary<string,(OperationRequest Request,OperationResult Result)> operations=new();
@@ -85,8 +80,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             if(initial.Hero is null)throw new InvalidOperationException("Select a hero first");
             // The hover changes what the game reports under the cursor, so the consistency window
             // starts after it: otherwise this call always invalidates its own observation.
-            await RefreshRouteTree(initial);
-            var observation=reader.Observe();
+            var observation=initial;
             var hero=observation.Hero??throw new InvalidOperationException("Hero selection lost while refreshing routes");
             var region=new MapReader(game,player).Read(observation,hero.Position[0],hero.Position[1],hero.Position[2],12);
             var list=new List<TargetView>();
@@ -119,10 +113,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             if(stale.Revision!=revision)throw new InvalidOperationException("State changed; request nearby_targets again");
             var map=new MapReader(game,player);
             map.ValidateTarget(stale,target);
-            // The game computes a path only to the cell under the cursor, the way it does for a
-            // player moving the mouse onto an object. Pointing at this target is what makes its
-            // route exist at all; without it every route reads as unavailable.
-            var before=stale;
+            var before=await PlanRouteTo(stale,target.X,target.Y,target.Z);
             var route=new RouteReader(game,player).Read(before,target);
             var after=reader.Observe();
             if(after.Revision!=before.Revision)throw new InvalidOperationException("State changed while reading target");
@@ -333,7 +324,6 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             map.ValidateTarget(before,target);
             if(!attack&&string.Equals(target.Kind,"creatures",StringComparison.OrdinalIgnoreCase))
                 throw new InvalidOperationException("Danger: this cell holds a creature stack, and moving onto it starts a battle. Approach a neighbouring cell with move_to_tile, or use attack_target to fight deliberately");
-            await RefreshRouteTree(before);
             int[] destination=[target.X,target.Y,target.Z];
             return await RunMove(request.OperationId,identity,before,destination,10,"move",
                 planned=>map.ValidateTarget(planned,target),
@@ -460,8 +450,32 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
         return moved;
     }
 
-    private Task RefreshRouteTree(Observation observation)=>
-        HoverAndSettle(observation,RouteHoverX,RouteHoverY);
+    /// After the hero's movement changes, the game's route cache still describes the hero as it
+    /// was. Moving the cursor does not rebuild it: the rebuild belongs to the game's own map
+    /// selection handler, the one a player triggers by pointing at a destination. Asking it for
+    /// this destination is therefore what makes the route to it exist; it plans, it does not move.
+    /// The hero's own cell is never asked for — selecting it opens the hero screen instead.
+    private async Task<Observation> PlanRouteTo(Observation observation,int x,int y,int z)
+    {
+        var map=new MapReader(game,player);
+        if(observation.Screen!="adventure"||observation.Hero is null)return observation;
+        int[] here=observation.Hero.Position;
+        if(here[0]==x&&here[1]==y&&here[2]==z)return observation;
+        if(!map.RoutesAreStale(observation)&&observation.Hero.PlannedDestination.SequenceEqual(new[]{x,y,z}))
+            return observation;
+        game.NativeAction(31,player,x|(y<<8)|(z<<16));
+        for(int attempt=0;attempt<20;attempt++)
+        {
+            await Task.Delay(50,CancellationToken.None);
+            Observation current;
+            try{current=reader.Observe();}
+            catch(InvalidOperationException){continue;}
+            if(current.Screen!="adventure")return current;
+            if(!map.RoutesAreStale(current)&&current.Hero?.PlannedDestination.SequenceEqual(new[]{x,y,z})==true)
+                return current;
+        }
+        return reader.Observe();
+    }
 
     private async Task HoverAndSettle(Observation observation,int x,int y)
     {
