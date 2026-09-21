@@ -1,6 +1,13 @@
 namespace HotaMcp;
 
-public sealed record MapObject(int X,int Y,int Z,int Type,string Kind);
+public sealed record MapObject(int X,int Y,int Z,int Type,string Kind)
+{
+    /// The name the game itself prints for this object, so nothing on the map is nameless.
+    public string Name {get;init;}="";
+    /// The object's own index: for a town its town id, for a hero his hero id. Comparing it with
+    /// the ids this player owns is how a flag is read — whose town, whose hero.
+    public int Id {get;init;}=-1;
+}
 public sealed record MapView(string Revision,int X,int Y,int Z,int Width,int Height,string[] Terrain,string[] Roads,
     string[] Blocked,List<MapObject> Objects,string Legend);
 public sealed record TileInspection(int X,int Y,int Z,string? Hint,Observation Observation);
@@ -34,6 +41,14 @@ internal sealed class MapReader(WindowsGame game,int player)
             throw new InvalidOperationException("Tile is hidden from this player");
         return checked(context.Tiles+index*0x26);
     }
+    /// Developer mapping only: the raw bytes of one tile record, so a field can be located by
+    /// comparing cells whose truth is known instead of by guessing an offset.
+    public object TileBytes(Observation observation,int x,int y,int z)
+    {
+        uint tile=VisibleTile(observation,x,y,z);
+        return new{x,y,z,bytes=Convert.ToHexString(game.Read(tile,0x26))};
+    }
+
     public MapView Read(Observation observation,int x,int y,int z,int radius)
     {
         var context=Context(observation);
@@ -54,7 +69,15 @@ internal sealed class MapReader(WindowsGame game,int player)
                 tr+="dgsnrluwvhax"[land];rr+=(char)('0'+road);br+=(access&1)!=0?'#':'.';
                 int type=BitConverter.ToInt16(game.Read(tile+0x1e,2));
                 // Publish only validated visible categories at their entrance. No setup, counts, events or grail.
-                if((access&16)!=0&&KnownObjects.TryGetValue(type,out var kind))objects.Add(new(xx,yy,z,type,kind));
+                if((access&16)!=0)
+                {
+                    // Anything standing on the map is reported. The slug stays for the objects the
+                    // bridge acts on by name; everything else carries the game's own name, because
+                    // an object the player can see must not vanish just for want of a slug.
+                    string kind=KnownObjects.TryGetValue(type,out var known)?known:GameReference.MapObject(type);
+                    objects.Add(new(xx,yy,z,type,kind)
+                        {Name=GameReference.MapObject(type),Id=BitConverter.ToUInt16(game.Read(tile,2))});
+                }
             }
             terrain.Add(tr);roads.Add(rr);blocked.Add(br);
         }

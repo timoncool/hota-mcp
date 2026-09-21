@@ -88,6 +88,62 @@ internal sealed class GameReference
         return result;
     }
 
+    private static List<string>? buildingNames;
+
+    /// Names of the buildings every town shares, in the order the game numbers them: the five mage
+    /// guild levels, tavern, shipyard, fort, citadel, castle, the four halls, marketplace, resource
+    /// silo and blacksmith. The row order of BLDGNEUT is that numbering, so nothing is guessed.
+    /// Town-specific buildings above that row are numbered per faction and are not in this table;
+    /// their names are on the town's own construction screen.
+    public static string Building(int id)
+    {
+        if(buildingNames is null)
+        {
+            var result=new List<string>();
+            string? data=FindDataDirectory();
+            if(data is not null)
+                foreach(var archive in new[]{"HotA_lng.lod","H3bitmap.lod"})
+                {
+                    var lod=LodArchive.Open(Path.Combine(data,archive));
+                    string? text=lod?.ReadText("BLDGNEUT.TXT");
+                    if(text is null)continue;
+                    foreach(var row in Rows(text))result.Add(Clean(row.ElementAtOrDefault(0)??""));
+                    if(result.Count>0)break;
+                }
+            buildingNames=result;
+        }
+        if(id>=0&&id<17&&id<buildingNames.Count&&buildingNames[id].Length>1)return buildingNames[id];
+        if(id is >=30 and <=36)return $"жилище {id-29} уровня";
+        if(id is >=37 and <=43)return $"улучшенное жилище {id-36} уровня";
+        return $"постройка №{id}";
+    }
+
+    private static List<string>? objectNames;
+
+    /// Names of the map objects in the order the game numbers them — the row order of ObjNames is
+    /// the object type, so a mine, a windmill or a shrine can be named instead of silently dropped
+    /// for want of a hand-written table. A player sees every object on the map; so must the agent.
+    public static string MapObject(int type)
+    {
+        if(objectNames is null)
+        {
+            var result=new List<string>();
+            string? data=FindDataDirectory();
+            if(data is not null)
+                foreach(var archive in new[]{"HotA_lng.lod","H3bitmap.lod"})
+                {
+                    var lod=LodArchive.Open(Path.Combine(data,archive));
+                    string? text=lod?.ReadText("ObjNames.txt");
+                    if(text is null)continue;
+                    foreach(var row in Rows(text))result.Add(Clean(row.ElementAtOrDefault(0)??""));
+                    if(result.Count>0)break;
+                }
+            objectNames=result;
+        }
+        return type>=0&&type<objectNames.Count&&objectNames[type].Length>1
+            ?objectNames[type]:$"объект типа {type}";
+    }
+
     /// Names a stack by its type as the game stores it; an unknown type stays a number rather than
     /// becoming a guess.
     public static string Creature(int type)

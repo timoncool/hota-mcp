@@ -66,7 +66,11 @@ public sealed record SideView(int Player,string Colour,int ActivePlayer,string A
 /// The building purchase card as a player reads it: what is offered, what it gives, whether the
 /// game will take the order right now and, when it will not, why. A missing button is an answer,
 /// not an absence — it is the difference between "cannot afford" and "already built today".
-public sealed record BuildOffer(string? Title,string? Effect,string? Conditions,int[] Cost,bool CanBuy,string? Blocked);
+public sealed record BuildOffer(string? Title,string? Effect,string? Conditions,int[] Cost,bool CanBuy,string? Blocked)
+{
+    /// The price as the player reads it off the icons: the resource named, not a bare number.
+    public List<string> Price {get;init;}=[];
+}
 
 internal sealed class GameReader(WindowsGame game,int player)
 {
@@ -76,8 +80,17 @@ internal sealed class GameReader(WindowsGame game,int player)
     private static BuildOffer? ReadBuildOffer(List<UiElement> items,List<TownView> towns,int[] resources)
     {
         string? Text(int id)=>items.FirstOrDefault(i=>i.Id==id)?.Text?.Trim();
-        var numbers=items.Where(i=>i.Id==65535&&int.TryParse(i.Text?.Trim(),out _))
-            .Select(i=>int.Parse(i.Text!.Trim())).ToArray();
+        var amounts=items.Where(i=>i.Id==65535&&int.TryParse(i.Text?.Trim(),out _)).ToList();
+        var numbers=amounts.Select(i=>int.Parse(i.Text!.Trim())).ToArray();
+        // Each amount sits under its own resource icon, a 32x32 picture whose frame is the
+        // resource index. Pairing them by column turns four bare numbers into a price.
+        var icons=items.Where(i=>i.Id==65535&&i.Text is null&&i.Width==32&&i.Height==32).ToList();
+        var price=amounts.Select(amount=>
+        {
+            var icon=icons.OrderBy(i=>Math.Abs(i.X+i.Width/2-(amount.X+amount.Width/2))).FirstOrDefault();
+            string name=icon is null?"ресурс":Resource(icon.Frame);
+            return $"{name} {amount.Text!.Trim()}";
+        }).ToList();
         bool canBuy=items.Any(i=>i.Id==30722&&i.Interactive);
         string? conditions=Text(5);
         string? blocked=null;
@@ -89,8 +102,16 @@ internal sealed class GameReader(WindowsGame game,int player)
             else if(numbers.Length>0&&numbers[^1]>resources[^1])blocked="не хватает золота";
             else blocked="игра не принимает заказ; причина по карточке не определена";
         }
-        return new(Text(3),Text(4),conditions,numbers,canBuy,blocked);
+        return new(Text(3),Text(4),conditions,numbers,canBuy,blocked){Price=price};
     }
+
+    /// The seven resources in the order the game numbers them, which is also the frame index of
+    /// the icon it draws beside a price.
+    private static string Resource(int index)=>index switch
+    {
+        0=>"дерево",1=>"ртуть",2=>"руда",3=>"сера",4=>"кристаллы",5=>"самоцветы",6=>"золото",
+        _=>"ресурс "+index
+    };
 
     /// The eight player colours in the order the game numbers them.
     private static string Colour(int index)=>index switch
@@ -455,7 +476,7 @@ internal sealed class GameReader(WindowsGame game,int player)
             bool interactive=(vt is 0x63bb54 or 0x63bb88||(screen=="spellbook"||screen=="adventure")&&vt==0x63ec48)&&(state&2)!=0&&(state&0x28)==0;
             // Some controls carry no text and no button graphic yet still say something: the town
             // hall colours a bare picture next to each row to mark built, buildable or blocked.
-            bool bareControlMatters=screen is "town_hall" or "town_fort" or "adventure" or "hero_screen"||(screen is "message" or "exchange" or "level_up")&&(state&2)!=0;
+            bool bareControlMatters=screen is "town_hall" or "town_fort" or "adventure" or "hero_screen" or "building_confirmation"||(screen is "message" or "exchange" or "level_up")&&(state&2)!=0;
             if(string.IsNullOrEmpty(text)&&asset==null&&!bareControlMatters) continue;
             items.Add(new UiElement($"ui:{controlIndex}",BitConverter.ToUInt16(b,0x10),text,asset,
                 dx+BitConverter.ToInt16(b,0x18),dy+BitConverter.ToInt16(b,0x1a),iw,ih,interactive)
@@ -514,7 +535,7 @@ internal sealed class GameReader(WindowsGame game,int player)
             int active=game.I32(0x69ccf4);
             side=new(player,Colour(player),active,Colour(active),active==player);
         }
-        var result=new Observation("",player,date,resources,hero,screen,width,height,items){Towns=towns,Actions=actions,Setup=setup,Combat=combat,Saves=saves,Sheet=sheet,Build=build,Heroes=roster,Side=side,SelectedStack=selected,Brief=ScreenBriefing.Build(screen,date,resources,towns,roster,hero,side,selected)};
+        var result=new Observation("",player,date,resources,hero,screen,width,height,items){Towns=towns,Actions=actions,Setup=setup,Combat=combat,Saves=saves,Sheet=sheet,Build=build,Heroes=roster,Side=side,SelectedStack=selected,Brief=ScreenBriefing.Build(screen,date,resources,towns,roster,hero,side,selected,build)};
         string revision=Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(epoch+JsonSerializer.Serialize(result))))[..24];
         return result with {Revision=revision};
     }

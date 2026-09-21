@@ -6,6 +6,8 @@ public sealed record TownView(int Id,string? Name,int Type,bool BuiltToday,int[]
     public List<string> Garrison=>GarrisonTypes.Zip(GarrisonCounts)
         .Where(s=>s.First>=0&&s.Second>0)
         .Select(s=>$"{GameReference.Creature(s.First)} x{s.Second}").ToList();
+    /// What is built, in the names the player reads on the construction screen.
+    public List<string> Built=>Buildings.Select(GameReference.Building).ToList();
     public int GarrisonHero {get;init;}
     public int VisitingHero {get;init;}
     public int[] GarrisonTypes {get;init;}=[];

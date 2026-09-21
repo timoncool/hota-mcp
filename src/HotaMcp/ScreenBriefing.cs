@@ -10,15 +10,23 @@ namespace HotaMcp;
 internal static class ScreenBriefing
 {
     public static List<string> Build(string screen,int[] date,int[] resources,List<TownView> towns,
-        List<HeroView> roster,HeroView? selected,SideView? side,string? selectedStack)
+        List<HeroView> roster,HeroView? selected,SideView? side,string? selectedStack,BuildOffer? offer)
     {
         var lines=new List<string>();
         if(side is not null)
             lines.Add(side.Yours
-                ?$"Ход твой, играешь за {side.Colour}. Месяц {Part(date,0)}, неделя {Part(date,1)}, день {Part(date,2)}."
+                ?$"Ход твой, играешь за {side.Colour}. День {Part(date,0)}, неделя {Part(date,1)}, месяц {Part(date,2)}." + (Part(date,0)=="1"?" Первый день недели: в городах появился прирост существ, мельницы и водяные колёса снова дают ресурс.":"")
                 :$"Сейчас ходит {side.ActiveColour}, а ты играешь за {side.Colour} — не действуй за чужой цвет.");
         if(screen=="town")TownBrief(lines,resources,towns,roster,selectedStack);
         if(screen=="adventure")AdventureBrief(lines,resources,towns,roster,selected);
+        if(screen=="building_confirmation"&&offer is not null)
+        {
+            lines.Add($"{offer.Title}. {offer.Effect}");
+            lines.Add($"Цена: {string.Join(", ",offer.Price)}. {offer.Conditions}");
+            lines.Add(offer.CanBuy
+                ?"Купить — building:buy, отказаться — building:cancel. Постройка тратит дневной лимит города."
+                :$"Построить сейчас нельзя: {offer.Blocked}. Выход — building:cancel.");
+        }
         return lines;
     }
 
@@ -48,6 +56,7 @@ internal static class ScreenBriefing
         if(keeper is not null&&guest is not null)
             lines.Add("Два героя в городе: отряды между ними переносятся действиями army:give, army:take и army:merge по имени существа, "
                 +"а army:join сливает два отряда одного существа внутри одного ряда.");
+        lines.Add("Построено: "+string.Join(", ",town.Built)+".");
         lines.Add(town.BuiltToday
             ?"Постройка на сегодня уже потрачена — в этом городе сегодня больше ничего не построить."
             :"Постройка на сегодня не потрачена: town:construction открывает зал совета со списком и ценами.");

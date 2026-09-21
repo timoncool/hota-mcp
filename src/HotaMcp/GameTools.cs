@@ -104,10 +104,14 @@ public sealed class GameTools(IGameEndpoint endpoint)
         CancellationToken cancellationToken)=>endpoint.Journal(limit,cancellationToken);
 
     [McpServerTool(Title="Read or write your plan",ReadOnly=false,Destructive=false,Idempotent=true,OpenWorld=false),
-     Description("Reads your stored plan, or replaces it when a value is given. The plan is your own memory between turns: the "
-        +"goal of the game, what changed today, what is known about the enemy, the first things to do tomorrow. "
-        +"Returns the stored text. Writing REPLACES the previous plan — include what still matters. "
-        +"Does NOT execute anything or change the game; read_journal holds what actually happened.")]
+     Description("Reads your stored plan, or replaces it when a value is given. This is the controller's memory between "
+        +"turns and it is handed back inside every observation, so it is read whether or not it is asked for. "
+        +"Returns the stored text. Writing REPLACES the whole plan, so carry forward what still matters. "
+        +"Shape that survives a long game: GOAL — one line, unchanged for the whole game; TASKS NOW — one block per hero "
+        +"with map coordinates; DONE — one compressed line per day, not a retelling; BANS — what the player forbade; "
+        +"NOT TAKEN NEARBY — objects seen and left, so they are not rediscovered every turn. Keep decisions and their "
+        +"reason, not a narration of events; what happened is in read_journal. "
+        +"Does NOT execute anything or change the game.")]
     public Task<object> Plan(
         [Description("New plan text, or null to read the stored one without changing it.")] string? value,
         CancellationToken cancellationToken)=>endpoint.Plan(value,cancellationToken);
@@ -126,6 +130,23 @@ public sealed class GameTools(IGameEndpoint endpoint)
         [Description("Cell y.")] int y,
         [Description("Map level: 0 surface, 1 underground.")] int z,
         CancellationToken cancellationToken)=>endpoint.InspectCell(new(revision,x,y,z),cancellationToken);
+
+    [McpServerTool(Title="Hover a map cell",ReadOnly=false,Destructive=false,Idempotent=true,OpenWorld=false),
+     Description("Moves the mouse over one map cell the way a player does and returns the line the game writes at the "
+        +"bottom of the screen. That line is the cheapest and richest thing on the adventure map: it names the object, what "
+        +"it gives, what it costs, whether the bonus is once per hero, and — for the hero selected right now — whether he "
+        +"has already been there, as «(Посещено)» or «(Не посещено)». Example: «Беседка (+2000 опыта один раз для каждого "
+        +"героя за 1000 золота) (Не посещено)». "
+        +"The visited state belongs to the SELECTED hero, so switch heroes and ask again to read it for the other one. "
+        +"Nothing is entered, no fight starts, the hero does not move. "
+        +"Use it before spending a day walking to a bonus object. For the creature guarding a cell use inspect_cell, which "
+        +"holds the right button and reads the fuller card.")]
+    public Task<TileInspection> InspectTile(
+        [Description("Cell x.")] int x,
+        [Description("Cell y.")] int y,
+        [Description("Map level: 0 surface, 1 underground.")] int z,
+        [Description("Revision from the observation this cell was seen on.")] string revision,
+        CancellationToken cancellationToken)=>endpoint.InspectTile(x,y,z,revision,cancellationToken);
 
     [McpServerTool(Title="Card of a control on screen",ReadOnly=false,Destructive=false,Idempotent=true,OpenWorld=false),
      Description("Reads the game's own info card for one control of the current screen: creature stats, a skill or spell "
@@ -303,7 +324,7 @@ public sealed class GameTools(IGameEndpoint endpoint)
     [
         ("hota_tools","state"),("game_status","state"),("observe","state"),("nearby_targets","state"),("inspect_target","state"),
         ("read_map","state"),("read_journal","state"),("plan","state"),
-        ("inspect_cell","look"),("inspect_element","look"),
+        ("inspect_cell","look"),("inspect_element","look"),("inspect_tile","look"),
         ("act","act"),("click_ui","act"),("move_to","act"),("move_to_tile","act"),
         ("attack_target","act"),("map_click","act"),("start_game","act"),("launcher_graphics","act"),
         ("hota_docs","reference"),("hota_reference","reference"),

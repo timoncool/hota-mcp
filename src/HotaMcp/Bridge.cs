@@ -28,6 +28,10 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
     private readonly SemaphoreSlim gate=new(1,1);
     private readonly Dictionary<string,(OperationRequest Request,OperationResult Result)> operations=new();
     private readonly List<JournalEntry> journal=[];
+    /// The game day the plan was written on. A plan from an earlier day is not wrong, but it has
+    /// not been reconciled with what happened since, and the difference is worth saying out loud.
+    private int[] planDay=[];
+
     private readonly Dictionary<string,MapObject> targets=new();
     private readonly Dictionary<MapObject,string> targetIds=new();
     private string plan="";
@@ -39,8 +43,51 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
     public async Task<Observation> Observe(CancellationToken ct)
     {
         await gate.WaitAsync(ct);
-        try{return reader.Observe();}
+        try{return WithMemory(reader.Observe());}
         finally{gate.Release();}
+    }
+
+    /// A turn is long and a controller's memory is not guaranteed to survive it. The plan and the
+    /// last few results are therefore part of every observation, not something to be asked for:
+    /// whoever reads the state also reads what the goal was and what already happened, so nothing
+    /// is re-decided from scratch or done twice.
+    private Observation WithMemory(Observation state)
+    {
+        var lines=new List<string>(state.Brief);
+        if(!string.IsNullOrWhiteSpace(plan))
+        {
+            lines.Add("Записанный план (tool plan, перепиши его в конце хода):");
+            foreach(var line in plan.Split('\n').Select(l=>l.TrimEnd()).Where(l=>l.Length>0).Take(12))
+                lines.Add("   "+line);
+        }
+        else lines.Add("План пуст. Запиши через plan цель партии и задачи — иначе следующий ход начнётся вслепую. "
+            +"Форма: ЦЕЛЬ (одна строка, не меняется) / ЗАДАЧИ СЕЙЧАС (по герою, с координатами) / "
+            +"СДЕЛАНО (одна строка на день) / ЗАПРЕТЫ / НЕ ВЗЯТО ПОБЛИЗОСТИ.");
+        if(!string.IsNullOrWhiteSpace(plan)&&state.Date.Length>0&&!planDay.SequenceEqual(state.Date))
+            lines.Add($"План записан {(planDay.Length>2?$"в день {planDay[0]} недели {planDay[1]}":"раньше")}, "
+                +"а сейчас другой день — перечитай его, выполни, и в конце хода перепиши: цель оставь дословно, "
+                +"прошедший день сожми в одну строку СДЕЛАНО.");
+        var recent=journal.Where(e=>e.Kind is "operation_completed" or "move_completed" or "battle_result"
+                or "plan_updated" or "cell_inspected")
+            .TakeLast(4)
+            .Select(e=>$"   {e.Kind}: {Summarise(e)}").ToList();
+        if(recent.Count>0)
+        {
+            lines.Add("Последнее, что делал этот контроллер (полностью — read_journal):");
+            lines.AddRange(recent);
+        }
+        return state with {Brief=lines};
+    }
+
+    private static readonly System.Text.Json.JsonSerializerOptions Readable=new()
+    {
+        Encoder=System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+    };
+
+    private static string Summarise(JournalEntry entry)
+    {
+        string text=System.Text.Json.JsonSerializer.Serialize(entry.Data,Readable);
+        return text.Length>160?text[..160]+"…":text;
     }
 
     public object Status()=>new
@@ -59,6 +106,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
     public object Diagnostic()=>reader.DiagnosticPointers();
     public object RawUi()=>reader.DiagnosticDialog();
     public object ProbeScreen()=>reader.ProbeScreen();
+    public object TileBytes(int x,int y,int z)=>new MapReader(game,player).TileBytes(reader.Observe(),x,y,z);
     public object MapDiagnostic()=>new MapReader(game,player).Diagnostic(reader.Observe());
 
     public async Task<MapView> ReadMap(int x,int y,int z,int radius,CancellationToken ct)
@@ -98,13 +146,23 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
                     targetIds.Add(target,id);
                     targets.Add(id,target);
                 }
-                list.Add(new(id,target.Kind,new RouteReader(game,player).Read(observation,target),target.X,target.Y,target.Z));
+                // A player reads the flag before anything else: whose town, whose hero. The tile
+                // carries the object's own index, so a town id or a hero id compared against what
+                // this player owns says it exactly, without guessing at an owner byte.
+                string kind=target.Kind;
+                if(target.Type==98)
+                    kind=observation.Towns.Any(t=>t.Id==target.Id)?"свой город":"ЧУЖОЙ ГОРОД";
+                if(target.Type==34)
+                    kind=observation.Heroes.Any(h=>h.Id==target.Id)?"свой герой":"ЧУЖОЙ ГЕРОЙ";
+                list.Add(new(id,kind,new RouteReader(game,player).Read(observation,target),target.X,target.Y,target.Z));
             }
             var settled=reader.Observe();
             if(settled.Hero is null||settled.Screen!="adventure")
                 throw new InvalidOperationException("State changed; request targets again");
             return new(settled.Revision,hero.Id,hero.Movement,list,
-                "Recognized visible objects near selected hero; list is not exhaustive. Route data is "
+                "Посещён ли объект выбранным сейчас героем — спроси inspect_cell по его клетке: игра сама пишет "
+                +"в карточке «(Посещено)», и статус этот свой у каждого героя. "
+                +"Recognized visible objects near selected hero; list is not exhaustive. Route data is "
                 +"whatever the game had cached and any action invalidates it — inspect_target computes "
                 +"the route for one destination you choose.");
         }
@@ -683,6 +741,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             {
                 if(value.Length>12000)throw new InvalidOperationException("Plan too large");
                 plan=value;
+                try{planDay=reader.Observe().Date;}catch(InvalidOperationException){planDay=[];}
                 Record("plan_updated",new{plan});
             }
             return new{plan,player};
