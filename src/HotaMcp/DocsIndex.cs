@@ -10,17 +10,34 @@ public sealed record DocsCatalog(bool Available,string? Note,List<DocEntry> Docu
 public sealed record DocText(string Path,string? Heading,bool Found,string? Note,string Text);
 
 /// <summary>
-/// Searchable index of the project's own documentation: lessons, playbooks, capability map,
-/// the game manual extract and the hotkey reference. The bridge exposes it as an MCP tool so the
-/// agent can ask "what do I do here" or "how does this work" at any step and read the answer.
-/// Read-only: only files under the repository docs tree are opened.
+/// Everything the agent can ask "how does this work" about, in one searchable place: the project's
+/// own playbooks and lessons, the game manual extract, and the rule tables read out of the
+/// installed game itself.
+///
+/// Ranking is BM25 over sections, which is what makes a rare word decide the answer: "логистика"
+/// appears in one skill card and nowhere else, so that card wins, while a common word like "герой"
+/// no longer drags every long section to the top. Russian endings are folded to a stem so the word
+/// the agent saw on screen matches the word in the text.
+///
+/// The reference is only reachable through these tools. It is never mixed into an observation.
 /// </summary>
 public sealed class DocsIndex
 {
-    private static readonly string[] StopWords=["и","в","во","на","не","что","как","для","это","или","the","and","with","from","that","this","с","по","за","от","до","у","же","бы","а","но","то","из","к","о","об"];
+    private const double K1=1.2,B=0.75;
+
+    private sealed record Section(string File,string Heading,string Body,
+        Dictionary<string,int> Terms,HashSet<string> HeadingTerms,int Length);
+
     private readonly object gate=new();
+    private readonly GameReference reference=new();
     private DateTime loaded=DateTime.MinValue;
-    private List<(string File,string Heading,string Body)> sections=[];
+    private List<Section> sections=[];
+    private Dictionary<string,int> documentFrequency=new();
+    private double averageLength=1;
+
+    public ReferenceAnswer Reference(string name,string? kind,int limit)=>reference.Find(name,kind,limit);
+
+    // ------------------------------------------------------------------ loading
 
     private static string? FindRoot()
     {
@@ -30,7 +47,28 @@ public sealed class DocsIndex
         return null;
     }
 
-    private List<(string,string,string)> Load()
+    private void EnsureLoaded()
+    {
+        lock(gate)
+        {
+            if((DateTime.UtcNow-loaded).TotalSeconds<=10)return;
+            var loadedSections=LoadProse();
+            loadedSections.AddRange(LoadReference());
+            var frequency=new Dictionary<string,int>();
+            foreach(var section in loadedSections)
+                foreach(var term in section.Terms.Keys)
+                    frequency[term]=frequency.GetValueOrDefault(term)+1;
+            sections=loadedSections;
+            documentFrequency=frequency;
+            averageLength=loadedSections.Count==0?1:Math.Max(1,loadedSections.Average(s=>s.Length));
+            loaded=DateTime.UtcNow;
+        }
+    }
+
+    private static Section Build(string file,string heading,string body)=>
+        new(file,heading,body,Count(body+"\n"+heading),[..Tokens(heading)],Math.Max(1,Tokens(body).Count()));
+
+    private List<Section> LoadProse()
     {
         var root=FindRoot();
         if(root is null)return [];
@@ -44,17 +82,18 @@ public sealed class DocsIndex
         }
         var skills=Path.Combine(root,"skills");
         if(Directory.Exists(skills))files.AddRange(Directory.GetFiles(skills,"SKILL.md",SearchOption.AllDirectories));
-        var result=new List<(string,string,string)>();
+        var result=new List<Section>();
         // Sections are split on markdown headings; the heading path is kept as context.
         foreach(var file in files.Distinct().OrderBy(f=>f))
         {
             string[] lines;
             try{lines=File.ReadAllLines(file);}catch(IOException){continue;}
             var heading="";var body=new StringBuilder();var stack=new List<(int,string)>();
+            string relative=Path.GetRelativePath(root,file).Replace('\\','/');
             void Flush()
             {
                 if(body.Length==0)return;
-                result.Add((Path.GetRelativePath(root,file).Replace('\\','/'),heading,body.ToString()));
+                result.Add(Build(relative,heading,body.ToString()));
                 body.Clear();
             }
             foreach(var line in lines)
@@ -75,13 +114,45 @@ public sealed class DocsIndex
         return result;
     }
 
+    private List<Section> LoadReference()=>
+        reference.Cards().Select(card=>Build("game://reference/"+card.Kind,card.Kind+": "+card.Name,card.Text)).ToList();
+
+    // ------------------------------------------------------------------ tokens
+
+    private static readonly string[] Endings=
+    [
+        "ами","ями","иями","ого","его","ому","ему","ыми","ими","ей","ой","ах","ях","ам","ям",
+        "ов","ев","ий","ый","ая","яя","ое","ее","ые","ие","ом","ем","ью","ия","ие","у","ю","а","я","ы","и","е","о","ь",
+    ];
+
+    /// Folds a Russian word to a stem by dropping one grammatical ending. Crude on purpose: the
+    /// index and the query are folded the same way, so "логистике" and "логистика" meet.
+    private static string Stem(string token)
+    {
+        if(token.Length<5)return token;
+        foreach(var ending in Endings)
+            if(token.Length-ending.Length>=4&&token.EndsWith(ending,StringComparison.Ordinal))
+                return token[..^ending.Length];
+        return token;
+    }
+
     private static IEnumerable<string> Tokens(string text)=>
         Regex.Split(text.ToLowerInvariant(),@"[^\p{L}\p{N}]+")
-            .Where(t=>t.Length>=3&&!StopWords.Contains(t));
+            .Where(t=>t.Length>=3)
+            .Select(Stem);
+
+    private static Dictionary<string,int> Count(string text)
+    {
+        var counts=new Dictionary<string,int>();
+        foreach(var token in Tokens(text))counts[token]=counts.GetValueOrDefault(token)+1;
+        return counts;
+    }
+
+    // ------------------------------------------------------------------ queries
 
     public DocsCatalog Catalog()
     {
-        lock(gate){if((DateTime.UtcNow-loaded).TotalSeconds>10){sections=Load();loaded=DateTime.UtcNow;}}
+        EnsureLoaded();
         if(sections.Count==0)return new(false,"Documentation tree not found next to the bridge build",[]);
         var documents=sections.GroupBy(s=>s.File).OrderBy(g=>g.Key).Select(g=>
             new DocEntry(g.Key,g.Count(),g.Select(s=>s.Heading).Where(h=>h.Length>0).Distinct().Take(40).ToList())).ToList();
@@ -91,7 +162,7 @@ public sealed class DocsIndex
     public DocText Read(string path,string? heading)
     {
         path=(path??string.Empty).Replace('\\','/').Trim().TrimStart('/');
-        lock(gate){if((DateTime.UtcNow-loaded).TotalSeconds>10){sections=Load();loaded=DateTime.UtcNow;}}
+        EnsureLoaded();
         var file=sections.Where(s=>string.Equals(s.File,path,StringComparison.OrdinalIgnoreCase)).ToList();
         if(file.Count==0)return new(path,heading,false,"No document with this path; ask the catalog for exact paths",string.Empty);
         var chosen=string.IsNullOrWhiteSpace(heading)
@@ -109,47 +180,38 @@ public sealed class DocsIndex
 
     public DocsAnswer Search(string query,int limit)
     {
-        lock(gate)
-        {
-            if((DateTime.UtcNow-loaded).TotalSeconds>10){sections=Load();loaded=DateTime.UtcNow;}
-        }
+        EnsureLoaded();
         if(sections.Count==0)return new(query,0,false,"Documentation tree not found next to the bridge build",[]);
-        var tokens=Tokens(query).Distinct().ToArray();
-        if(tokens.Length==0)return new(query,sections.Count,true,"Query needs at least one word of three or more letters",[]);
-        var scored=new List<(int Score,int Index)>();
-        // Russian words inflect, so every token is also matched by its stems: an exact hit scores
-        // in full, a stem hit at a reduced weight, which keeps "герою" finding "герой/героя/героев".
-        var variants=new List<(string Token,double Weight)>();
-        foreach(var token in tokens)
+        var terms=Tokens(query).Distinct().ToArray();
+        if(terms.Length==0)return new(query,sections.Count,true,"Query needs at least one word of three or more letters",[]);
+        int total=sections.Count;
+        var scored=new List<(double Score,Section Section)>();
+        foreach(var section in sections)
         {
-            variants.Add((token,1.0));
-            if(token.Length>=8)variants.Add((token[..^2],0.6));
-            else if(token.Length>=5)variants.Add((token[..^1],0.6));
-        }
-        for(int i=0;i<sections.Count;i++)
-        {
-            var (_,heading,body)=sections[i];
-            string head=heading.ToLowerInvariant(),text=body.ToLowerInvariant();
             double score=0;
-            foreach(var (token,weight) in variants)
+            foreach(var term in terms)
             {
-                if(head.Contains(token))score+=6*weight;
-                int count=Regex.Matches(text,Regex.Escape(token)).Count;
-                score+=Math.Min(count,12)*weight;
+                if(!section.Terms.TryGetValue(term,out int frequency))continue;
+                int documents=documentFrequency.GetValueOrDefault(term,1);
+                double idf=Math.Log(1+(total-documents+0.5)/(documents+0.5));
+                double norm=frequency*(K1+1)/(frequency+K1*(1-B+B*section.Length/averageLength));
+                score+=idf*norm;
+                // A term in the heading names the subject of the section rather than mentioning it.
+                if(section.HeadingTerms.Contains(term))score+=idf*1.5;
             }
-            // Long sections must not outrank a precise short one just by containing more words.
-            score/=1.0+Math.Log10(1.0+text.Length/400.0);
-            if(score>0)scored.Add(((int)Math.Round(score*10),i));
+            if(score>0)scored.Add((score,section));
         }
         var hits=scored.OrderByDescending(s=>s.Score).Take(Math.Clamp(limit,1,8)).Select(s=>
         {
-            var (file,heading,body)=sections[s.Index];
-            var paragraphs=body.Split('\n',StringSplitOptions.RemoveEmptyEntries);
-            var best=paragraphs.OrderByDescending(p=>tokens.Sum(t=>Regex.Matches(p.ToLowerInvariant(),Regex.Escape(t)).Count)).FirstOrDefault()?.Trim()??"";
+            var section=s.Section;
+            var paragraphs=section.Body.Split('\n',StringSplitOptions.RemoveEmptyEntries);
+            var best=paragraphs
+                .OrderByDescending(p=>Count(p).Where(t=>terms.Contains(t.Key)).Sum(t=>t.Value))
+                .FirstOrDefault()?.Trim()??"";
             if(best.Length>600)best=best[..600]+"…";
-            var text=body.Trim();
+            var text=section.Body.Trim();
             if(text.Length>3000)text=text[..3000]+"…";
-            return new DocHit(file,heading,s.Score,best,text);
+            return new DocHit(section.File,section.Heading,(int)Math.Round(s.Score*10),best,text);
         }).ToList();
         return new(query,sections.Count,true,hits.Count==0?"Nothing in the documentation matches this query":null,hits);
     }

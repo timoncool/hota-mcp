@@ -8,6 +8,7 @@ public sealed record JournalEntry(long Sequence,DateTimeOffset Time,string Kind,
 public sealed record TargetView(string Id,string Kind,RouteView Route,int X=0,int Y=0,int Z=0);
 public sealed record NearbyTargets(string Revision,int HeroId,int Movement,List<TargetView> Targets,string Coverage);
 public sealed record DocsRequest(string Query,int Limit);
+public sealed record ReferenceRequest(string Name,string? Kind,int Limit);
 public sealed record TargetInspection(string Id,string Kind,RouteView Route,string Revision);
 public sealed record DebugSnapshot(Observation Observation,CaptureResult Capture,string ObservationPath);
 public sealed record MoveRequest(string OperationId,string Revision,string TargetId);
@@ -533,6 +534,7 @@ public interface IGameEndpoint
     Task<DocsAnswer> Docs(DocsRequest request,CancellationToken ct);
     Task<DocsCatalog> DocsCatalog(CancellationToken ct);
     Task<DocText> DocsRead(string path,string? heading,CancellationToken ct);
+    Task<ReferenceAnswer> Reference(ReferenceRequest request,CancellationToken ct);
     Task<TargetInspection> InspectTarget(string targetId,string revision,CancellationToken ct);
 }
 
@@ -560,6 +562,7 @@ internal sealed class LocalEndpoint(Bridge bridge) : IGameEndpoint
     public Task<DocsAnswer> Docs(DocsRequest request,CancellationToken ct)=>Task.FromResult(docs.Search(request.Query,request.Limit));
     public Task<DocsCatalog> DocsCatalog(CancellationToken ct)=>Task.FromResult(docs.Catalog());
     public Task<DocText> DocsRead(string path,string? heading,CancellationToken ct)=>Task.FromResult(docs.Read(path,heading));
+    public Task<ReferenceAnswer> Reference(ReferenceRequest request,CancellationToken ct)=>Task.FromResult(docs.Reference(request.Name,request.Kind,request.Limit));
     public Task<TargetInspection> InspectTarget(string targetId,string revision,CancellationToken ct)=>bridge.InspectTarget(targetId,revision,ct);
 }
 
@@ -592,5 +595,6 @@ internal sealed class RemoteEndpoint(HttpClient client) : IGameEndpoint
     public Task<DocsAnswer> Docs(DocsRequest request,CancellationToken ct)=>Call<DocsAnswer>("bridge/docs",request,ct);
     public Task<DocsCatalog> DocsCatalog(CancellationToken ct)=>Call<DocsCatalog>("bridge/docs-catalog",new{},ct);
     public Task<DocText> DocsRead(string path,string? heading,CancellationToken ct)=>Call<DocText>("bridge/docs-read",new{path,heading},ct);
+    public Task<ReferenceAnswer> Reference(ReferenceRequest request,CancellationToken ct)=>Call<ReferenceAnswer>("bridge/reference",request,ct);
     public Task<TargetInspection> InspectTarget(string targetId,string revision,CancellationToken ct)=>Call<TargetInspection>("bridge/target",new{targetId,revision},ct);
 }

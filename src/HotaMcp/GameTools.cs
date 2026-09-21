@@ -39,6 +39,10 @@ public sealed class GameTools(IGameEndpoint endpoint)
     [McpServerTool,Description("List every document this bridge can answer from, with the headings inside each document. Use it when no search hit looks right, or to see what knowledge exists before asking.")]
     public Task<DocsCatalog> HotaDocsCatalog(CancellationToken cancellationToken)=>endpoint.DocsCatalog(cancellationToken);
 
+    [McpServerTool,Description("Look up the game's own rule card for a named thing: a secondary skill, a spell, a creature, an artefact, a building, a map object or a faction. The data is read from the rule tables of the installed game, so it matches the exact HotA version being played, including what each mastery level of a skill does and what a spell costs. Pass kind to narrow the search (навык, заклинание, существо, артефакт, здание, объект карты). This is reference only and says nothing about the current party; use observe for that.")]
+    public Task<ReferenceAnswer> HotaReference(string name,string? kind,int limit,CancellationToken cancellationToken)
+        =>endpoint.Reference(new(name,kind,limit<=0?3:limit),cancellationToken);
+
     [McpServerTool,Description("Read one document, or one heading inside it, exactly as the catalog or a search hit named it. Use after a search to read the full section instead of guessing from a snippet.")]
     public Task<DocText> HotaDocsRead(string path,string? heading,CancellationToken cancellationToken)=>endpoint.DocsRead(path,heading,cancellationToken);
 

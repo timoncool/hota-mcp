@@ -125,6 +125,7 @@ internal sealed class GameSession(int? requestedPid,int player,string directory,
     public Task<DocsAnswer> Docs(DocsRequest request,CancellationToken ct)=>Task.FromResult(docsIndex.Search(request.Query,request.Limit));
     public Task<DocsCatalog> DocsCatalog(CancellationToken ct)=>Task.FromResult(docsIndex.Catalog());
     public Task<DocText> DocsRead(string path,string? heading,CancellationToken ct)=>Task.FromResult(docsIndex.Read(path,heading));
+    public Task<ReferenceAnswer> Reference(ReferenceRequest request,CancellationToken ct)=>Task.FromResult(docsIndex.Reference(request.Name,request.Kind,request.Limit));
     public Task<TargetInspection> InspectTarget(string targetId,string revision,CancellationToken ct)=>WithGame(b=>b.InspectTarget(targetId,revision,ct),ct);
     public void Dispose(){bridge?.Dispose();adapter?.Dispose();gate.Dispose();}
 }

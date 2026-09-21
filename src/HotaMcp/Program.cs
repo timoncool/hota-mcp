@@ -105,6 +105,7 @@ app.MapPost("/bridge/map-click",(MapClickRequest request,CancellationToken ct)=>
 app.MapPost("/bridge/move-tile",(TileMoveRequest request,CancellationToken ct)=>session.MoveToTile(request,ct));
 app.MapPost("/bridge/docs",(DocsRequest request,CancellationToken ct)=>session.Docs(request,ct));
 app.MapPost("/bridge/docs-catalog",(CancellationToken ct)=>session.DocsCatalog(ct));
+app.MapPost("/bridge/reference",(ReferenceRequest request,CancellationToken ct)=>session.Reference(request,ct));
 app.MapPost("/bridge/docs-read",(DocsReadRequest request,CancellationToken ct)=>session.DocsRead(request.Path,request.Heading,ct));
 app.MapPost("/bridge/journal",(JournalRequest request,CancellationToken ct)=>session.Journal(request.Limit,ct));
 app.MapPost("/bridge/plan",(PlanRequest request,CancellationToken ct)=>session.Plan(request.Value,ct));

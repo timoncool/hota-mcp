@@ -1,0 +1,219 @@
+using System.Text;
+
+namespace HotaMcp;
+
+public sealed record ReferenceCard(string Kind,string Name,Dictionary<string,string> Fields,string Text);
+public sealed record ReferenceAnswer(bool Available,string? Note,string Source,List<ReferenceCard> Cards);
+
+/// <summary>
+/// The game's own rule tables, turned into cards the agent can ask for by name.
+///
+/// Heroes III keeps its reference data in tab separated tables inside the LOD archives: secondary
+/// skills with the text for each mastery, spells with cost, power and per-mastery effect, creature
+/// stats, artefacts, buildings, map objects. HotA ships its own copies of those tables, so reading
+/// them from the installation gives the rules of the exact build being played instead of a copy
+/// that goes stale on the next update.
+///
+/// This is reference, not observation: it never says anything about the current party. It is only
+/// reachable through the documentation tools, so it cannot leak into a game answer by accident.
+/// </summary>
+internal sealed class GameReference
+{
+    /// Table name, the kind of card it produces, and how many leading rows are group headers.
+    private static readonly (string File,string Kind)[] Tables=
+    [
+        ("SSTRAITS.TXT","навык"),
+        ("SPTRAITS.TXT","заклинание"),
+        ("CRTRAITS.TXT","существо"),
+        ("artraits.txt","артефакт"),
+        ("HeroSpec.txt","специализация героя"),
+        ("HOTRAITS.TXT","герой"),
+        ("Building.txt","здание"),
+        ("BldgNeut.txt","здание города"),
+        ("BldgSpec.txt","особое здание"),
+        ("Dwelling.txt","жилище"),
+        ("ObjNames.txt","объект карты"),
+        ("MineName.txt","шахта"),
+        ("TERRNAME.txt","местность"),
+        ("PriSkill.txt","основной навык"),
+        ("SkillLev.txt","уровень навыка"),
+        ("CrBanks.txt","банк существ"),
+        ("TownType.txt","фракция"),
+    ];
+
+    private readonly object gate=new();
+    private List<ReferenceCard>? cards;
+    private string source="";
+
+    public string Source{get{lock(gate){return source;}}}
+
+    public List<ReferenceCard> Cards()
+    {
+        lock(gate)
+        {
+            if(cards is not null)return cards;
+            cards=Load(out source);
+            return cards;
+        }
+    }
+
+    /// Looks up cards by name, optionally narrowed to one kind. Matching is by substring, because
+    /// the agent asks with the word it saw on screen rather than the exact table spelling.
+    public ReferenceAnswer Find(string name,string? kind,int limit)
+    {
+        var all=Cards();
+        if(all.Count==0)
+            return new(false,"Game reference tables were not found next to the running game",source,[]);
+        string needle=name.Trim();
+        if(needle.Length<2)return new(true,"Ask for at least two characters",source,[]);
+        var matches=all
+            .Where(c=>kind is null||c.Kind.Contains(kind,StringComparison.OrdinalIgnoreCase))
+            .Select(c=>(Card:c,Rank:Rank(c.Name,needle)))
+            .Where(x=>x.Rank>0)
+            .OrderByDescending(x=>x.Rank).ThenBy(x=>x.Card.Name.Length)
+            .Take(Math.Clamp(limit,1,20)).Select(x=>x.Card).ToList();
+        return new(true,matches.Count==0?"No card with this name; try hota_docs for a description in prose":null,source,matches);
+    }
+
+    private static int Rank(string cardName,string needle)
+    {
+        if(string.Equals(cardName,needle,StringComparison.OrdinalIgnoreCase))return 3;
+        if(cardName.StartsWith(needle,StringComparison.OrdinalIgnoreCase))return 2;
+        if(cardName.Contains(needle,StringComparison.OrdinalIgnoreCase))return 1;
+        return 0;
+    }
+
+    private static List<ReferenceCard> Load(out string source)
+    {
+        source="";
+        string? data=FindDataDirectory();
+        if(data is null)return [];
+        // HotA ships its own copies; they win over the base game's tables for the same file.
+        var archives=new[]{"HotA_lng.lod","HotA.lod","H3bitmap.lod","H3ab_bmp.lod"}
+            .Select(name=>(Name:name,Archive:LodArchive.Open(Path.Combine(data,name))))
+            .Where(x=>x.Archive is not null).ToArray();
+        if(archives.Length==0)return [];
+        var used=new List<string>();
+        var result=new List<ReferenceCard>();
+        var seen=new HashSet<string>();
+        foreach(var (file,kind) in Tables)
+        {
+            foreach(var (archiveName,archive) in archives)
+            {
+                string? text=archive!.ReadText(file);
+                if(text is null)continue;
+                int before=result.Count;
+                result.AddRange(Parse(text,kind,seen));
+                if(result.Count>before)used.Add($"{file} ({archiveName})");
+                break;
+            }
+        }
+        source=used.Count==0?"":string.Join(", ",used);
+        return result;
+    }
+
+    private static string? FindDataDirectory()
+    {
+        foreach(var process in System.Diagnostics.Process.GetProcessesByName("h3hota HD"))
+            using(process)
+                try
+                {
+                    string? exe=process.MainModule?.FileName;
+                    if(exe is null)continue;
+                    string data=Path.Combine(Path.GetDirectoryName(exe)!,"Data");
+                    if(Directory.Exists(data))return data;
+                }
+                catch(Exception e)when(e is InvalidOperationException or System.ComponentModel.Win32Exception){}
+        string install=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "HotaMcp","install.ini");
+        if(File.Exists(install))
+        {
+            string launcher=File.ReadAllText(install).Split('=',2).ElementAtOrDefault(1)?.Trim()??"";
+            if(launcher.Length>0)
+            {
+                string data=Path.Combine(Path.GetDirectoryName(launcher)!,"Data");
+                if(Directory.Exists(data))return data;
+            }
+        }
+        return null;
+    }
+
+    /// Splits the table into rows and cells. Descriptions are quoted and run over several lines —
+    /// the mastery texts of a skill are one cell containing blank lines — so a newline only ends a
+    /// row when it falls outside quotes.
+    private static List<string[]> Rows(string text)
+    {
+        var rows=new List<string[]>();
+        var row=new List<string>();
+        var cell=new StringBuilder();
+        bool quoted=false;
+        for(int i=0;i<text.Length;i++)
+        {
+            char c=text[i];
+            if(c=='"')
+            {
+                if(quoted&&i+1<text.Length&&text[i+1]=='"'){cell.Append('"');i++;}
+                else quoted=!quoted;
+                continue;
+            }
+            if(!quoted&&c=='\t'){row.Add(cell.ToString());cell.Clear();continue;}
+            if(!quoted&&(c=='\n'||c=='\r'))
+            {
+                if(c=='\r'&&i+1<text.Length&&text[i+1]=='\n')i++;
+                row.Add(cell.ToString());cell.Clear();
+                rows.Add(row.ToArray());row=[];
+                continue;
+            }
+            cell.Append(c);
+        }
+        if(cell.Length>0||row.Count>0){row.Add(cell.ToString());rows.Add(row.ToArray());}
+        return rows;
+    }
+
+    private static IEnumerable<ReferenceCard> Parse(string text,string kind,HashSet<string> seen)
+    {
+        var rows=Rows(text);
+        int headerRow=HeaderRow(rows);
+        if(headerRow<0)yield break;
+        var headers=rows[headerRow];
+        for(int i=headerRow+1;i<rows.Count;i++)
+        {
+            var row=rows[i];
+            string name=Clean(row.ElementAtOrDefault(0)??"");
+            if(name.Length<2)continue;
+            // Section titles inside these tables fill only the first cell.
+            if(row.Skip(1).All(cell=>Clean(cell).Length==0))continue;
+            var fields=new Dictionary<string,string>();
+            var body=new StringBuilder(name);
+            for(int column=1;column<row.Length;column++)
+            {
+                string value=Clean(row[column]);
+                if(value.Length==0)continue;
+                string header=Clean(headers.ElementAtOrDefault(column)??"");
+                string label=header.Length>0?header:"колонка "+column;
+                fields[label]=value;
+                body.Append('\n').Append(label).Append(": ").Append(value);
+            }
+            if(fields.Count==0)continue;
+            if(!seen.Add(kind+" "+name))continue;
+            yield return new(kind,name,fields,body.ToString());
+        }
+    }
+
+    /// The tables open with a sparse row of group captions ("Cost", "Damage") and then the row of
+    /// real column names. The real one is the fuller of the two, so the widest non-numeric row
+    /// among the first few wins.
+    private static int HeaderRow(List<string[]> rows)
+    {
+        int best=-1,width=0;
+        for(int i=0;i<Math.Min(4,rows.Count);i++)
+        {
+            var filled=rows[i].Select(Clean).Where(cell=>cell.Length>0).ToArray();
+            if(filled.Length<2||filled.Any(cell=>double.TryParse(cell,out _)))continue;
+            if(filled.Length>width){width=filled.Length;best=i;}
+        }
+        return best>=0?best:rows.Count>0?0:-1;
+    }
+
+    private static string Clean(string cell)=>cell.Trim().Trim('"').Trim();
+}
