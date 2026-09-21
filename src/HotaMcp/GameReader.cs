@@ -33,10 +33,40 @@ public record Observation(string Revision,int Player,int[] Date,int[] Resources,
     public ScenarioSetup? Setup {get;init;}
     public CombatView? Combat {get;init;}
     public SaveList? Saves {get;init;}
+    /// Filled on the building purchase card: what the game shows there, including a price the
+    /// player can read while the button is grey.
+    public BuildOffer? Build {get;init;}
 }
+
+/// The building purchase card as a player reads it: what is offered, what it gives, whether the
+/// game will take the order right now and, when it will not, why. A missing button is an answer,
+/// not an absence — it is the difference between "cannot afford" and "already built today".
+public sealed record BuildOffer(string? Title,string? Effect,string? Conditions,int[] Cost,bool CanBuy,string? Blocked);
 
 internal sealed class GameReader(WindowsGame game,int player)
 {
+    /// Reads the purchase card. The price is on screen whether or not the game will accept the
+    /// order, so it is published either way; the reason the order is refused is worked out from
+    /// the card's own condition line, the town's daily limit and the player's resources.
+    private static BuildOffer? ReadBuildOffer(List<UiElement> items,List<TownView> towns,int[] resources)
+    {
+        string? Text(int id)=>items.FirstOrDefault(i=>i.Id==id)?.Text?.Trim();
+        var numbers=items.Where(i=>i.Id==65535&&int.TryParse(i.Text?.Trim(),out _))
+            .Select(i=>int.Parse(i.Text!.Trim())).ToArray();
+        bool canBuy=items.Any(i=>i.Id==30722&&i.Interactive);
+        string? conditions=Text(5);
+        string? blocked=null;
+        if(!canBuy)
+        {
+            bool unmet=conditions is not null&&conditions.Contains("Требуется",StringComparison.OrdinalIgnoreCase);
+            if(unmet)blocked="не выполнены условия постройки";
+            else if(towns.Any(t=>t.BuiltToday))blocked="в этом городе сегодня уже строили";
+            else if(numbers.Length>0&&numbers[^1]>resources[^1])blocked="не хватает золота";
+            else blocked="игра не принимает заказ; причина по карточке не определена";
+        }
+        return new(Text(3),Text(4),conditions,numbers,canBuy,blocked);
+    }
+
     /// Dialog classes this adapter can name. Everything else is an unmapped screen.
     private static readonly Dictionary<uint,string> ScreenNames=new()
     {
@@ -382,7 +412,8 @@ internal sealed class GameReader(WindowsGame game,int player)
             sheet=new(items.FirstOrDefault(e=>e.Id==1)?.Text?.Trim()??"",
                 items.FirstOrDefault(e=>e.Id==140)?.Text?.Trim()??"",skills,equipped,"id:118"){Inspect=inspect};
         }
-        var result=new Observation("",player,date,resources,hero,screen,width,height,items){Towns=towns,Actions=actions,Setup=setup,Combat=combat,Saves=saves,Sheet=sheet};
+        var build=screen=="building_confirmation"?ReadBuildOffer(items,towns,resources):null;
+        var result=new Observation("",player,date,resources,hero,screen,width,height,items){Towns=towns,Actions=actions,Setup=setup,Combat=combat,Saves=saves,Sheet=sheet,Build=build};
         string revision=Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(epoch+JsonSerializer.Serialize(result))))[..24];
         return result with {Revision=revision};
     }
