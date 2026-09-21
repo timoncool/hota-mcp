@@ -22,3 +22,11 @@ updated: "2026-09-20"
 Проверено наличие локальных материалов в `G:\HoMM 3 Complete`: `Heroes3_Manual.pdf`, `README.TXT`, `_HD3_Data\Common\HELPTXT.ENG`, а также HotA RMG templates. Они пригодны как локальные reference-артефакты; полная расшифровка PDF в эту базу не копируется.
 
 Остаются пробелы: полные таблицы зданий/цен и роста, все вторичные навыки и заклинания, точные формулы боя, HotA-дельты по версиям, сценарные исключения, сетевой/одновременный ход, генератор карт и полный словарь интерфейсных состояний. Эти темы должны пополняться отдельными version-scoped записями.
+
+## In English
+
+**Scope and version checking: what this reference covers and what it does not**
+
+The baseline is Heroes III Complete with HotA on top; HD Mod changes launch and interface. Numbers marked unverified are not confirmed against the local build. Check edition, HotA and HD versions, map and mode before applying a numeric rule.
+
+The body of this document is in Russian; ask in either language, the index carries both. Numbers and formulas are language independent.

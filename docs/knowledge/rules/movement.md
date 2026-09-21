@@ -336,6 +336,14 @@ Cover of Darkness (объект Некрополиса) и тёмный орео
 
 Источник: https://heroes.thelazy.net/index.php/Scouting; https://heroes.thelazy.net/index.php/Scouting_radius; специализация — download.h3hota.com/upd/changelogs/rus.txt, строка 1004, и [00-official-documentation.md](../official/hota/00-official-documentation.md) («Scouting skill now adds +1/+3/+5...»); Обсерватория — download.h3hota.com/upd/changelogs/rus.txt, строка 1624.
 
+## In English
+
+**Movement on the adventure map: movement points, terrain costs, roads, boats, teleports**
+
+Where the daily movement allowance comes from (slowest stack speed), the terrain and road cost table with diagonal steps, Pathfinding and Logistics and Navigation numbers, native terrain, Stables and Lighthouse and movement artefacts, boats and embarking, whirlpools, airships, subterranean gates, Fly and Water Walk and Dimension Door and Town Portal, what stops a hero, and sight radius with Scouting.
+
+The body of this document is in Russian; ask in either language, the index carries both. Numbers and formulas are language independent.
+
 ## Пробелы
 
 - Точная формула компенсации/противодействия Разведки эффекту Cover of Darkness и тёмного ореола Некрополиса вокруг городов — не проверялась (не входила в стартовый поисковый запрос по перемещению).

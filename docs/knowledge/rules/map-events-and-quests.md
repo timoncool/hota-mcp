@@ -107,6 +107,14 @@ updated: "2026-09-21"
 
 Источник: https://homm.fandom.com/wiki/Map_Editor_-_Objects; https://h3hota.com/en/template-format
 
+## In English
+
+**Map events and quest objects: one-time and weekly objects, Seer Huts, border guards, obelisks**
+
+Which objects answer once per hero, which refresh weekly, and which refresh after a battle; what a Seer Hut can demand and grant and who may complete it; Border Guards and Keymaster Tents and the fact that a key opens the way for every player; obelisks and the puzzle map and why no obelisks means no grail; Witch Huts and banned skills.
+
+The body of this document is in Russian; ask in either language, the index carries both. Numbers and formulas are language independent.
+
 ## Пробелы
 
 - Разница между Стражем Границы (Border Guard) и Воротами Границы (Border Gate) не подтверждена:

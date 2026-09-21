@@ -209,6 +209,14 @@ Herою можно оставить в шахте войска для охран
 
 Источник: https://heroes.thelazy.net/index.php/Growth; https://homm.miraheze.org/wiki/Growth
 
+## In English
+
+**Towns and economy: resources, mines, halls, fortifications, growth, marketplace, guilds**
+
+The seven resources and what each mine yields per day, the Village Hall to Town Hall to City Hall to Capitol chain with costs income and payback, the one building per day rule, Fort and Citadel and Castle for siege and for creature growth, the full growth formula with rounding order, mage guild levels and spell research, the marketplace exchange rate table by number of marketplaces, blacksmith and shipyard, the Grail, garrison and visiting hero, what happens when a town is captured, and creature weeks and months.
+
+The body of this document is in Russian; ask in either language, the index carries both. Numbers and formulas are language independent.
+
 ## Пробелы
 
 - Не нашёл прямого источника про то, переносится ли накопленный запас ненанятых существ в городских жилищах новому владельцу при захвате города (логично, что да, так как запас принадлежит зданию, но явного подтверждения ни в официальной документации, ни в мануале не встретил).

@@ -162,6 +162,14 @@ SV = (Total HP / HP) × √Sf × ASf × Df × DSf × SGf × Af × (BA × 0.05 + 
 
 Источник: https://heroes.thelazy.net/index.php/Tricks
 
+## In English
+
+**Is this fight worth taking: AI Value, Fight Value, army strength, stack estimates**
+
+The two hidden numbers behind every creature and how army strength is computed with the hero multiplier from Attack and Defense; the Stack Value formula the AI uses to pick targets; how many stacks a neutral pack splits into by relative strength; the word estimates from Few to Legion and their exact ranges; what Scouting does and does not reveal; Visions and the Rogue; and kiting with fast no-retaliation creatures.
+
+The body of this document is in Russian; ask in either language, the index carries both. Numbers and formulas are language independent.
+
 ## Пробелы
 
 - Не найдено единого официального/общепринятого порога «Army Strength игрока ÷ Army Strength нейтралов ≥ X — бой безопасен». Источники явно указывают, что такого зафиксированного числа в открытом доступе нет (heroes.thelazy.net/index.php/Army_strength).

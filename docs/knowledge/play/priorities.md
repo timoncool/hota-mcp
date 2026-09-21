@@ -185,6 +185,14 @@ updated: "2026-09-21"
 Источник: https://www.gog.com/forum/heroes_of_might_and_magic_series/heroes_3_strategy_guide
 Источник: http://heroescommunity.com/viewthread.php3?TID=47674
 
+## In English
+
+**Priorities by week: economy versus army, hero roles, scouting, when a game is being lost**
+
+What matters in the first week and the choice between an early Capitol and an early army, how to notice an imbalance between economy and army, why a second and a third hero exist and what Estates pays, why not knowing the map costs more than a scout, how to choose secondary skills and a magic school for a role, the signs that a game is being lost and the guerrilla answer, and the usual beginner mistakes.
+
+The body of this document is in Russian; ask in either language, the index carries both. Numbers and formulas are language independent.
+
 ## Пробелы
 
 - Не найдено официальной формулы или числового порога, по которому сама игра (а не эвристика сообщества) решает "безопасно ли атаковать" — правило "вдвое сильнее" целиком эмпирическое, не из документации HotA.

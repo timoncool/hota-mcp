@@ -109,11 +109,24 @@ updated: "2026-09-21"
 3. Для существ базовой игры английское имя не нужно: `hota_reference` отвечает по русскому имени
    прямо из таблиц установленной игры.
 
+## In English
+
+**HotA faction rosters and the Russian to English name bridge**
+
+The creature rosters of the three HotA towns — Cove, Factory and Bulwark — with both Russian and English names by level, their hero classes, and the five HotA campaigns. These creatures are not in the game text tables, so the reference tool cannot answer about them; their full descriptions live in the official HotA documentation in English.
+
+The body of this document is in Russian; ask in either language, the index carries both. Numbers and formulas are language independent.
+
 ## Пробелы
 
 - Числовые характеристики существ HotA (атака, защита, здоровье, скорость, урон, прирост, цена)
   в этой таблице не приводятся: в официальной документации они даны текстом по каждому юниту, а
   в таблицах игры их нет вовсе. Сводной числовой таблицы по трём фракциям в корпусе пока нет.
 - Русские имена построек трёх фракций не выписаны — только классы героев и существа.
+- Карточки из таблиц игры именованы на языке установки. Эта копия русская, поэтому
+  `hota_reference` и поиск по имени сущности отвечают на русские имена: «Архангел» находит карточку,
+  «Archangel» — нет. Английские имена существ базовой игры есть в
+  [мануале 1999 года](../official/manual/h3-manual-1999-en.md), имена юнитов HotA — в
+  [официальной документации](../official/hota/00-official-documentation.md).
 - Не проверено внутриигровым наблюдением ни одно из русских имён: они взяты с официальной русской
   страницы документации, а не сняты с экрана через мост.

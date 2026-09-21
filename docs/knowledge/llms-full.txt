@@ -16166,6 +16166,14 @@ Couatl) и механическую (Mechanic/Automaton/Gunslinger/Dreadnought);
 Источник: агрегировано из результатов поиска (форумы Celestial Heavens/Heroes Community по
 теме «game strategy by map size»); https://www.heroesofmightandmagic.com/heroes3/strategymanagement.shtml (адрес недоступен для прямой проверки в этой сессии — см. «Пробелы»)
 
+## In English
+
+**First week economics: hall payback, marketplace, second hero, build orders by town**
+
+What each step of the hall chain repays and in how many days, why a marketplace is built for selling rather than buying in week one, whether a second hero repays 2500 gold, and day by day build orders for Castle, Rampart, Stronghold, Inferno, Fortress, Necropolis and Dungeon, with what is known and unknown for Cove and Factory.
+
+The body of this document is in Russian; ask in either language, the index carries both. Numbers and formulas are language independent.
+
 ## Пробелы
 
 - Не удалось напрямую открыть heroescommunity.com (форум геймплея/стратегий) — сайт стабильно
@@ -16363,6 +16371,14 @@ SV = (Total HP / HP) × √Sf × ASf × Df × DSf × SGf × Af × (BA × 0.05 + 
 - Осторожно с Моралью (Morale) у противника — лишний ход нейтралов может сломать тайминг приёма.
 
 Источник: https://heroes.thelazy.net/index.php/Tricks
+
+## In English
+
+**Is this fight worth taking: AI Value, Fight Value, army strength, stack estimates**
+
+The two hidden numbers behind every creature and how army strength is computed with the hero multiplier from Attack and Defense; the Stack Value formula the AI uses to pick targets; how many stacks a neutral pack splits into by relative strength; the word estimates from Few to Legion and their exact ranges; what Scouting does and does not reveal; Visions and the Rogue; and kiting with fast no-retaliation creatures.
+
+The body of this document is in Russian; ask in either language, the index carries both. Numbers and formulas are language independent.
 
 ## Пробелы
 
@@ -16563,6 +16579,14 @@ HotA сдвигает баланс темпа и накопления неско
 Источник: https://heroes.thelazy.net/index.php/Victory_and_Loss_Conditions
 Источник: https://homm.miraheze.org/wiki/Victory_and_Loss_Conditions
 
+## In English
+
+**Game loops: turn, day, week, month and the whole game; tempo versus greed**
+
+How the five nested loops of the game feed each other, what a single hero turn consists of, what the first day of a week brings, the stages of a game from scouting to mopping up, how resources convert into territory, how the power curve grows, which choices are real decisions and which are mechanical, what playing for tempo means, and the victory and loss conditions.
+
+The body of this document is in Russian; ask in either language, the index carries both. Numbers and formulas are language independent.
+
 ## Пробелы
 
 - Точный официальный порог «когда начинается мидгейм» (в днях/неделях) не формализован игрой — цифра «конец первого месяца на средних/крупных картах на Hard+» это эвристика сообщества (miraheze/thelazy), не встроенное игрой значение; на маленьких и на очень больших картах порог сдвигается, но численного диапазона в источниках не нашлось.
@@ -16762,6 +16786,14 @@ updated: "2026-09-21"
 Источник: https://www.celestialheavens.com/forum/7/13904
 Источник: https://www.gog.com/forum/heroes_of_might_and_magic_series/heroes_3_strategy_guide
 Источник: http://heroescommunity.com/viewthread.php3?TID=47674
+
+## In English
+
+**Priorities by week: economy versus army, hero roles, scouting, when a game is being lost**
+
+What matters in the first week and the choice between an early Capitol and an early army, how to notice an imbalance between economy and army, why a second and a third hero exist and what Estates pays, why not knowing the map costs more than a scout, how to choose secondary skills and a magic school for a role, the signs that a game is being lost and the guerrilla answer, and the usual beginner mistakes.
+
+The body of this document is in Russian; ask in either language, the index carries both. Numbers and formulas are language independent.
 
 ## Пробелы
 
@@ -17052,6 +17084,14 @@ Windmill — объект, который раз в неделю (при пос�
 Источник: https://heroes.thelazy.net/index.php/War_machine_factory
 Источник: https://heroes.thelazy.net/index.php/War_machine
 
+## In English
+
+**Situation registry: what to do at a chest, a guarded mine, an enemy town, a witch hut**
+
+One decision per situation with the reasoning and the case where the rule fails: choosing a secondary skill, gold or experience from a treasure chest, meeting a wandering stack, a guarded mine, approaching an enemy town, leftover movement at the end of a day, blocked terrain, a stronger enemy hero, nothing left to build, running out of gold, a full seven slot army, obelisks, witch huts, magic wells, windmills and the war machine factory.
+
+The body of this document is in Russian; ask in either language, the index carries both. Numbers and formulas are language independent.
+
 ## Пробелы
 
 - Точные проценты/формула проверки «настроение стека vs харизма героя» (таблица mood modifiers) для решения join/flee у бродячих отрядов — общий принцип найден (харизма ≥ настроение → отряд не хочет драться), но числовая таблица модификаторов настроения не подтверждена по первоисточнику (heroescommunity и thelazy.net были недоступны напрямую — 403/ECONNREFUSED — использованы только выдержки поисковика).
@@ -17142,6 +17182,14 @@ updated: "2026-09-20"
 Проверено наличие локальных материалов в `G:\HoMM 3 Complete`: `Heroes3_Manual.pdf`, `README.TXT`, `_HD3_Data\Common\HELPTXT.ENG`, а также HotA RMG templates. Они пригодны как локальные reference-артефакты; полная расшифровка PDF в эту базу не копируется.
 
 Остаются пробелы: полные таблицы зданий/цен и роста, все вторичные навыки и заклинания, точные формулы боя, HotA-дельты по версиям, сценарные исключения, сетевой/одновременный ход, генератор карт и полный словарь интерфейсных состояний. Эти темы должны пополняться отдельными version-scoped записями.
+
+## In English
+
+**Scope and version checking: what this reference covers and what it does not**
+
+The baseline is Heroes III Complete with HotA on top; HD Mod changes launch and interface. Numbers marked unverified are not confirmed against the local build. Check edition, HotA and HD versions, map and mode before applying a numeric rule.
+
+The body of this document is in Russian; ask in either language, the index carries both. Numbers and formulas are language independent.
 
 
 <!-- ===== rules/README.md ===== -->
@@ -17615,6 +17663,14 @@ changelog фиксирует правку: «Изменены уровни ар�
 
 Источник: https://heroes.thelazy.net/index.php/Random_map ; https://homm.miraheze.org/wiki/AI/Fight_Value ; https://download.h3hota.com/upd/changelogs/rus.txt (версия 1.5.0, раздел «Редактор карт»)
 
+## In English
+
+**Creature banks and guarded objects: guards, rewards and probabilities per bank**
+
+Bank combat layout and rules, the 30/30/30/10 difficulty spread, and a table per bank — Naga Bank, Cyclops Stockpile, Dragon Utopia, Dragon Fly Hive, Dwarven Treasury, Griffin Conservatory, Imp Cache, Medusa Stores, Crypt, Shipwreck, Derelict Ship, and the HotA banks Experimental Shop, Wolf Raider Picket, Red Tower, Black Tower, Churchyard, Mansion, Beholders Sanctuary, Ivory Tower, Pirate Cavern, Ruins, Temple of the Sea, Ancient Altar, plus the Pyramid.
+
+The body of this document is in Russian; ask in either language, the index carries both. Numbers and formulas are language independent.
+
 ## Пробелы
 
 - Не найдена прямая численная таблица «ценность объекта в золоте → конкретный состав охраны» для рядовых
@@ -17952,6 +18008,14 @@ HotA-изменения: враг больше не может отказать 
 
 Источник: [00-official-documentation.md](../official/hota/00-official-documentation.md) (пункт про быстрый бой при лимите 100 раундов).
 
+## In English
+
+**Combat mathematics: damage formula, attack and defense, luck and morale, siege**
+
+How the game computes a hit: base damage roll, additive bonuses (attack advantage, Offense, Archery, specialties), multiplicative penalties (defense advantage, Armorer, range penalty, melee penalty for shooters, wall penalty), and the separate HotA luck multiplier. Also turn order and initiative, Wait and Defend, retaliation, morale and luck probability tables, magic resistance, siege walls and moat and arrow towers, catapult and Ballistics, war machines, retreat and surrender costs, quick combat.
+
+The body of this document is in Russian; ask in either language, the index carries both. Numbers and formulas are language independent.
+
 ## Пробелы
 
 - Точный алгоритм автобоя (Quick Combat/Simulated Combat) — как именно движок считает исход без пошагового боя (сколько раундов симулируется, как учитываются заклинания героя-ИИ, точная формула по соотношению сил) — не нашли в официальной документации, changelog или на heroes.thelazy.net/homm.miraheze.org; единственное найденное описание алгоритма — форумный пост (Usenet, comp.sys.ibm.pc.games.strategic), не входящий в заявленный список источников, и не проверялся против кода/дизассемблера.
@@ -18040,6 +18104,14 @@ updated: "2026-09-20"
 2. Экран города: Space — переключение гостящий/гарнизонный герой; знамя слева от гарнизона — объединение армий; двойной клик по отряду — карточка существа (upgrade).
 3. Одиночный клик по отряду — «взять отряд» (он следует за курсором), клик по целевому слоту — положить. Два клика подряд быстрее ~0.5 с игра считает двойным кликом и открывает карточку существа (это уже наблюдалось).
 4. Опасность на карте оценивается штатной справкой: ПКМ по монстрам (тип + грубая численность), состояние маршрута (`reachable_today`), плюс признаки курсора (атака/движение).
+
+## In English
+
+**Controls and keyboard shortcuts: adventure map, town, combat**
+
+The keyboard shortcuts of the adventure map, the town screen and combat, plus moving troops between hero and garrison and upgrading creatures.
+
+The body of this document is in Russian; ask in either language, the index carries both. Numbers and formulas are language independent.
 
 
 <!-- ===== rules/heroes-skills-magic.md ===== -->
@@ -18368,6 +18440,14 @@ Costs" и "Tactics Formation Table"; download.h3hota.com/upd/changelogs/rus.txt 
 
 Таблицы вероятностей и то, чем удача HotA отличается от Shadow of Death, — [боевая математика](combat.md), разделы «Как работает удача» и «Как работает мораль».
 
+## In English
+
+**Hero, secondary skills and magic: experience, primary skills, mana, spell schools, specialties**
+
+The experience table to level 74, what each primary skill does, mana maximum and regeneration with Mysticism, spell duration from Spell Power, the four magic schools and their mastery and casting cost reduction, Wisdom and spell levels, learning spells in the mage guild with Eagle Eye and Scholar percentages by version, hero specialty formulas, and the numeric effect of every secondary skill at basic, advanced and expert with HotA versus Shadow of Death values.
+
+The body of this document is in Russian; ask in either language, the index carries both. Numbers and formulas are language independent.
+
 ## Пробелы
 
 - Точные индивидуальные коэффициенты `Сила_магии × Коэффициент` для урона/лечения по каждому
@@ -18491,6 +18571,14 @@ updated: "2026-09-21"
 [боевой математике](../mechanics/combat.md) — раздел про отступление и сдачу.
 
 Источник: https://heroes.thelazy.net/index.php/Diplomacy
+
+## In English
+
+**Hiring heroes and neutral creatures joining: tavern, Diplomacy, disposition**
+
+What a tavern costs and what army a hired hero brings, why only the first two heroes of a week arrive with a real army, tavern side effects on morale and on enemy town estimates; and joining: why Diplomacy is usually banned or absent, what actually influences the chance, and the HotA default of joining for money only at fifty percent.
+
+The body of this document is in Russian; ask in either language, the index carries both. Numbers and formulas are language independent.
 
 ## Пробелы
 
@@ -18621,12 +18709,25 @@ updated: "2026-09-21"
 3. Для существ базовой игры английское имя не нужно: `hota_reference` отвечает по русскому имени
    прямо из таблиц установленной игры.
 
+## In English
+
+**HotA faction rosters and the Russian to English name bridge**
+
+The creature rosters of the three HotA towns — Cove, Factory and Bulwark — with both Russian and English names by level, their hero classes, and the five HotA campaigns. These creatures are not in the game text tables, so the reference tool cannot answer about them; their full descriptions live in the official HotA documentation in English.
+
+The body of this document is in Russian; ask in either language, the index carries both. Numbers and formulas are language independent.
+
 ## Пробелы
 
 - Числовые характеристики существ HotA (атака, защита, здоровье, скорость, урон, прирост, цена)
   в этой таблице не приводятся: в официальной документации они даны текстом по каждому юниту, а
   в таблицах игры их нет вовсе. Сводной числовой таблицы по трём фракциям в корпусе пока нет.
 - Русские имена построек трёх фракций не выписаны — только классы героев и существа.
+- Карточки из таблиц игры именованы на языке установки. Эта копия русская, поэтому
+  `hota_reference` и поиск по имени сущности отвечают на русские имена: «Архангел» находит карточку,
+  «Archangel» — нет. Английские имена существ базовой игры есть в
+  [мануале 1999 года](../official/manual/h3-manual-1999-en.md), имена юнитов HotA — в
+  [официальной документации](../official/hota/00-official-documentation.md).
 - Не проверено внутриигровым наблюдением ни одно из русских имён: они взяты с официальной русской
   страницы документации, а не сняты с экрана через мост.
 
@@ -18838,6 +18939,14 @@ class), а не от индивидуальной специализации в�
 
 Источник: https://heroes.thelazy.net/index.php/Hero_specialty ; https://heroes.thelazy.net/index.php/Secondary_skill
 
+## In English
+
+**Level up: secondary skill probability weights by hero class, primary skill growth chances**
+
+What the game hides at level up: the weight of each secondary skill for each of the 24 hero classes out of 112 (plus Interference and Runes in HotA), the guaranteed Wisdom and magic school offers at level 6 or 3, what happens when a hero already holds eight skills, and the primary skill growth probabilities per class for levels 2 to 9 and 10 and above.
+
+The body of this document is in Russian; ask in either language, the index carries both. Numbers and formulas are language independent.
+
 ## Пробелы
 
 - Не нашёл прямую цитату из официального текста Interference-страницы (heroes.thelazy.net/Interference)
@@ -18976,6 +19085,14 @@ updated: "2026-09-21"
 выключен настройками карты.
 
 Источник: https://homm.fandom.com/wiki/Map_Editor_-_Objects; https://h3hota.com/en/template-format
+
+## In English
+
+**Map events and quest objects: one-time and weekly objects, Seer Huts, border guards, obelisks**
+
+Which objects answer once per hero, which refresh weekly, and which refresh after a battle; what a Seer Hut can demand and grant and who may complete it; Border Guards and Keymaster Tents and the fact that a key opens the way for every player; obelisks and the puzzle map and why no obelisks means no grail; Witch Huts and banned skills.
+
+The body of this document is in Russian; ask in either language, the index carries both. Numbers and formulas are language independent.
 
 ## Пробелы
 
@@ -19333,6 +19450,14 @@ Cover of Darkness (объект Некрополиса) и тёмный орео
 
 Источник: https://heroes.thelazy.net/index.php/Scouting; https://heroes.thelazy.net/index.php/Scouting_radius; специализация — download.h3hota.com/upd/changelogs/rus.txt, строка 1004, и [00-official-documentation.md](../official/hota/00-official-documentation.md) («Scouting skill now adds +1/+3/+5...»); Обсерватория — download.h3hota.com/upd/changelogs/rus.txt, строка 1624.
 
+## In English
+
+**Movement on the adventure map: movement points, terrain costs, roads, boats, teleports**
+
+Where the daily movement allowance comes from (slowest stack speed), the terrain and road cost table with diagonal steps, Pathfinding and Logistics and Navigation numbers, native terrain, Stables and Lighthouse and movement artefacts, boats and embarking, whirlpools, airships, subterranean gates, Fly and Water Walk and Dimension Door and Town Portal, what stops a hero, and sight radius with Scouting.
+
+The body of this document is in Russian; ask in either language, the index carries both. Numbers and formulas are language independent.
+
 ## Пробелы
 
 - Точная формула компенсации/противодействия Разведки эффекту Cover of Darkness и тёмного ореола Некрополиса вокруг городов — не проверялась (не входила в стартовый поисковый запрос по перемещению).
@@ -19554,6 +19679,14 @@ Herою можно оставить в шахте войска для охран
 - **10%** — Чума (Plague), может выпасть только в первый день месяца — негативное событие для стеков нежити/здоровья популяции (карточку эффекта мост отдаёт напрямую).
 
 Источник: https://heroes.thelazy.net/index.php/Growth; https://homm.miraheze.org/wiki/Growth
+
+## In English
+
+**Towns and economy: resources, mines, halls, fortifications, growth, marketplace, guilds**
+
+The seven resources and what each mine yields per day, the Village Hall to Town Hall to City Hall to Capitol chain with costs income and payback, the one building per day rule, Fort and Citadel and Castle for siege and for creature growth, the full growth formula with rounding order, mage guild levels and spell research, the marketplace exchange rate table by number of marketplaces, blacksmith and shipyard, the Grail, garrison and visiting hero, what happens when a town is captured, and creature weeks and months.
+
+The body of this document is in Russian; ask in either language, the index carries both. Numbers and formulas are language independent.
 
 ## Пробелы
 

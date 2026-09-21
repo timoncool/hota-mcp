@@ -183,6 +183,14 @@ HotA сдвигает баланс темпа и накопления неско
 Источник: https://heroes.thelazy.net/index.php/Victory_and_Loss_Conditions
 Источник: https://homm.miraheze.org/wiki/Victory_and_Loss_Conditions
 
+## In English
+
+**Game loops: turn, day, week, month and the whole game; tempo versus greed**
+
+How the five nested loops of the game feed each other, what a single hero turn consists of, what the first day of a week brings, the stages of a game from scouting to mopping up, how resources convert into territory, how the power curve grows, which choices are real decisions and which are mechanical, what playing for tempo means, and the victory and loss conditions.
+
+The body of this document is in Russian; ask in either language, the index carries both. Numbers and formulas are language independent.
+
 ## Пробелы
 
 - Точный официальный порог «когда начинается мидгейм» (в днях/неделях) не формализован игрой — цифра «конец первого месяца на средних/крупных картах на Hard+» это эвристика сообщества (miraheze/thelazy), не встроенное игрой значение; на маленьких и на очень больших картах порог сдвигается, но численного диапазона в источниках не нашлось.

@@ -276,6 +276,14 @@ Windmill — объект, который раз в неделю (при пос�
 Источник: https://heroes.thelazy.net/index.php/War_machine_factory
 Источник: https://heroes.thelazy.net/index.php/War_machine
 
+## In English
+
+**Situation registry: what to do at a chest, a guarded mine, an enemy town, a witch hut**
+
+One decision per situation with the reasoning and the case where the rule fails: choosing a secondary skill, gold or experience from a treasure chest, meeting a wandering stack, a guarded mine, approaching an enemy town, leftover movement at the end of a day, blocked terrain, a stronger enemy hero, nothing left to build, running out of gold, a full seven slot army, obelisks, witch huts, magic wells, windmills and the war machine factory.
+
+The body of this document is in Russian; ask in either language, the index carries both. Numbers and formulas are language independent.
+
 ## Пробелы
 
 - Точные проценты/формула проверки «настроение стека vs харизма героя» (таблица mood modifiers) для решения join/flee у бродячих отрядов — общий принцип найден (харизма ≥ настроение → отряд не хочет драться), но числовая таблица модификаторов настроения не подтверждена по первоисточнику (heroescommunity и thelazy.net были недоступны напрямую — 403/ECONNREFUSED — использованы только выдержки поисковика).

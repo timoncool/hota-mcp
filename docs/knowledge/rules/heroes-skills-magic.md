@@ -322,6 +322,14 @@ Costs" и "Tactics Formation Table"; download.h3hota.com/upd/changelogs/rus.txt 
 
 Таблицы вероятностей и то, чем удача HotA отличается от Shadow of Death, — [боевая математика](combat.md), разделы «Как работает удача» и «Как работает мораль».
 
+## In English
+
+**Hero, secondary skills and magic: experience, primary skills, mana, spell schools, specialties**
+
+The experience table to level 74, what each primary skill does, mana maximum and regeneration with Mysticism, spell duration from Spell Power, the four magic schools and their mastery and casting cost reduction, Wisdom and spell levels, learning spells in the mage guild with Eagle Eye and Scholar percentages by version, hero specialty formulas, and the numeric effect of every secondary skill at basic, advanced and expert with HotA versus Shadow of Death values.
+
+The body of this document is in Russian; ask in either language, the index carries both. Numbers and formulas are language independent.
+
 ## Пробелы
 
 - Точные индивидуальные коэффициенты `Сила_магии × Коэффициент` для урона/лечения по каждому

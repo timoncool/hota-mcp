@@ -203,6 +203,14 @@ class), а не от индивидуальной специализации в�
 
 Источник: https://heroes.thelazy.net/index.php/Hero_specialty ; https://heroes.thelazy.net/index.php/Secondary_skill
 
+## In English
+
+**Level up: secondary skill probability weights by hero class, primary skill growth chances**
+
+What the game hides at level up: the weight of each secondary skill for each of the 24 hero classes out of 112 (plus Interference and Runes in HotA), the guaranteed Wisdom and magic school offers at level 6 or 3, what happens when a hero already holds eight skills, and the primary skill growth probabilities per class for levels 2 to 9 and 10 and above.
+
+The body of this document is in Russian; ask in either language, the index carries both. Numbers and formulas are language independent.
+
 ## Пробелы
 
 - Не нашёл прямую цитату из официального текста Interference-страницы (heroes.thelazy.net/Interference)

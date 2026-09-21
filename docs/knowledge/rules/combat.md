@@ -308,6 +308,14 @@ HotA-изменения: враг больше не может отказать 
 
 Источник: [00-official-documentation.md](../official/hota/00-official-documentation.md) (пункт про быстрый бой при лимите 100 раундов).
 
+## In English
+
+**Combat mathematics: damage formula, attack and defense, luck and morale, siege**
+
+How the game computes a hit: base damage roll, additive bonuses (attack advantage, Offense, Archery, specialties), multiplicative penalties (defense advantage, Armorer, range penalty, melee penalty for shooters, wall penalty), and the separate HotA luck multiplier. Also turn order and initiative, Wait and Defend, retaliation, morale and luck probability tables, magic resistance, siege walls and moat and arrow towers, catapult and Ballistics, war machines, retreat and surrender costs, quick combat.
+
+The body of this document is in Russian; ask in either language, the index carries both. Numbers and formulas are language independent.
+
 ## Пробелы
 
 - Точный алгоритм автобоя (Quick Combat/Simulated Combat) — как именно движок считает исход без пошагового боя (сколько раундов симулируется, как учитываются заклинания героя-ИИ, точная формула по соотношению сил) — не нашли в официальной документации, changelog или на heroes.thelazy.net/homm.miraheze.org; единственное найденное описание алгоритма — форумный пост (Usenet, comp.sys.ibm.pc.games.strategic), не входящий в заявленный список источников, и не проверялся против кода/дизассемблера.

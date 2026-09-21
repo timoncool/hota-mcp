@@ -446,6 +446,14 @@ changelog фиксирует правку: «Изменены уровни ар�
 
 Источник: https://heroes.thelazy.net/index.php/Random_map ; https://homm.miraheze.org/wiki/AI/Fight_Value ; https://download.h3hota.com/upd/changelogs/rus.txt (версия 1.5.0, раздел «Редактор карт»)
 
+## In English
+
+**Creature banks and guarded objects: guards, rewards and probabilities per bank**
+
+Bank combat layout and rules, the 30/30/30/10 difficulty spread, and a table per bank — Naga Bank, Cyclops Stockpile, Dragon Utopia, Dragon Fly Hive, Dwarven Treasury, Griffin Conservatory, Imp Cache, Medusa Stores, Crypt, Shipwreck, Derelict Ship, and the HotA banks Experimental Shop, Wolf Raider Picket, Red Tower, Black Tower, Churchyard, Mansion, Beholders Sanctuary, Ivory Tower, Pirate Cavern, Ruins, Temple of the Sea, Ancient Altar, plus the Pyramid.
+
+The body of this document is in Russian; ask in either language, the index carries both. Numbers and formulas are language independent.
+
 ## Пробелы
 
 - Не найдена прямая численная таблица «ценность объекта в золоте → конкретный состав охраны» для рядовых

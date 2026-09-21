@@ -212,6 +212,14 @@ Couatl) и механическую (Mechanic/Automaton/Gunslinger/Dreadnought);
 Источник: агрегировано из результатов поиска (форумы Celestial Heavens/Heroes Community по
 теме «game strategy by map size»); https://www.heroesofmightandmagic.com/heroes3/strategymanagement.shtml (адрес недоступен для прямой проверки в этой сессии — см. «Пробелы»)
 
+## In English
+
+**First week economics: hall payback, marketplace, second hero, build orders by town**
+
+What each step of the hall chain repays and in how many days, why a marketplace is built for selling rather than buying in week one, whether a second hero repays 2500 gold, and day by day build orders for Castle, Rampart, Stronghold, Inferno, Fortress, Necropolis and Dungeon, with what is known and unknown for Cove and Factory.
+
+The body of this document is in Russian; ask in either language, the index carries both. Numbers and formulas are language independent.
+
 ## Пробелы
 
 - Не удалось напрямую открыть heroescommunity.com (форум геймплея/стратегий) — сайт стабильно

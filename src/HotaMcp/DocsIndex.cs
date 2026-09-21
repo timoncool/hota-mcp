@@ -27,6 +27,11 @@ public sealed class DocsIndex:IDisposable
 {
     // Heading terms name the subject of a section; body terms merely mention it. Stemmed columns
     // score below their exact counterparts so an exact word still wins over a morphological match.
+    // The raw manual dump is a first-hand source full of page furniture; tuned by measurement.
+    private static readonly double ManualPenalty=
+        double.TryParse(Environment.GetEnvironmentVariable("HOTA_DOCS_MANUAL_PENALTY"),
+            System.Globalization.CultureInfo.InvariantCulture,out var value)?value:5.0;
+
     private static readonly string Weights=
         Environment.GetEnvironmentVariable("HOTA_DOCS_WEIGHTS")??"10.0,1.0,5.0,0.5";
 
@@ -79,7 +84,7 @@ public sealed class DocsIndex:IDisposable
         var connection=new SqliteConnection("Data Source=:memory:");
         connection.Open();
         Execute(connection,"""
-            CREATE TABLE sections(id INTEGER PRIMARY KEY, file TEXT, heading TEXT, body TEXT);
+            CREATE TABLE sections(id INTEGER PRIMARY KEY, file TEXT, heading TEXT, body TEXT, pointer INTEGER, card TEXT);
             CREATE INDEX sections_file ON sections(file);
             CREATE VIRTUAL TABLE fts USING fts5(
                 heading, body, heading_stem, body_stem,
@@ -88,7 +93,7 @@ public sealed class DocsIndex:IDisposable
             """);
         using var transaction=connection.BeginTransaction();
         using var insert=connection.CreateCommand();
-        insert.CommandText="INSERT INTO sections(id,file,heading,body) VALUES(@i,@f,@h,@b)";
+        insert.CommandText="INSERT INTO sections(id,file,heading,body,pointer,card) VALUES(@i,@f,@h,@b,@p,@c)";
         using var index=connection.CreateCommand();
         index.CommandText="INSERT INTO fts(rowid,heading,body,heading_stem,body_stem) VALUES(@i,@h,@b,@hs,@bs)";
         using var title=connection.CreateCommand();
@@ -101,6 +106,14 @@ public sealed class DocsIndex:IDisposable
             insert.Parameters.AddWithValue("@f",section.File);
             insert.Parameters.AddWithValue("@h",section.Heading);
             insert.Parameters.AddWithValue("@b",section.Body);
+            insert.Parameters.AddWithValue("@p",IsPointer(section.Body)?1:0);
+            // SQLite's lower() only folds ASCII, so a Cyrillic card name has to arrive already
+            // folded or it will never match a lowercased question.
+            int colon=section.Heading.IndexOf(": ",StringComparison.Ordinal);
+            insert.Parameters.AddWithValue("@c",
+                section.File.StartsWith(ReferencePrefix,StringComparison.Ordinal)&&colon>0
+                    ?section.Heading[(colon+2)..].ToLowerInvariant()
+                    :(object)DBNull.Value);
             insert.ExecuteNonQuery();
             index.Parameters.Clear();
             index.Parameters.AddWithValue("@i",i+1);
@@ -116,6 +129,15 @@ public sealed class DocsIndex:IDisposable
         }
         transaction.Commit();
         db=connection;
+    }
+
+    /// A section left behind by de-duplication says the fact in one line and links to the document
+    /// that owns it. Being short and made almost entirely of the question's own words, it outranks
+    /// the document it points at unless it is held down.
+    private static bool IsPointer(string body)
+    {
+        if(!body.Contains("](",StringComparison.Ordinal))return false;
+        return body.Split((char[]?)null,StringSplitOptions.RemoveEmptyEntries).Length<70;
     }
 
     private static void Execute(SqliteConnection connection,string sql)
@@ -340,7 +362,16 @@ public sealed class DocsIndex:IDisposable
             if(conjunction is null||disjunction is null)
                 return new(query,proseCount,true,"Query needs at least one word of three or more letters",[],null);
             int take=Math.Clamp(limit,1,8);
+            // "характеристики Архангела" and "Archangel stats" are questions about one named thing,
+            // and the answer is that thing's card from the game's own tables — not a paragraph of
+            // prose that happens to share a word. If the question names a card, the card leads.
+            var named=NamedCards(db,query,take,titlesOnly,full,QueryTerms(query).Length);
             var hits=Query(db,conjunction,take,titlesOnly,full,cards:false);
+            if(named.Count>0)
+            {
+                var keys=named.Select(h=>h.File+" "+h.Heading).ToHashSet();
+                hits=named.Concat(hits.Where(h=>keys.Add(h.File+" "+h.Heading))).Take(take).ToList();
+            }
             if(hits.Count<take)
             {
                 var seen=hits.Select(h=>h.File+" "+h.Heading).ToHashSet();
@@ -374,6 +405,10 @@ public sealed class DocsIndex:IDisposable
         }
     }
 
+    /// The 1999 manual and the extracted in-game help are raw dumps: page furniture, support
+    /// addresses and chat instructions sit beside the rules and answer questions the distilled
+    /// files answer properly. They stay searchable as first-hand sources, just never first.
+    ///
     /// Every document ends with a section saying what it does NOT know. Those sections name the
     /// very things they lack, so unweighted they answer questions about them — the agent asks the
     /// price of a castle and is told nobody measured it. They stay searchable, just never first.
@@ -385,12 +420,16 @@ public sealed class DocsIndex:IDisposable
                    snippet(fts,1,'','','…',24) AS passage, s.body
             FROM fts JOIN sections s ON s.id=fts.rowid
             WHERE fts MATCH @m AND (s.file LIKE @p)=@c
-            ORDER BY rank + CASE WHEN s.heading LIKE '%Пробелы%' THEN 4.0 ELSE 0.0 END
+            ORDER BY rank
+                     + CASE WHEN s.heading LIKE '%Пробелы%' THEN 4.0 ELSE 0.0 END
+                     + CASE WHEN s.file LIKE '%/official/manual/%' THEN @manual ELSE 0.0 END
+                     + CASE WHEN s.pointer=1 THEN 3.0 ELSE 0.0 END
             LIMIT @n
             """;
         command.Parameters.AddWithValue("@m",expression);
         command.Parameters.AddWithValue("@p",ReferencePrefix+"%");
         command.Parameters.AddWithValue("@c",cards?1:0);
+        command.Parameters.AddWithValue("@manual",ManualPenalty);
         command.Parameters.AddWithValue("@n",take);
         return Collect(command,titlesOnly,full);
     }
@@ -398,6 +437,35 @@ public sealed class DocsIndex:IDisposable
     /// Typos and mishearings never match a whole word, so the query is broken into the same
     /// three-letter pieces the trigram index is built from: "уронн" still shares "уро" and "рон"
     /// with "урон", and bm25 ranks by how many pieces landed.
+    /// Finds rule cards whose own name is spelled out inside the question. The name has to be long
+    /// enough that it cannot collide by accident, and the longest match wins, so "Лазурный Дракон"
+    /// beats the bare "Дракон" it contains.
+    private static List<DocHit> NamedCards(SqliteConnection connection,string query,int take,bool titlesOnly,bool full,int terms)
+    {
+        using var command=connection.CreateCommand();
+        command.CommandText=$"""
+            SELECT s.file, s.heading, -length(s.card) AS rank, substr(s.body,1,400), s.body
+            FROM sections s
+            WHERE s.card IS NOT NULL AND length(s.card)>=4 AND instr(@q,s.card)>0
+            ORDER BY rank
+            LIMIT @n
+            """;
+        command.Parameters.AddWithValue("@q"," "+query.ToLowerInvariant()+" ");
+        command.Parameters.AddWithValue("@n",take);
+        List<DocHit> found;
+        try{found=Collect(command,titlesOnly,full);}
+        catch(SqliteException){return [];}
+        // "какая охрана у утопии драконов" contains the word "дракон", but it asks about a bank,
+        // not about dragons. A card leads only when its name is most of what was asked.
+        return found.Where(hit=>
+        {
+            int colon=hit.Heading.IndexOf(": ",StringComparison.Ordinal);
+            if(colon<0)return false;
+            int words=hit.Heading[(colon+2)..].Split(' ',StringSplitOptions.RemoveEmptyEntries).Length;
+            return terms<=1||(double)words/terms>=0.4;
+        }).ToList();
+    }
+
     private static List<DocHit> Fuzzy(SqliteConnection connection,string query,int take,bool titlesOnly,bool full)
     {
         var grams=new List<string>();

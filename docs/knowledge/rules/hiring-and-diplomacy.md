@@ -94,6 +94,14 @@ updated: "2026-09-21"
 
 Источник: https://heroes.thelazy.net/index.php/Diplomacy
 
+## In English
+
+**Hiring heroes and neutral creatures joining: tavern, Diplomacy, disposition**
+
+What a tavern costs and what army a hired hero brings, why only the first two heroes of a week arrive with a real army, tavern side effects on morale and on enemy town estimates; and joining: why Diplomacy is usually banned or absent, what actually influences the chance, and the HotA default of joining for money only at fifty percent.
+
+The body of this document is in Russian; ask in either language, the index carries both. Numbers and formulas are language independent.
+
 ## Пробелы
 
 - Точная формула вероятности присоединения не публикуется ни в одном доступном источнике первого

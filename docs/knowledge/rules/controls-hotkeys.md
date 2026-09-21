@@ -73,3 +73,11 @@ updated: "2026-09-20"
 2. Экран города: Space — переключение гостящий/гарнизонный герой; знамя слева от гарнизона — объединение армий; двойной клик по отряду — карточка существа (upgrade).
 3. Одиночный клик по отряду — «взять отряд» (он следует за курсором), клик по целевому слоту — положить. Два клика подряд быстрее ~0.5 с игра считает двойным кликом и открывает карточку существа (это уже наблюдалось).
 4. Опасность на карте оценивается штатной справкой: ПКМ по монстрам (тип + грубая численность), состояние маршрута (`reachable_today`), плюс признаки курсора (атака/движение).
+
+## In English
+
+**Controls and keyboard shortcuts: adventure map, town, combat**
+
+The keyboard shortcuts of the adventure map, the town screen and combat, plus moving troops between hero and garrison and upgrading creatures.
+
+The body of this document is in Russian; ask in either language, the index carries both. Numbers and formulas are language independent.
