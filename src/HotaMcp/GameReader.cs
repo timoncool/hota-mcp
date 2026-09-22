@@ -96,7 +96,7 @@ internal sealed class GameReader(WindowsGame game,int player)
     /// Reads the purchase card. The price is on screen whether or not the game will accept the
     /// order, so it is published either way; the reason the order is refused is worked out from
     /// the card's own condition line, the town's daily limit and the player's resources.
-    private static BuildOffer? ReadBuildOffer(List<UiElement> items,List<TownView> towns,int[] resources)
+    private static BuildOffer? ReadBuildOffer(List<UiElement> items,TownView? town,int[] resources)
     {
         string? Text(int id)=>items.FirstOrDefault(i=>i.Id==id)?.Text?.Trim();
         var amounts=items.Where(i=>i.Id==65535&&int.TryParse(i.Text?.Trim(),out _)).ToList();
@@ -104,10 +104,14 @@ internal sealed class GameReader(WindowsGame game,int player)
         // Each amount sits under its own resource icon, a 32x32 picture whose frame is the
         // resource index. Pairing them by column turns four bare numbers into a price.
         var icons=items.Where(i=>i.Id==65535&&i.Text is null&&i.Width==32&&i.Height==32).ToList();
+        var short_=new List<string>();
         var price=amounts.Select(amount=>
         {
             var icon=icons.OrderBy(i=>Math.Abs(i.X+i.Width/2-(amount.X+amount.Width/2))).FirstOrDefault();
             string name=icon is null?"ресурс":Resource(icon.Frame);
+            int need=int.Parse(amount.Text!.Trim());
+            if(icon is not null&&icon.Frame is >=0 and <7&&icon.Frame<resources.Length&&resources[icon.Frame]<need)
+                short_.Add($"{name}: нужно {need}, есть {resources[icon.Frame]}");
             return $"{name} {amount.Text!.Trim()}";
         }).ToList();
         bool canBuy=items.Any(i=>i.Id==30722&&i.Interactive);
@@ -117,8 +121,8 @@ internal sealed class GameReader(WindowsGame game,int player)
         {
             bool unmet=conditions is not null&&conditions.Contains("Требуется",StringComparison.OrdinalIgnoreCase);
             if(unmet)blocked="не выполнены условия постройки";
-            else if(towns.Any(t=>t.BuiltToday))blocked="в этом городе сегодня уже строили";
-            else if(numbers.Length>0&&numbers[^1]>resources[^1])blocked="не хватает золота";
+            else if(town?.BuiltToday==true)blocked="в этом городе сегодня уже строили";
+            else if(short_.Count>0)blocked="не хватает ресурсов — "+string.Join("; ",short_);
             else blocked="игра не принимает заказ; причина по карточке не определена";
         }
         return new(Text(3),Text(4),conditions,numbers,canBuy,blocked){Price=price};
@@ -737,7 +741,7 @@ internal sealed class GameReader(WindowsGame game,int player)
         var setup=screen=="scenario_selection"?new ScenarioReader(game).Read(dlg,items):null;
         var combat=screen=="combat"?new CombatReader(game,player).Read():null;
         int openTown=-1;
-        if(screen=="town")
+        if(screen is "town" or "town_hall" or "town_fort" or "building_confirmation" or "recruitment" or "marketplace")
             try{openTown=game.Read(game.U32(game.U32(0x69954c)+0x38),1)[0];}
             catch(InvalidOperationException){openTown=-1;}
         List<string> foreignArmy=[];
@@ -791,7 +795,7 @@ internal sealed class GameReader(WindowsGame game,int player)
                 items.FirstOrDefault(e=>e.Id==140)?.Text?.Trim()??"",skills,equipped,
                 GameReference.Specialty(items.FirstOrDefault(e=>e.Id==118)?.Frame??-1)??"id:118"){Inspect=inspect};
         }
-        var build=screen=="building_confirmation"?ReadBuildOffer(items,towns,resources):null;
+        var build=screen=="building_confirmation"?ReadBuildOffer(items,towns.FirstOrDefault(t=>t.Id==openTown),resources):null;
         SideView? side=null;
         if(!frontend)
         {
