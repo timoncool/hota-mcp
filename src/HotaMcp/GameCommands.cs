@@ -24,6 +24,8 @@ internal enum Confirm
     GarrisonChanged = 128,
     /// Gold must have been spent: the purchase went through whatever screen it lands on.
     GoldSpent = 256,
+    /// The screen itself must be a different one: closing a window, not a popup inside it.
+    ScreenLeft = 512,
 }
 
 /// Everything a delivery needs about the game and the action being performed.
@@ -455,7 +457,8 @@ internal static class GameCommands
 
         // Hero screens.
         // Esc returns to whichever screen opened this one, so both are legitimate landings.
-        "hero:close" => new("adventure,town", Deliveries.Key(0x1b, 0x01)),
+        "hero:close" => new("adventure,town", Deliveries.Key(0x1b, 0x01)) { Confirm = Confirm.ScreenLeft },
+        _ when action.Key.StartsWith("hero:wear:") => new("hero_screen", WearArtifact),
         // The kingdom overview has no Esc: it closes on its own exit button, bottom right.
         "kingdom:close" => new("adventure,town", Deliveries.Dismiss),
         // Every one of these windows closes on its own button; Esc is the fallback when the
@@ -1065,6 +1068,33 @@ internal static class GameCommands
             return;
         }
         await Deliveries.Press(context, target, ct);
+    };
+
+    /// Puts on an artefact from the backpack the way a player does on the hero screen: press it
+    /// to lift it, then press the worn cell the game lights up for it. Whatever was worn there
+    /// goes to the backpack in its place.
+    private static readonly Deliver WearArtifact = async (context, ct) =>
+    {
+        string name = context.Element["hero:wear:".Length..];
+        var item = context.Before.Elements.FirstOrDefault(e => e.Id is >= 40 and <= 44 && e.Width == 44
+                && GameReference.Artifact(e.Frame) == name)
+            ?? throw new InvalidOperationException($"«{name}» в видимой части рюкзака нет");
+        await Deliveries.Press(context, item, ct);
+        await Task.Delay(250, CancellationToken.None);
+        var lifted = context.Reader.Observe().Elements;
+        var target = lifted.FirstOrDefault(e => e.Id is >= 2 and <= 20 && e.Frame == ExchangeArtifacts.Highlight)
+            ?? throw new InvalidOperationException($"«{name}» поднят, но игра не подсветила ни одного слота, куда его надеть");
+        bool occupied = context.Before.Elements.Any(e => e.Id == target.Id);
+        await Deliveries.Press(context, target, ct);
+        if (!occupied) return;
+        // The slot was taken: the game swaps, and what was worn there is now on the cursor. It
+        // goes into the first free backpack cell, so the hand is empty again.
+        await Task.Delay(250, CancellationToken.None);
+        var after = context.Reader.Observe().Elements;
+        int free = Enumerable.Range(40, 5).FirstOrDefault(id => after.All(e => e.Id != id), -1);
+        if (free < 0) throw new InvalidOperationException("Надето, но снятый артефакт остался на курсоре: в видимой части рюкзака нет свободной клетки");
+        var box = context.Reader.FindControlById(free) ?? throw new InvalidOperationException("Клетка рюкзака не найдена");
+        await Deliveries.Press(context, box.X + box.Width / 2, box.Y + box.Height / 2, ct);
     };
 
     private static readonly Deliver SelectScenario = async (context, ct) =>

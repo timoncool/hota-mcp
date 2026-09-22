@@ -83,6 +83,10 @@ internal static class ScreenActions
             if(items.Any(i=>i.Id==30721&&i.Interactive))actions.Add(new("split:decline","Отменить разделение, отряд останется целым"));
         }
         if(screen=="hero_screen")actions.Add(new("hero:close","Закрыть экран героя (Esc)"));
+        if(screen=="hero_screen")
+            foreach(var cell in items.Where(e=>e.Id is >=40 and <=44&&e.Width==44&&e.Frame!=ExchangeArtifacts.Highlight))
+                if(GameReference.Artifact(cell.Frame) is {} carried)
+                    actions.Add(new($"hero:wear:{carried}",$"Надеть «{carried}» из рюкзака: снятое с того же слота уйдёт в рюкзак"));
         if(screen=="backpack")actions.Add(new("backpack:close","Закрыть рюкзак (Esc)"));
         if(screen=="kingdom_overview")actions.Add(new("kingdom:close","Закрыть обзор королевства"));
         if(screen=="town_fort")

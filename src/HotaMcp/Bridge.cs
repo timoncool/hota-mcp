@@ -647,6 +647,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
         // nothing happening. Pressing a slot only selects it, and selection alone already changes
         // the observed revision, so the revision is not evidence.
         if(confirm.HasFlag(Confirm.GarrisonChanged)&&ArmySignature(before)==ArmySignature(after))return false;
+        if(confirm.HasFlag(Confirm.ScreenLeft)&&after.Screen==before.Screen)return false;
         if(confirm.HasFlag(Confirm.GoldSpent)&&!(after.Resources.Length>6&&before.Resources.Length>6&&after.Resources[6]<before.Resources[6]))return false;
         // A step counts only when the hero is somewhere else or paid movement for it; a dialog
         // opening on the way is the move having happened too.
