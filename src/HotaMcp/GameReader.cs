@@ -783,8 +783,12 @@ internal sealed class GameReader(WindowsGame game,int player)
                 skills.Add(new(name.Text.Trim(),items.FirstOrDefault(e=>e.Id==95+i)?.Text?.Trim()??"",$"id:{79+i}"));
             }
             var equipped=new List<HeroSlot>();
+            // Worn cells are numbered two above the game's slot order; the five below the doll are
+            // the visible part of the backpack.
             foreach(var slot in items.Where(e=>e.Id is >=2 and <=20&&e.Width==44&&e.Frame!=ExchangeArtifacts.Highlight))
-                equipped.Add(new(GameReference.Artifact(slot.Frame)??$"артефакт с картинкой {slot.Frame}",$"id:{slot.Id}"));
+                equipped.Add(new($"{ExchangeArtifacts.Slots[slot.Id-2]}: {GameReference.Artifact(slot.Frame)??$"артефакт с картинкой {slot.Frame}"}",$"id:{slot.Id}"));
+            foreach(var slot in items.Where(e=>e.Id is >=40 and <=44&&e.Width==44&&e.Frame!=ExchangeArtifacts.Highlight))
+                equipped.Add(new($"рюкзак: {GameReference.Artifact(slot.Frame)??$"артефакт с картинкой {slot.Frame}"}",$"id:{slot.Id}"));
             var inspect=new Dictionary<string,string>
             {
                 ["боевой дух"]="id:116",["удача"]="id:117",["опыт и следующий уровень"]="id:119",
