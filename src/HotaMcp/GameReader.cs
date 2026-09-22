@@ -721,7 +721,7 @@ internal sealed class GameReader(WindowsGame game,int player)
         // apart from one another by what stands in them, not by the class pointer.
         string screen=NameOf(vtable)??(vtable>0x700000?"popup_choice":"unsupported");
         // Unvalidated dialog classes are not published to the player yet.
-        if(screen=="unsupported") throw new InvalidOperationException("Current screen not supported by this adapter yet");
+        if(screen=="unsupported") throw new InvalidOperationException($"Current screen not supported by this adapter yet (dialog class 0x{vtable:X})");
         uint surface=game.U32(manager+0x40);
         int width=game.I32(surface+0x24),height=game.I32(surface+0x28);
         if(width<640||width>8192||height<480||height>8192) throw new InvalidOperationException("Invalid surface geometry");
