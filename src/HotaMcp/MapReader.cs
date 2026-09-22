@@ -76,7 +76,7 @@ internal sealed class MapReader(WindowsGame game,int player)
                     // an object the player can see must not vanish just for want of a slug.
                     string kind=KnownObjects.TryGetValue(type,out var known)?known:GameReference.MapObject(type);
                     objects.Add(new(xx,yy,z,type,kind)
-                        {Name=GameReference.MapObject(type),Id=BitConverter.ToUInt16(game.Read(tile,2))});
+                        {Name=ObjectName(type,BitConverter.ToInt16(game.Read(tile+0x22,2))),Id=BitConverter.ToUInt16(game.Read(tile,2))});
                 }
             }
             terrain.Add(tr);roads.Add(rr);blocked.Add(br);
@@ -84,6 +84,19 @@ internal sealed class MapReader(WindowsGame game,int player)
         return new(observation.Revision,left,top,z,right-left+1,bottom-top+1,terrain.ToArray(),roads.ToArray(),blocked.ToArray(),objects,
             "? hidden; terrain d dirt,g sand,s grass,n snow,r swamp,l rough,u subterranean,w lava,v water,h rock,a highlands,x wasteland; roads 0 none,1 dirt,2 gravel,3 cobblestone; # terrain blocked,. not terrain-blocked (not a path guarantee)");
     }
+    private static readonly string[] Resources=["дерево","ртуть","руда","сера","кристаллы","самоцветы","золото"];
+
+    /// What a player sees standing on the cell. A wandering stack is drawn as its creature and a
+    /// pile as its resource, so both are named by what they are — the tile keeps that in its
+    /// subtype — and not by the class name «Монстр» or «Ресурс». How many creatures stand there
+    /// is not said: the player only sees a size band, and that comes from the right button.
+    private static string ObjectName(int type,int subtype)=>type switch
+    {
+        54 => $"{GameReference.Creature(subtype)} (бродячий отряд)",
+        79 when subtype is >=0 and <7 => $"ресурс: {Resources[subtype]}",
+        _ => GameReference.MapObject(type),
+    };
+
     public (int X,int Y) ScreenPoint(Observation observation,int x,int y,int z)
     {
         _=VisibleTile(observation,x,y,z);
@@ -170,8 +183,12 @@ internal sealed class MapReader(WindowsGame game,int player)
             byte[] b=game.Read(game.U32(pos),0x20);
             if(BitConverter.ToUInt16(b,0x10)!=0)continue;
             if(BitConverter.ToUInt32(b,4)!=dlg||BitConverter.ToUInt32(b)!=6535716)throw new InvalidOperationException("Viewport class changed");
+            // The camera corner is packed as two ten-bit fields, and near the left or top edge of
+            // the map the view starts beyond it, so the corner is negative: read unsigned, -7
+            // became 1017 and every cell next to the hero looked off screen.
+            static int Signed10(uint v)=>(int)(v&1023)>=512?(int)(v&1023)-1024:(int)(v&1023);
             candidates.Add(new(BitConverter.ToInt16(b,0x18),BitConverter.ToInt16(b,0x1a),BitConverter.ToUInt16(b,0x1c),BitConverter.ToUInt16(b,0x1e),
-                (int)(camera&1023),(int)((camera>>16)&1023),(int)((camera>>26)&1)));
+                Signed10(camera),Signed10(camera>>16),(int)((camera>>26)&1)));
         }
         return candidates.Single();
     }

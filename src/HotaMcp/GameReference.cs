@@ -266,24 +266,21 @@ internal sealed class GameReference
             ?objectNames[type]:$"объект типа {type}";
     }
 
+    private static IReadOnlyDictionary<int,string>? liveCreatures;
+
+    /// The running game keeps one table of every creature it knows — the expansion's towns
+    /// included, which the text files do not list. Once the game is attached, its own names are
+    /// used, so a Kobold or a Mechanic is named the way its card names it.
+    public static void UseLiveCreatureNames(IReadOnlyDictionary<int,string> names)=>liveCreatures=names;
+
     /// Names a stack by its type as the game stores it; an unknown type stays a number rather than
     /// becoming a guess.
-    /// Creatures of the three HotA towns are not in the game's text tables at all — they live in
-    /// HotA.dll — so a type beyond the table has no name to read. The ones already seen in play are
-    /// listed here with the name the game itself printed on their card; anything still unknown says
-    /// so plainly and points at the card, instead of pretending a number is an answer.
-    private static readonly Dictionary<int,string> HotaCreatures=new()
-    {
-        [172]="Механик",
-        [174]="Броненосец",
-    };
-
     public static string Creature(int type)
     {
+        if(liveCreatures is not null&&liveCreatures.TryGetValue(type,out var live))return live;
         var names=CreatureNames();
         if(type>=0&&type<names.Count)return names[type];
-        if(HotaCreatures.TryGetValue(type,out var known))return known;
-        return $"существо HotA, тип {type} (имя показывает карточка отряда: army:open)";
+        return $"существо №{type} (его имени нет в таблицах игры)";
     }
 
     public ReferenceAnswer Find(string name,string? kind,int limit)

@@ -159,8 +159,34 @@ internal sealed class GameReader(WindowsGame game,int player)
     };
 
     private readonly string epoch=Guid.NewGuid().ToString("N");
+    private bool creaturesRead;
+
+    /// Every creature the running game knows, by type: the table the game consults to print a
+    /// stack's name. Record 0x74 bytes, the singular name behind +0x14. It is read once, since the
+    /// game fills it at start and never changes it.
+    private void ReadCreatureNames()
+    {
+        if(creaturesRead)return;
+        uint table=game.U32(0x6747B0);
+        if(table<0x10000)return;
+        var names=new Dictionary<int,string>();
+        for(int type=0;type<256;type++)
+        {
+            string? name;
+            try{name=game.Text(game.U32(table+(uint)type*0x74+0x14));}catch(InvalidOperationException){break;}
+            // Unused slots sit between the base game and the expansion; they are skipped, and
+            // only a name that reads as words is taken.
+            if(string.IsNullOrWhiteSpace(name)||name.Length>40||!name.Any(char.IsLetter))continue;
+            names[type]=name.Trim();
+        }
+        if(names.Count<100)return;
+        GameReference.UseLiveCreatureNames(names);
+        creaturesRead=true;
+    }
+
     public Observation Observe()
     {
+        ReadCreatureNames();
         // Two matching reads reduce transitional snapshots; safe-point synchronization remains future work.
         var first=ReadOnce();
         var second=ReadOnce();
@@ -559,6 +585,10 @@ internal sealed class GameReader(WindowsGame game,int player)
             uint vt=BitConverter.ToUInt32(b);string? text=null,asset=null;
             if(vt is 0x642dc0 or 0x642df8 or 0x642d50) text=game.Text(game.U32(a+0x34));
             if(vt is 0x63bb54 or 0x63bb88||(screen=="spellbook"||screen=="adventure")&&vt==0x63ec48) asset=game.Text(game.U32(a+0x30)+4,16);
+            // A reward in a message is a picture with its amount under it; which file the picture
+            // comes from says what kind of reward it is — resource, artifact, creature, skill.
+            if(screen=="message"&&vt is 0x63ec48 or 0x63ba94&&asset is null)
+                try{asset=game.Text(game.U32(a+0x30)+4,16);}catch(InvalidOperationException){}
             if(vt==0x63bb88)text=game.Text(game.U32(a+0x5c));
             bool interactive=(vt is 0x63bb54 or 0x63bb88||(screen is "spellbook" or "adventure" or "popup_choice")&&vt==0x63ec48)&&(state&2)!=0&&(state&0x28)==0;
             // The grids of starting towns and heroes are pictures with no caption and no button
