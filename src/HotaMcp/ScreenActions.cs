@@ -116,6 +116,10 @@ internal static class ScreenActions
             // hero, and the tavern needs the visitor slot free.
             if(items.Any(i=>i.Id==11&&i.Interactive))
                 actions.Add(new("tavern:thieves","Открыть Гильдию Воров: сведения о соперниках"));
+            // The two portraits are the two candidates; pressing one selects him, and the hire
+            // button then hires whoever is selected.
+            foreach(var (id,side) in new[]{(5,"слева"),(6,"справа")})
+                if(items.Any(i=>i.Id==id))actions.Add(new($"tavern:pick:{side}",$"Выбрать кандидата {side} для найма"));
             bool free=items.Any(i=>i.Id==12&&i.Interactive);
             if(!free&&items.Any(i=>i.Id==12))
                 actions.Add(new("tavern:hire",

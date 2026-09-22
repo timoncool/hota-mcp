@@ -22,6 +22,8 @@ internal enum Confirm
     HeroMoved = 64,
     /// The town garrison must actually hold different stacks than before.
     GarrisonChanged = 128,
+    /// Gold must have been spent: the purchase went through whatever screen it lands on.
+    GoldSpent = 256,
 }
 
 /// Everything a delivery needs about the game and the action being performed.
@@ -242,6 +244,8 @@ internal static class GameCommands
         // name: TPTav01 hires the chosen hero, TPTav02 opens the Thieves Guild beside it.
         "tavern:hire" => new("town,tavern", Deliveries.Control(12,"TPTav01.def")) { Confirm = Confirm.GarrisonChanged },
         "tavern:thieves" => new("thieves_guild", Deliveries.Control(11,"TPTav02.def")),
+        "tavern:pick:слева" => new("tavern", Deliveries.Control(c => 5)),
+        "tavern:pick:справа" => new("tavern", Deliveries.Control(c => 6)),
         _ when action.Key.StartsWith("tavern:select:",StringComparison.Ordinal)
             && int.TryParse(action.Key["tavern:select:".Length..],out int who) && who is 1 or 2
             => new("tavern",Deliveries.Control(4+who)),
@@ -406,7 +410,9 @@ internal static class GameCommands
         // Tavern and recruitment.
         "tavern:close" => new("town", Deliveries.Key(0x1b, 0x01)),
         "recruit:max" => new("recruitment", Deliveries.Key(0x4d, 0x32)),
-        "recruit:buy" => new("town", Deliveries.Key(0x0d, 0x1c)),
+        // A purchase lands on whichever screen opened the recruitment window — the town, or the
+        // fort when every tier was hired from there — so the proof is the gold, not the screen.
+        "recruit:buy" => new("town,town_fort", Deliveries.Key(0x0d, 0x1c)) { Confirm = Confirm.GoldSpent },
         "recruit:cancel" => new("town", Deliveries.Key(0x1b, 0x01)),
 
         // Combat.

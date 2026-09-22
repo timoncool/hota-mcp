@@ -317,23 +317,58 @@ internal sealed class GameReader(WindowsGame game,int player)
     {
         uint manager=game.U32(0x6992d0),dlg=game.U32(manager+0x54);
         if(dlg==0)throw new InvalidOperationException("No dialog on screen");
-        var texts=new List<string>();
-        var seen=new HashSet<uint>();
-        for(uint item=game.U32(dlg+0x2c);item!=0&&seen.Add(item)&&seen.Count<2048;item=game.U32(item+8))
+        int dx=game.I32(dlg+0x18),dy=game.I32(dlg+0x1c);
+        var found=new List<(int X,int Y,string Text)>();
+        (int,int,string)? Read(uint item)
         {
             uint vt=game.U32(item);
             string? text=vt is 0x642dc0 or 0x642df8 or 0x642d50?game.Text(game.U32(item+0x34))
                 :vt==0x63bb88?game.Text(game.U32(item+0x5c)):null;
-            if(!string.IsNullOrWhiteSpace(text))texts.Add(text.Trim());
+            if(string.IsNullOrWhiteSpace(text))return null;
+            return (dx+BitConverter.ToInt16(game.Read(item+0x18,2),0),dy+BitConverter.ToInt16(game.Read(item+0x1a,2),0),text.Trim());
         }
-        if(texts.Count==0)
+        var seen=new HashSet<uint>();
+        for(uint item=game.U32(dlg+0x2c);item!=0&&seen.Add(item)&&seen.Count<2048;item=game.U32(item+8))
+            if(Read(item) is {} one)found.Add(one);
+        if(found.Count==0)
             for(uint slot=game.U32(dlg+0x34),end=game.U32(dlg+0x38);slot<end&&end-slot<=8192;slot+=4)
-            {
-                uint item=game.U32(slot),vt=game.U32(item);
-                string? text=vt is 0x642dc0 or 0x642df8 or 0x642d50?game.Text(game.U32(item+0x34)):null;
-                if(!string.IsNullOrWhiteSpace(text))texts.Add(text.Trim());
-            }
-        return new(game.U32(dlg),texts.Distinct().ToArray());
+                if(Read(game.U32(slot)) is {} one)found.Add(one);
+        // A card is read the way the eye reads it: top to bottom, left to right, one line per
+        // row of the card. Equal values must all survive — attack 1 and defence 1 are two facts,
+        // and collapsing repeats had silently dropped every stat that happened to match another.
+        var lines=found.OrderBy(f=>f.Y).ThenBy(f=>f.X)
+            .GroupBy(f=>f.Y/6)
+            .Select(row=>string.Join("  ",row.OrderBy(f=>f.X).Select(f=>f.Text)))
+            .ToArray();
+        return new(game.U32(dlg),lines);
+    }
+
+    /// The hero sheet the game opens in view-only mode when the right button is held on a hero
+    /// portrait — in the tavern, in the kingdom overview. It is read as one line in the words of
+    /// the sheet itself: name, level and class, the four primary skills, specialty, experience
+    /// and mana, secondary skills and the army. The army is a row of portraits without captions;
+    /// each portrait draws the creature number plus two, and the count stands under it.
+    public string? HeroCard()
+    {
+        uint manager=game.U32(0x6992d0),dlg=game.U32(manager+0x54);
+        if(dlg==0||game.U32(dlg)!=0x63eae8)return null;
+        var controls=new Dictionary<int,(uint Vt,int Frame,string? Text)>();
+        var seen=new HashSet<uint>();
+        for(uint item=game.U32(dlg+0x2c);item!=0&&seen.Add(item)&&seen.Count<2048;item=game.U32(item+8))
+        {
+            uint vt=game.U32(item);
+            int id=BitConverter.ToUInt16(game.Read(item+0x10,2));
+            string? text=vt is 0x642dc0 or 0x642df8 or 0x642d50?game.Text(game.U32(item+0x34))?.Trim():null;
+            if(!controls.ContainsKey(id)||text is {Length:>0})controls[id]=(vt,game.I32(item+0x34),text);
+        }
+        string T(int id)=>controls.TryGetValue(id,out var c)?c.Text??"":"";
+        var skills=Enumerable.Range(0,8).Select(i=>$"{T(95+i)} {T(87+i)}".Trim()).Where(x=>x.Length>0);
+        var army=Enumerable.Range(0,7)
+            .Where(i=>controls.TryGetValue(54+i,out var p)&&p.Vt==0x63ec48&&p.Frame>=2&&T(61+i).Length>0)
+            .Select(i=>$"{GameReference.Creature(controls[54+i].Frame-2)} {T(61+i)}");
+        return $"{T(1)} — {T(140)}; атака {T(46)}, защита {T(47)}, сила магии {T(48)}, знания {T(49)}; "
+            +$"специализация {T(139)}; опыт {T(112)}, мана {T(113)}; навыки: {string.Join(", ",skills)}; "
+            +$"армия: {string.Join(", ",army)}";
     }
 
     public (int X,int Y)? FindControl(int x,int y,int w,int h)
@@ -532,7 +567,7 @@ internal sealed class GameReader(WindowsGame game,int player)
             if(screen=="popup_choice"&&vt is 0x63ec48 or 0x63ba94)interactive=(state&2)!=0;
             // Some controls carry no text and no button graphic yet still say something: the town
             // hall colours a bare picture next to each row to mark built, buildable or blocked.
-            bool bareControlMatters=screen is "town_hall" or "town_fort" or "adventure" or "hero_screen" or "building_confirmation" or "popup_choice"||(screen is "message" or "exchange" or "level_up")&&(state&2)!=0;
+            bool bareControlMatters=screen is "town_hall" or "town_fort" or "adventure" or "hero_screen" or "building_confirmation" or "popup_choice" or "tavern"||(screen is "message" or "exchange" or "level_up")&&(state&2)!=0;
             if(string.IsNullOrEmpty(text)&&asset==null&&!bareControlMatters) continue;
             items.Add(new UiElement($"ui:{controlIndex}",BitConverter.ToUInt16(b,0x10),text,asset,
                 dx+BitConverter.ToInt16(b,0x18),dy+BitConverter.ToInt16(b,0x1a),iw,ih,interactive)

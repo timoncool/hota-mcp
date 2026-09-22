@@ -38,6 +38,9 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
     /// that changed none of it.
     private string lastProgress="";
     private int idleReads;
+    /// What the two tavern portraits said when the right button was held on them, read the
+    /// moment the tavern opened. Kept only while the tavern is the screen on display.
+    private List<(string Side,string Card)> tavernCards=[];
 
     /// An environment an agent can act in needs three things: what it sees, what it can do, and
     /// whether it is getting anywhere. The first two are the observation and the actions; this is
@@ -78,7 +81,14 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
     public async Task<Observation> Observe(CancellationToken ct)
     {
         await gate.WaitAsync(ct);
-        try{return WithMemory(reader.Observe());}
+        try
+        {
+            var state=reader.Observe();
+            // Whoever opened the tavern — the agent or a person at the keyboard — the first look
+            // at it reads both candidates the way a player does, by holding the right button.
+            if(state.Screen=="tavern"&&tavernCards.Count==0)await ReadTavern(state);
+            return WithMemory(state);
+        }
         finally{gate.Release();}
     }
 
@@ -89,6 +99,10 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
     private Observation WithMemory(Observation state)
     {
         var lines=new List<string>(state.Brief);
+        if(state.Screen!="tavern")tavernCards=[];
+        foreach(var (side,card) in tavernCards)
+            lines.Add($"Таверна, кандидат {side} (карточка правой кнопки): {card}. "
+                +$"Выбрать его — tavern:pick:{side}, нанять выбранного — tavern:hire.");
         string progress=string.Join("|",
             [string.Join(",",state.Date),string.Join(",",state.Resources),
              string.Join(";",state.Heroes.Select(h=>$"{h.Id}:{string.Join(",",h.Position)}:{h.Movement}:{string.Join(",",h.ArmyCounts)}")),
@@ -416,6 +430,30 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
         finally{gate.Release();}
     }
 
+    /// A player who opens the tavern holds the right button on each of the two portraits to see
+    /// who they are: class and level, the four primary skills, specialty, skills and the army
+    /// each would bring. The bridge does exactly that the moment the tavern opens and keeps what
+    /// the two cards said, so the agent sees both candidates at once instead of only the one the
+    /// game happens to have selected. Only the text of the cards is read — what is on the screen.
+    private async Task ReadTavern(Observation state)
+    {
+        tavernCards=[];
+        foreach(var (id,side) in new[]{(5,"слева"),(6,"справа")})
+        {
+            var box=reader.FindControlById(id);
+            if(box is null)continue;
+            await game.RightMouseDownAsync(box.X+box.Width/2,box.Y+box.Height/2,state.Width,state.Height,CancellationToken.None);
+            try
+            {
+                await Task.Delay(350,CancellationToken.None);
+                tavernCards.Add((side,reader.HeroCard()??string.Join(" / ",reader.ReadCard().Texts)));
+            }
+            finally{await game.RightMouseUpAsync();}
+            await Task.Delay(150,CancellationToken.None);
+        }
+        Record("tavern_candidates",tavernCards.Select(c=>new{c.Side,c.Card}));
+    }
+
     /// Waits for the game itself to show the action happened. A screen that merely looks right is
     /// not evidence: the observed revision must change, and every extra Confirm flag must hold.
     private async Task<OperationResult> AwaitResult(OperationRequest request,Observation before,GameCommand command,OperationResult pending)
@@ -450,6 +488,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
                 +(command.Confirm.HasFlag(Confirm.GarrisonChanged)?ArmyChange(before,after):""),after);
             operations[request.OperationId]=(request,result);
             Record("operation_completed",new{request.OperationId,after.Revision,after.Screen,BeforeScreen=before.Screen});
+            if(after.Screen=="tavern"&&before.Screen!="tavern")await ReadTavern(after);
             return result;
         }
         Record("operation_uncertain",new{request.OperationId});
@@ -505,6 +544,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
         // nothing happening. Pressing a slot only selects it, and selection alone already changes
         // the observed revision, so the revision is not evidence.
         if(confirm.HasFlag(Confirm.GarrisonChanged)&&ArmySignature(before)==ArmySignature(after))return false;
+        if(confirm.HasFlag(Confirm.GoldSpent)&&!(after.Resources.Length>6&&before.Resources.Length>6&&after.Resources[6]<before.Resources[6]))return false;
         // A step counts only when the hero is somewhere else or paid movement for it; a dialog
         // opening on the way is the move having happened too.
         if(confirm.HasFlag(Confirm.HeroMoved)&&after.Screen=="adventure"
@@ -554,15 +594,19 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
                 throw new InvalidOperationException("Point is outside the game surface");
             await game.RightMouseDownAsync(request.X,request.Y,width,height,ct);
             string[] texts;
+            object controls;
             try
             {
                 await Task.Delay(350,CancellationToken.None);
                 texts=reader.ReadCard().Texts;
+                // What the card is built of, for mapping: every control with its class, frame and
+                // picture, taken while the card is still held open.
+                controls=reader.ProbeScreen();
             }
             finally{await game.RightMouseUpAsync();}
             await Task.Delay(150,CancellationToken.None);
             Record("developer_press_right",new{request.X,request.Y,texts});
-            return new{request.X,request.Y,texts};
+            return new{request.X,request.Y,texts,controls};
         }
         finally{gate.Release();}
     }
