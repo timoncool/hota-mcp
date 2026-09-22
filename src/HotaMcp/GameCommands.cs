@@ -217,6 +217,27 @@ internal static class Deliveries
         // without that journey is discarded. So the cursor is moved first, exactly as a hand does.
         await context.Game.MouseAsync(to.X, to.Y, context.Before.Width, context.Before.Height, false, ct);
         await Task.Delay(200, CancellationToken.None);
+        // Hovering a stack opens the expansion's stats panel, and by the right edge of the field
+        // it covers the stack itself: a click there lands on the panel and is lost. The aim then
+        // moves to a part of the same hex the panel leaves free, keeping to the side of the blow.
+        bool Covered((int X, int Y) p) => context.Reader.Overlays().Any(o => p.X >= o.X && p.X < o.X + o.W && p.Y >= o.Y && p.Y < o.Y + o.H);
+        if (Covered(to))
+        {
+            var centre = reader.Center(targetHex);
+            var toward = approach is int a ? reader.Center(a) : centre;
+            var free = new List<(int X, int Y)>();
+            for (int ox = -16; ox <= 16; ox += 4)
+                for (int oy = -16; oy <= 16; oy += 4)
+                    if (Math.Abs(oy) + Math.Abs(ox) * 0.55 <= 18) free.Add((centre.X + ox, centre.Y + oy));
+            var overlays = context.Reader.Overlays();
+            var pick = free.Where(p => !overlays.Any(o => p.X >= o.X && p.X < o.X + o.W && p.Y >= o.Y && p.Y < o.Y + o.H))
+                .OrderByDescending(p => (p.X - centre.X) * (toward.X - centre.X) + (p.Y - centre.Y) * (toward.Y - centre.Y))
+                .Cast<(int X, int Y)?>().FirstOrDefault()
+                ?? throw new InvalidOperationException("Цель целиком закрыта панелью характеристик — щелчок по ней не дойдёт");
+            to = pick;
+            await context.Game.MouseAsync(to.X, to.Y, context.Before.Width, context.Before.Height, false, ct);
+            await Task.Delay(200, CancellationToken.None);
+        }
         await Press(context, to.X, to.Y, ct);
     };
 

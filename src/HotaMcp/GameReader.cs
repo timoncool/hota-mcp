@@ -434,6 +434,29 @@ internal sealed class GameReader(WindowsGame game,int player)
         return new(vtable,NameOf(vtable),items.Count,items.ToArray());
     }
 
+    /// Rectangles of the smaller controls now drawn on top of the screen. In a fight the
+    /// expansion shows a stats panel of the stack under the pointer, and near the right edge of the
+    /// field it lies right over that stack and takes the click meant for it.
+    public List<(int X,int Y,int W,int H)> Overlays()
+    {
+        uint manager=game.U32(0x6992d0),dlg=game.U32(manager+0x54);
+        var found=new List<(int,int,int,int)>();
+        if(dlg==0)return found;
+        int dx=game.I32(dlg+0x18),dy=game.I32(dlg+0x1c);
+        var seen=new HashSet<uint>();
+        for(uint item=game.U32(dlg+0x2c);item!=0&&seen.Add(item)&&seen.Count<512;item=game.U32(item+8))
+        {
+            ushort state=BitConverter.ToUInt16(game.Read(item+0x16,2));
+            if((state&4)==0)continue;
+            int w=BitConverter.ToUInt16(game.Read(item+0x1c,2)),h=BitConverter.ToUInt16(game.Read(item+0x1e,2));
+            int x=dx+BitConverter.ToInt16(game.Read(item+0x18,2),0),y=dy+BitConverter.ToInt16(game.Read(item+0x1a,2),0);
+            // The field itself and the command bar under it are not in the way.
+            if(w>=400||h>=300||y>=556)continue;
+            found.Add((x,y,w,h));
+        }
+        return found;
+    }
+
     public static string? NameOf(uint vtable)=>ScreenNames.TryGetValue(vtable,out var name)?name:null;
 
     public record CardView(uint Vtable,string[] Texts);
