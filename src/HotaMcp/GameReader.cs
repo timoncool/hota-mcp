@@ -181,6 +181,29 @@ internal sealed class GameReader(WindowsGame game,int player)
         }
         if(names.Count<100)return;
         GameReference.UseLiveCreatureNames(names);
+        // The same record carries the creature's numbers — the ones its card shows a player:
+        // cost at +0x20 (seven resources), AI value +0x40, growth +0x44, hit points +0x4c, speed
+        // +0x50, attack +0x54, defence +0x58, damage +0x5c/+0x60, shots +0x64. Checked against the
+        // text tables for base-game creatures, where both exist and agree.
+        var cards=new List<ReferenceCard>();
+        foreach(var (type,name) in names)
+        {
+            byte[] r;
+            try{r=game.Read(table+(uint)type*0x74,0x74);}catch(InvalidOperationException){continue;}
+            int I(int o)=>BitConverter.ToInt32(r,o);
+            string plural=game.Text(BitConverter.ToUInt32(r,0x18))?.Trim()??name;
+            var fields=new Dictionary<string,string>
+            {
+                ["Plural"]=plural,["Gold"]=I(0x38).ToString(),["AI Value"]=I(0x40).ToString(),["Growth"]=I(0x44).ToString(),
+                ["Hit Points"]=I(0x4c).ToString(),["Speed"]=I(0x50).ToString(),["Attack"]=I(0x54).ToString(),
+                ["Defense"]=I(0x58).ToString(),["Damage"]=$"{I(0x5c)}-{I(0x60)}",["Shots"]=I(0x64).ToString(),
+            };
+            cards.Add(new("существо",name,fields,
+                $"{name} (мн. {plural}) — из таблицы существ запущенной игры: здоровье {I(0x4c)}, скорость {I(0x50)}, "
+                +$"атака {I(0x54)}, защита {I(0x58)}, урон {I(0x5c)}-{I(0x60)}, выстрелов {I(0x64)}, "
+                +$"цена {I(0x38)} золота, прирост {I(0x44)}, AI Value {I(0x40)}."));
+        }
+        GameReference.UseLiveCreatureCards(cards);
         creaturesRead=true;
     }
 

@@ -301,6 +301,12 @@ internal sealed class GameReference
     /// used, so a Kobold or a Mechanic is named the way its card names it.
     public static void UseLiveCreatureNames(IReadOnlyDictionary<int,string> names)=>liveCreatures=names;
 
+    private static List<ReferenceCard> liveCards=[];
+
+    /// Cards for the creatures the text files do not carry — the three expansion towns — built
+    /// from the running game's own creature table: the same numbers its creature card shows.
+    public static void UseLiveCreatureCards(List<ReferenceCard> cards)=>liveCards=cards;
+
     /// Names a stack by its type as the game stores it; an unknown type stays a number rather than
     /// becoming a guess.
     public static string Creature(int type)
@@ -318,7 +324,8 @@ internal sealed class GameReference
             return new(false,"Game reference tables were not found next to the running game",source,[]);
         string needle=name.Trim();
         if(needle.Length<2)return new(true,"Ask for at least two characters",source,[]);
-        var matches=all
+        var pool=all.Concat(liveCards.Where(l=>!all.Any(c=>c.Kind==l.Kind&&string.Equals(c.Name,l.Name,StringComparison.OrdinalIgnoreCase))));
+        var matches=pool
             .Where(c=>kind is null||c.Kind.Contains(kind,StringComparison.OrdinalIgnoreCase))
             .Select(c=>(Card:c,Rank:Rank(c.Name,needle)))
             .Where(x=>x.Rank>0)
