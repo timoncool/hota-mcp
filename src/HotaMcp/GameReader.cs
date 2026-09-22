@@ -224,9 +224,11 @@ internal sealed class GameReader(WindowsGame game,int player)
             // observation later as a spurious change of state.
             animatedKeys=[];animatedScreen=second.Screen;
             var look=second;
-            for(int beat=0;beat<4;beat++)
+            // Four short beats missed slower animations on the map, and the first revision after
+            // leaving a town then went stale on the very next read.
+            for(int beat=0;beat<8;beat++)
             {
-                Thread.Sleep(60);
+                Thread.Sleep(80);
                 var next=ReadOnce();
                 if(next.Screen!=look.Screen||next.Elements.Count!=look.Elements.Count)break;
                 for(int i=0;i<next.Elements.Count;i++)
