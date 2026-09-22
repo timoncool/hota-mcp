@@ -189,6 +189,17 @@ three things to do tomorrow. Keep it short enough to read in one glance.
 5. **End the day** only when both heroes have spent what they usefully can. The game asks for
    confirmation while movement remains; that question is a reminder, not an error.
 
+## Artefacts and chests
+
+- A chest is a choice by role: the main hero takes **experience**, a collector takes gold.
+- Every artefact picked up is sorted at once. Right-click its cell (`inspect_element`) and read the
+  game's own card: what helps the hero or his army stays with the main hero; what works from a
+  place — pieces of the Statue of Legion raise a town's growth only when their carrier ends the
+  day in that town — goes to the hero who sits there.
+- In the exchange window the briefing lists both heroes' artefacts by slot and the visible
+  backpack; `exchange:artifact:<name>` hands one over, `exchange:backpack:<side>` opens the whole
+  backpack (the row at the bottom shows only five cells).
+
 ## Objects worth a detour
 
 Permanent, one visit per hero: Garden of Revelation (+1 Knowledge), Learning Stone, Mercenary Camp,
