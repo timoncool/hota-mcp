@@ -45,7 +45,7 @@ internal static class ScreenBriefing
                 +"ни походить, ни открыть город. Текст лежит в Elements; закрой его действием "
                 +"message:accept, а вопрос с двумя кнопками — message:confirm или message:decline.");
         if(screen=="town")TownBrief(lines,resources,towns,roster,selectedStack,openTown);
-        if(screen=="exchange")ExchangeBrief(lines,items);
+        if(screen=="exchange")ExchangeBrief(lines,items,roster);
         if(screen=="adventure")AdventureBrief(lines,resources,towns,roster,selected);
         if(screen=="building_confirmation"&&offer is not null)
         {
@@ -118,7 +118,7 @@ internal static class ScreenBriefing
     /// are all things a player knows by sight and an agent cannot guess. Without this the choice of
     /// a main hero came down to pressing one of the two transfer buttons to find out which side is
     /// which.
-    private static void ExchangeBrief(List<string> lines,List<UiElement> items)
+    private static void ExchangeBrief(List<string> lines,List<UiElement> items,List<HeroView> roster)
     {
         string Text(int id)=>items.FirstOrDefault(i=>i.Id==id)?.Text?.Trim()??"?";
         string Skills(int first)=>string.Join(", ",Enumerable.Range(first,8)
@@ -127,13 +127,20 @@ internal static class ScreenBriefing
         lines.Add($"Обмен героев. Слева {Text(87)}, справа {Text(88)}. "
             +"Кнопки переноса названы по стороне: exchange:army:left отдаёт всё войско левому, "
             +"exchange:army:right — правому, exchange:army:swap меняет армии местами.");
+        // The name line reads «Имя, уровень N, Класс»; the hero it names is the one whose
+        // specialty is wanted, and the roster knows his number.
+        string Specialty(int icon)
+        {
+            int frame=items.FirstOrDefault(i=>i.Id==icon)?.Frame??-1;
+            return GameReference.Specialty(frame)
+                ??$"картинка специальности №{frame} в таблице игры не найдена";
+        }
         lines.Add($"Слева: атака {Text(3)}, защита {Text(4)}, сила магии {Text(5)}, знание {Text(6)}; "
-            +$"опыт {Text(81)}, мана {Text(83)}. Навыки: {Skills(200)}.");
+            +$"опыт {Text(81)}, мана {Text(83)}. Специальность: {Specialty(105)}. Навыки: {Skills(200)}.");
         lines.Add($"Справа: атака {Text(8)}, защита {Text(9)}, сила магии {Text(10)}, знание {Text(11)}; "
-            +$"опыт {Text(82)}, мана {Text(84)}. Навыки: {Skills(208)}.");
-        lines.Add("Специальность героя картинкой и без подписи: карточка левого — inspect_element «id:105», "
-            +"правого — «id:106». Специальность решает, кто из двоих главный, поэтому читай обе, "
-            +"прежде чем сводить армию.");
+            +$"опыт {Text(82)}, мана {Text(84)}. Специальность: {Specialty(106)}. Навыки: {Skills(208)}.");
+        lines.Add("Специальность решает, кто из двоих главный: она растёт с каждым уровнем и "
+            +"привязана к герою навсегда. Сведи армию тому, чья специальность работает на твою армию.");
     }
 
     private static string Res(int[] resources,int index)=>index<resources.Length?resources[index].ToString():"?";

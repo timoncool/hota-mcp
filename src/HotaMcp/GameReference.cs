@@ -154,44 +154,60 @@ internal sealed class GameReference
         return id>=0&&id<heroNames.Count&&heroNames[id].Length>1?heroNames[id]:$"герой №{id}";
     }
 
-    private static List<string>? skillNames;
-
-    /// Names of the secondary skills in the order the game numbers them — the row order of
-    /// SSTRAITS. The skill icons of a hero draw frame (навык+1)*3 + уровень, checked against the
-    /// cards the game itself shows for those icons, so a slot can be read as «Базовый Мудрость»
-    /// instead of a picture number.
-    public static string Skill(int index)
+    /// Entries of a game text table, without its heading. These tables open with a caption row
+    /// and a row of column titles, and only then the entries, in the order the game numbers them.
+    /// The heading is cut by what it says, not by a count: counting rows by hand is what named four
+    /// skills and two specialties wrongly before.
+    private static List<string[]> Entries(string file)
     {
-        if(skillNames is null)
-        {
-            var result=new List<string>();
-            string? data=FindDataDirectory();
-            if(data is not null)
-                foreach(var archive in new[]{"HotA_lng.lod","H3bitmap.lod"})
-                {
-                    var lod=LodArchive.Open(Path.Combine(data,archive));
-                    string? text=lod?.ReadText("SSTRAITS.TXT");
-                    if(text is null)continue;
-                    foreach(var row in Rows(text))result.Add(Clean(row.ElementAtOrDefault(0)??""));
-                    if(result.Count>0)break;
-                }
-            skillNames=result;
-        }
-        return index>=0&&index<skillNames.Count&&skillNames[index].Length>1
-            ?skillNames[index]:$"навык №{index}";
+        string? data=FindDataDirectory();
+        if(data is not null)
+            foreach(var archive in new[]{"HotA_lng.lod","H3bitmap.lod"})
+            {
+                var lod=LodArchive.Open(Path.Combine(data,archive));
+                string? text=lod?.ReadText(file);
+                if(text is null)continue;
+                var rows=Rows(text);
+                int titles=rows.FindIndex(r=>Clean(r.ElementAtOrDefault(0)??"") is "Name" or "(short)");
+                if(titles<0)throw new InvalidOperationException($"{file}: column titles not found");
+                return rows.Skip(titles+1).ToList();
+            }
+        return [];
     }
 
-    /// The skill a hero's icon stands for, and how well he knows it, read from the picture frame.
+    private static List<string[]>? specialties;
+
+    /// What a hero is a specialist in, by the number of the specialty picture he shows. The
+    /// picture number is the entry number of HeroSpec; the text is the one the game itself shows
+    /// on the right button — a heading in braces and what it gives.
+    public static string? Specialty(int frame)
+    {
+        specialties??=Entries("HeroSpec.txt");
+        if(frame<0||frame>=specialties.Count)return null;
+        string card=Clean(specialties[frame].ElementAtOrDefault(2)??"");
+        if(card.Length==0)return Clean(specialties[frame].ElementAtOrDefault(0)??"") is {Length:>0} name?name:null;
+        var parts=card.Split('\n',StringSplitOptions.RemoveEmptyEntries|StringSplitOptions.TrimEntries);
+        string heading=parts[0].Trim('{','}');
+        return parts.Length>1?$"{heading} — {parts[1]}":heading;
+    }
+
+    private static List<string[]>? skills;
+
+    /// A secondary skill by the number the game gives it.
+    public static string Skill(int index)
+    {
+        skills??=Entries("SSTRAITS.TXT");
+        return index>=0&&index<skills.Count&&Clean(skills[index].ElementAtOrDefault(0)??"") is {Length:>0} name
+            ?name:$"навык №{index}";
+    }
+
+    /// The skill a hero's icon stands for, and how well he knows it. The icon draws frame
+    /// (навык+1)*3 + уровень; frame 0 is an empty slot.
     public static string? SkillFromFrame(int frame)
     {
         if(frame<=0)return null;
         string level=(frame%3) switch{0=>"базовый",1=>"продвинутый",_=>"экспертный"};
-        // The table keeps two header rows before the first skill, so the row of a skill sits two
-        // places above its number. Checked against the game's own cards for these icons: frame 24
-        // is «Базовый Мудрость», 33 «Базовый Баллистика», 57 «Базовый Грамотность», 72 «Базовый
-        // Доспехи» — the first reading was off by exactly those two rows and named four wrong
-        // skills.
-        return $"{Skill(frame/3+1)} ({level})";
+        return $"{Skill(frame/3-1)} ({level})";
     }
 
     private static List<string>? objectNames;
