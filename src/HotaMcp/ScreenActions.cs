@@ -566,15 +566,19 @@ internal static class ScreenActions
                 // building that can be put up now, gold one that already stands, red with a cross
                 // one that cannot be started. These were named the wrong way round, so every row
                 // the adapter called buildable was in fact the one the game refuses.
-                string state=picture?.Frame switch
-                {
-                    0=>"уже построено",
-                    1=>"можно построить",
-                    2=>"построить нельзя",
-                    3=>"построить нельзя",
-                    null=>"состояние неизвестно",
-                    _=>$"состояние {picture.Frame}",
-                };
+                // The small mark in the card's corner (id 800 plus the slot) tells why a red card is
+                // red: a cross — the conditions are not met or the town has already built today;
+                // a coin — everything is in place except the resources.
+                var mark=items.FirstOrDefault(i=>i.Id==800+slot);
+                string state=picture?.Frame==1?"можно построить"
+                    :mark?.Frame switch
+                    {
+                        0=>"уже построено",
+                        1=>"нельзя: не выполнены условия или в городе сегодня уже строили (крест)",
+                        2=>"условия выполнены, не хватает ресурсов (монета)",
+                        null=>picture?.Frame==0?"уже построено":"построить нельзя",
+                        _=>$"построить нельзя (значок {mark.Frame})",
+                    };
                 actions.Add(new($"building:inspect:{slot}",$"{item.Text??"Здание"} — {state}"));
             }
             actions.Add(new("construction:close","Вернуться в город"));
