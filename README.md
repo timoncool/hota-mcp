@@ -9,6 +9,8 @@
 [![Stars](https://img.shields.io/github/stars/timoncool/hota-mcp?style=flat-square)](https://github.com/timoncool/hota-mcp/stargazers)
 [![Last Commit](https://img.shields.io/github/last-commit/timoncool/hota-mcp?style=flat-square)](https://github.com/timoncool/hota-mcp/commits)
 
+![Агент играет в HotA через hota-mcp](docs/screenshots/hero.png)
+
 </div>
 
 > **Незавершённый экспериментальный проект (WIP).** Репозиторий открыт, чтобы за ходом работы можно было следить, а не потому, что мост готов к употреблению. Сборки, установщика и стабильного API пока нет, интерфейс инструментов меняется от коммита к коммиту. Описание и документация — на русском, английскую версию сделаю позже.
