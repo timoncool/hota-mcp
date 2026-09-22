@@ -74,9 +74,10 @@ internal sealed class MapReader(WindowsGame game,int player)
                     // Anything standing on the map is reported. The slug stays for the objects the
                     // bridge acts on by name; everything else carries the game's own name, because
                     // an object the player can see must not vanish just for want of a slug.
-                    string kind=KnownObjects.TryGetValue(type,out var known)?known:GameReference.MapObject(type);
-                    objects.Add(new(xx,yy,z,type,kind)
-                        {Name=ObjectName(type,BitConverter.ToInt16(game.Read(tile+0x22,2))),Id=BitConverter.ToUInt16(game.Read(tile,2))});
+                    int subtype=BitConverter.ToInt16(game.Read(tile+0x22,2));
+                    string name=ObjectName(type,subtype);
+                    string kind=KnownObjects.TryGetValue(type,out var known)?known:GameReference.MapObject(type,subtype);
+                    objects.Add(new(xx,yy,z,type,kind){Name=name,Id=BitConverter.ToUInt16(game.Read(tile,2))});
                 }
             }
             terrain.Add(tr);roads.Add(rr);blocked.Add(br);
@@ -96,7 +97,7 @@ internal sealed class MapReader(WindowsGame game,int player)
         79 when subtype is >=0 and <7 => $"ресурс: {Resources[subtype]}",
         53 => GameReference.Mine(subtype),
         16 => GameReference.Bank(subtype),
-        _ => GameReference.MapObject(type),
+        _ => GameReference.MapObject(type,subtype),
     };
 
     public (int X,int Y) ScreenPoint(Observation observation,int x,int y,int z)

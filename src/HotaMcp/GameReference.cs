@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace HotaMcp;
 
@@ -254,7 +255,30 @@ internal sealed class GameReference
                     break;
                 }
         }
-        return subtype>=0&&subtype<banks.Count?banks[subtype]:$"банк существ №{subtype}";
+        return subtype>=0&&subtype<banks.Count?banks[subtype]:HotaObject(16,subtype)??$"банк существ №{subtype}";
+    }
+
+    private static Dictionary<(int Type,int Subtype),string>? hotaObjects;
+
+    /// The expansion's own objects — its banks, the resource warehouses and the rest — are named
+    /// in HotA.dat, in the table the map editor shows as a hint: type, subtype (−1 for any), then
+    /// the name on the first line of a quoted description.
+    public static string? HotaObject(int type,int subtype)
+    {
+        if(hotaObjects is null)
+        {
+            hotaObjects=[];
+            string? data=FindDataDirectory();
+            string file=data is null?"":Path.Combine(Path.GetDirectoryName(data)!,"HotA.dat");
+            if(File.Exists(file))
+            {
+                string text=Encoding.GetEncoding(1251).GetString(File.ReadAllBytes(file));
+                foreach(Match m in Regex.Matches(text,"(?:^|\n)(\\d+)\r\n(-?\\d+)\r\n\"([^\r\"]+)"))
+                    hotaObjects.TryAdd((int.Parse(m.Groups[1].Value),int.Parse(m.Groups[2].Value)),m.Groups[3].Value.Trim());
+            }
+        }
+        return hotaObjects.TryGetValue((type,subtype),out var exact)?exact
+            :hotaObjects.TryGetValue((type,-1),out var any)?any:null;
     }
 
     /// The loss condition, numbered the same way.
@@ -330,7 +354,7 @@ internal sealed class GameReference
     /// Names of the map objects in the order the game numbers them — the row order of ObjNames is
     /// the object type, so a mine, a windmill or a shrine can be named instead of silently dropped
     /// for want of a hand-written table. A player sees every object on the map; so must the agent.
-    public static string MapObject(int type)
+    public static string MapObject(int type,int subtype=-1)
     {
         if(objectNames is null)
         {
@@ -348,7 +372,7 @@ internal sealed class GameReference
             objectNames=result;
         }
         return type>=0&&type<objectNames.Count&&objectNames[type].Length>1
-            ?objectNames[type]:$"объект типа {type}";
+            ?objectNames[type]:HotaObject(type,subtype)??$"объект типа {type}";
     }
 
     private static IReadOnlyDictionary<int,string>? liveCreatures;
