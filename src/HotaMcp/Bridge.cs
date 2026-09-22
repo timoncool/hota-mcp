@@ -254,13 +254,23 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
                 // carries the object's own index, so a town id or a hero id compared against what
                 // this player owns says it exactly, without guessing at an owner byte.
                 string kind=target.Kind;
+                string? townName=null;
                 if(target.Type==98)
+                {
                     kind=observation.Towns.Any(t=>t.Id==target.Id)?"свой город":"ЧУЖОЙ ГОРОД";
+                    // The flag over a town is seen by everyone: whose it is, or nobody's.
+                    if(kind!="свой город"&&new TownReader(game,player).Describe(target.Id) is var (tn,owner))
+                    {
+                        townName=tn;
+                        kind=owner==255?"нейтральный город (без хозяина — можно взять, в нём гарнизон)"
+                            :$"ЧУЖОЙ ГОРОД ({ColourName(owner)})";
+                    }
+                }
                 if(target.Type==34)
                     kind=observation.Heroes.Any(h=>h.Id==target.Id)?"свой герой":"ЧУЖОЙ ГЕРОЙ";
                 string? name=target.Type switch
                 {
-                    98 => observation.Towns.FirstOrDefault(t=>t.Id==target.Id)?.Name??target.Name,
+                    98 => observation.Towns.FirstOrDefault(t=>t.Id==target.Id)?.Name??townName??target.Name,
                     34 => observation.Heroes.FirstOrDefault(h=>h.Id==target.Id)?.Name??target.Name,
                     _ => target.Name,
                 };
@@ -278,6 +288,11 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
         }
         finally{gate.Release();}
     }
+
+    private static string ColourName(int owner)=>owner switch
+    {
+        0=>"красный",1=>"синий",2=>"коричневый",3=>"зелёный",4=>"оранжевый",5=>"фиолетовый",6=>"бирюзовый",7=>"розовый",_=>$"игрок {owner}"
+    };
 
     public async Task<TargetInspection> InspectTarget(string targetId,string revision,CancellationToken ct)
     {

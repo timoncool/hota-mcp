@@ -41,6 +41,21 @@ internal sealed class TownReader(WindowsGame game,int player)
         if(best<3||game.U32(dlg+0x50)!=mask)throw new InvalidOperationException("Building hit region unavailable");
         return (bx,by);
     }
+    /// Name and owner of any town on the map, by its index. The owner is what the flag over the
+    /// town shows every player; 255 is a town nobody holds.
+    public (string? Name,int Owner)? Describe(int id)
+    {
+        uint main=game.U32(0x699538);
+        var code=game.Read(0x4081bd,6);
+        if(code[0]!=0x8b||code[1]!=0x82)return null;
+        uint offset=BitConverter.ToUInt32(code,2);
+        uint start=game.U32(main+offset),end=game.U32(main+offset+4);
+        if(id<0||start+(uint)(id+1)*0x168>end)return null;
+        var head=game.Read(start+(uint)id*0x168,2);
+        if(head[0]!=id)return null;
+        return (game.Text(game.U32(start+(uint)id*0x168+0xc8)),head[1]);
+    }
+
     public List<TownView> Read()
     {
         uint main=game.U32(0x699538),owner=main+0x20ad0+(uint)player*0x168;
