@@ -721,6 +721,9 @@ internal sealed class GameReader(WindowsGame game,int player)
                 dx+BitConverter.ToInt16(b,0x18),dy+BitConverter.ToInt16(b,0x1a),iw,ih,interactive)
                 {Frame=BitConverter.ToInt32(b,0x34),Selected=(state&16)!=0});
         }
+        // The expansion's backpack is its own window: an eight by eight grid of cells numbered
+        // from 1000, with each carried artefact drawn over it as a picture numbered from 2000.
+        if(screen=="popup_choice"&&items.Count(i=>i.Id is >=1000 and <1064&&i.Width==47)==64)screen="backpack";
         if(screen=="scenario_selection"&&items.Any(i=>i.Id==186&&i.Asset=="scnrsav.def"))screen="save_game";
         SaveList? saves=null;
         if((screen=="scenario_selection"||screen=="save_game")&&items.Any(i=>i.Id==186&&i.Asset=="scnrlod.def"))screen="load_game";
@@ -774,7 +777,7 @@ internal sealed class GameReader(WindowsGame game,int player)
                 skills.Add(new(name.Text.Trim(),items.FirstOrDefault(e=>e.Id==95+i)?.Text?.Trim()??"",$"id:{79+i}"));
             }
             var equipped=new List<HeroSlot>();
-            foreach(var slot in items.Where(e=>e.Id is >=2 and <=20&&e.Frame>0&&e.Width==44))
+            foreach(var slot in items.Where(e=>e.Id is >=2 and <=20&&e.Width==44&&e.Frame!=ExchangeArtifacts.Highlight))
                 equipped.Add(new(GameReference.Artifact(slot.Frame)??$"артефакт с картинкой {slot.Frame}",$"id:{slot.Id}"));
             var inspect=new Dictionary<string,string>
             {

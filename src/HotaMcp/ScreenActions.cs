@@ -83,6 +83,7 @@ internal static class ScreenActions
             if(items.Any(i=>i.Id==30721&&i.Interactive))actions.Add(new("split:decline","Отменить разделение, отряд останется целым"));
         }
         if(screen=="hero_screen")actions.Add(new("hero:close","Закрыть экран героя (Esc)"));
+        if(screen=="backpack")actions.Add(new("backpack:close","Закрыть рюкзак (Esc)"));
         if(screen=="kingdom_overview")actions.Add(new("kingdom:close","Закрыть обзор королевства"));
         if(screen=="town_fort")
         {
@@ -204,6 +205,18 @@ internal static class ScreenActions
             if(items.Any(i=>i.Id==401))actions.Add(new("exchange:army:swap","Обменять армии героев местами целиком"));
             if(items.Any(i=>i.Id==450))actions.Add(new("exchange:artifacts:right","Отдать все артефакты правому герою"));
             if(items.Any(i=>i.Id==452))actions.Add(new("exchange:artifacts:left","Забрать все артефакты левому герою"));
+            // An artefact both heroes carry is addressed with the side it leaves from.
+            var owned=new[]{("слева","левого героя правому",27,89),("справа","правого героя левому",46,94)}
+                .SelectMany(side=>ExchangeArtifacts.Worn(items,side.Item3).Where(a=>a.Slot!="книга").Select(a=>a.Name)
+                    .Concat(ExchangeArtifacts.Pack(items,side.Item4).Select(a=>a.Name)).Distinct()
+                    .Select(name=>(Side:side.Item1,Who:side.Item2,Name:name))).ToList();
+            foreach(var a in owned)
+            {
+                bool both=owned.Count(o=>o.Name==a.Name)>1;
+                actions.Add(new($"exchange:artifact:{a.Name}"+(both?$"@{a.Side}":""),$"Передать «{a.Name}» от {a.Who}"));
+            }
+            if(items.Any(i=>i.Id==8000))actions.Add(new("exchange:backpack:слева","Открыть весь рюкзак левого героя (в ряду внизу видно только пять клеток)"));
+            if(items.Any(i=>i.Id==8001))actions.Add(new("exchange:backpack:справа","Открыть весь рюкзак правого героя (в ряду внизу видно только пять клеток)"));
             actions.Add(new("exchange:done","Закрыть окно обмена (ОК)"));
         }
         if(screen=="level_up")

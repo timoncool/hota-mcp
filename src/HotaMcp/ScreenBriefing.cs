@@ -7,6 +7,23 @@ namespace HotaMcp;
 /// reading a flat list of ids sees none of that and pays for it in a string of small questions.
 /// The briefing removes those questions: it names what is on the screen, whose it is, what is
 /// pending, and which action key answers each of them.
+/// The artefact cells of the exchange window. Each hero has nineteen worn slots in the game's own
+/// order and a row of five visible backpack cells; a cell holds an artefact when it is drawn at
+/// all, and the picture's frame is the artefact. While an artefact is on the cursor, the cells it
+/// may go to are drawn with frame 144.
+internal static class ExchangeArtifacts
+{
+    public static readonly string[] Slots=["голова","плечи","шея","правая рука","левая рука","торс","правое кольцо","левое кольцо",
+        "ноги","разное 1","разное 2","разное 3","разное 4","баллиста","тележка","палатка","катапульта","книга","разное 5"];
+    public const int Highlight=144;
+    public static IEnumerable<(int Id,string Slot,string Name)> Worn(List<UiElement> items,int first)=>
+        items.Where(i=>i.Id>=first&&i.Id<first+19&&i.Width==44&&i.Frame!=Highlight).OrderBy(i=>i.Id)
+            .Select(i=>(i.Id,Slots[i.Id-first],GameReference.Artifact(i.Frame)??$"артефакт с картинкой {i.Frame}"));
+    public static IEnumerable<(int Id,string Name)> Pack(List<UiElement> items,int first)=>
+        items.Where(i=>i.Id>=first&&i.Id<first+5&&i.Width==44&&i.Frame!=Highlight).OrderBy(i=>i.Id)
+            .Select(i=>(i.Id,GameReference.Artifact(i.Frame)??$"артефакт с картинкой {i.Frame}"));
+}
+
 internal static class ScreenBriefing
 {
     public static List<string> Build(string screen,int[] date,int[] resources,List<TownView> towns,
@@ -45,6 +62,13 @@ internal static class ScreenBriefing
                 +"ни походить, ни открыть город. Текст лежит в Elements; закрой его действием "
                 +"message:accept, а вопрос с двумя кнопками — message:confirm или message:decline.");
         if(screen=="message")RewardBrief(lines,items);
+        if(screen=="backpack")
+        {
+            var carried=items.Where(i=>i.Id is >=2000 and <2064).OrderBy(i=>i.Id)
+                .Select(i=>GameReference.Artifact(i.Frame)??$"артефакт с картинкой {i.Frame}").ToList();
+            lines.Add("Рюкзак героя целиком: "+(carried.Count>0?string.Join(", ",carried):"пусто")
+                +". Описание — inspect_element по картинке артефакта; закрыть — backpack:close.");
+        }
         if(screen=="level_up")
         {
             var offers=items.Where(i=>i.Id is 2010 or 2011).Select(i=>GameReference.SkillFromFrame(i.Frame)).Where(s=>s is not null).ToList();
@@ -197,6 +221,13 @@ internal static class ScreenBriefing
             +$"опыт {Text(81)}, мана {Text(83)}. Специальность: {Specialty(105)}. Навыки: {Skills(200)}.");
         lines.Add($"Справа: атака {Text(8)}, защита {Text(9)}, сила магии {Text(10)}, знание {Text(11)}; "
             +$"опыт {Text(82)}, мана {Text(84)}. Специальность: {Specialty(106)}. Навыки: {Skills(208)}.");
+        foreach(var (side,doll,pack) in new[]{("Слева",27,89),("Справа",46,94)})
+        {
+            var worn=ExchangeArtifacts.Worn(items,doll).Select(a=>$"{a.Slot} — {a.Name}").ToList();
+            var carried=ExchangeArtifacts.Pack(items,pack).Select(a=>a.Name).ToList();
+            lines.Add($"{side} артефакты: {(worn.Count>0?string.Join("; ",worn):"нет")}. Рюкзак (видимая часть): {(carried.Count>0?string.Join(", ",carried):"пусто")}.");
+        }
+        lines.Add("Передать один артефакт соседу — exchange:artifact:<название>: игра сама кладёт его в подходящий слот, а если слот занят — в рюкзак. Описание любого — inspect_element по его клетке.");
         lines.Add("Специальность решает, кто из двоих главный: она растёт с каждым уровнем и "
             +"привязана к герою навсегда. Сведи армию тому, чья специальность работает на твою армию.");
     }

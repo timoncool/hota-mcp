@@ -465,6 +465,10 @@ internal static class GameCommands
         // The exchange window closes with the game's ordinary Esc, like the other hero screens.
         // It opens both from a meeting on the map and from the town screen.
         "exchange:done" => new("adventure,town", Deliveries.Key(0x1b, 0x01)),
+        "exchange:backpack:слева" => new("backpack", Deliveries.Control(8000, "bckpck.def")),
+        "exchange:backpack:справа" => new("backpack", Deliveries.Control(8001, "bckpck.def")),
+        "backpack:close" => new("exchange,hero_screen", Deliveries.Key(0x1b, 0x01)),
+        _ when action.Key.StartsWith("exchange:artifact:") => new("exchange", GiveArtifact),
         _ when action.Key.StartsWith("exchange:one:",StringComparison.Ordinal)
             => new("exchange",ExchangeOne){Confirm=Confirm.GarrisonChanged},
         // Reading only: the comparison is printed in the action's own label, so performing it
@@ -1026,6 +1030,41 @@ internal static class GameCommands
                     + (now < wanted ? "больше не позволяет запас" : "меньше поставить нельзя"));
             now = next;
         }
+    };
+
+    /// Hands one artefact to the other hero the way a player does: press it to lift it onto the
+    /// cursor, then press a cell of the other hero that the game lights up for it, or a free cell
+    /// of his backpack when none lights up.
+    private static readonly Deliver GiveArtifact = async (context, ct) =>
+    {
+        string name = context.Element["exchange:artifact:".Length..];
+        string? from = null;
+        int at = name.LastIndexOf('@');
+        if (at > 0) { from = name[(at + 1)..]; name = name[..at]; }
+        var items = context.Before.Elements;
+        (int Id, bool Left)? source = null;
+        foreach (var (doll, pack, left) in new[] { (27, 89, true), (46, 94, false) })
+        {
+            if (from is not null && from != (left ? "слева" : "справа")) continue;
+            var hit = ExchangeArtifacts.Worn(items, doll).Where(a => a.Name == name).Select(a => a.Id)
+                .Concat(ExchangeArtifacts.Pack(items, pack).Where(a => a.Name == name).Select(a => a.Id)).Cast<int?>().FirstOrDefault();
+            if (hit is int id) { source = (id, left); break; }
+        }
+        if (source is null) throw new InvalidOperationException($"Артефакта «{name}» у героев в окне нет");
+        await Deliveries.Press(context, items.First(e => e.Id == source.Value.Id), ct);
+        await Task.Delay(250, CancellationToken.None);
+        var lifted = context.Reader.Observe().Elements;
+        int doll2 = source.Value.Left ? 46 : 27, pack2 = source.Value.Left ? 94 : 89;
+        var target = lifted.Where(e => e.Id >= doll2 && e.Id < doll2 + 19 && e.Frame == ExchangeArtifacts.Highlight).OrderBy(e => e.Id).FirstOrDefault();
+        if (target is null)
+        {
+            int free = Enumerable.Range(pack2, 5).FirstOrDefault(id => lifted.All(e => e.Id != id), -1);
+            if (free < 0) throw new InvalidOperationException("Артефакт взят на курсор, но у соседа нет ни подходящего слота, ни свободной видимой клетки рюкзака");
+            var box = context.Reader.FindControlById(free) ?? throw new InvalidOperationException("Клетка рюкзака не найдена");
+            await Deliveries.Press(context, box.X + box.Width / 2, box.Y + box.Height / 2, ct);
+            return;
+        }
+        await Deliveries.Press(context, target, ct);
     };
 
     private static readonly Deliver SelectScenario = async (context, ct) =>
