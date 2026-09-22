@@ -518,7 +518,8 @@ internal static class GameCommands
         _ when action.Key.StartsWith("combat:attack:") => new("combat",
             Deliveries.CombatAttack(c => StackHex(c, AttackTarget(c.Element)), c => AttackSide(c.Element)))
             { Confirm = Confirm.CombatTurn | Confirm.CombatLog, TimeoutSeconds = 10, BattleMayEnd = true },
-        "battle:accept" => new("adventure", Deliveries.Key(0x0d, 0x1c)),
+        // After a fight the game may go straight on to a level-up or a message, not the map.
+        "battle:accept" => new("adventure,level_up,message", Deliveries.Key(0x0d, 0x1c)),
 
         _ => throw new InvalidOperationException("Action not implemented"),
     };

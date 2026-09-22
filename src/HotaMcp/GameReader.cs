@@ -190,7 +190,25 @@ internal sealed class GameReader(WindowsGame game,int player)
         // Two matching reads reduce transitional snapshots; safe-point synchronization remains future work.
         var first=ReadOnce();
         var second=ReadOnce();
-        if(first.Revision==second.Revision)return second;
+        if(second.Screen!=animatedScreen)
+        {
+            // A screen just opened: watch it for a few beats so every picture that animates on
+            // its own is known before the first revision is handed out, not discovered one
+            // observation later as a spurious change of state.
+            animatedKeys=[];animatedScreen=second.Screen;
+            var look=second;
+            for(int beat=0;beat<4;beat++)
+            {
+                Thread.Sleep(60);
+                var next=ReadOnce();
+                if(next.Screen!=look.Screen||next.Elements.Count!=look.Elements.Count)break;
+                for(int i=0;i<next.Elements.Count;i++)
+                    if(next.Elements[i]!=look.Elements[i]&&(next.Elements[i] with {Frame=0})==(look.Elements[i] with {Frame=0}))
+                        animatedKeys.Add(next.Elements[i].Key);
+                look=next;
+            }
+        }
+        if(first.Revision==second.Revision)return Revise(second);
         // Some screens animate: the creatures in the fort and in the recruitment window step
         // through their frames on their own. Two reads that differ only in the frame a picture
         // happens to show are the same state, not a changing one; those pictures are kept out of
@@ -204,7 +222,10 @@ internal sealed class GameReader(WindowsGame game,int player)
             if(a with {Frame=0}!=b with {Frame=0})throw new InvalidOperationException("State changing; observe again");
             animated.Add(a.Key);
         }
-        animatedKeys=animated;animatedScreen=second.Screen;
+        // Pictures seen animating on this screen stay known as such for as long as the screen is
+        // up: two reads that happen to catch the same frame must not bring them back into the
+        // revision, or the next observation looks like a different state.
+        animatedKeys.UnionWith(animated);
         var settled=Revise(second);
         return settled;
     }
