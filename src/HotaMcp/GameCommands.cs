@@ -272,7 +272,9 @@ internal static class GameCommands
     };
 
     /// Where answering a modal question can legitimately land.
-    private const string AfterMessage="adventure,message,combat,battle_result,town,hero_screen,exchange";
+    // A dwelling out on the map answers «yes, hire» with its recruitment window, and a level-up
+    // can follow a reward, so both are ordinary places for a message to lead to.
+    private const string AfterMessage="adventure,message,combat,battle_result,town,hero_screen,exchange,recruitment,level_up";
 
     /// Anything a town building can open.
     private const string AnyTownScreen="town,town_hall,building_confirmation,recruitment,tavern,"
@@ -476,7 +478,7 @@ internal static class GameCommands
         "recruit:max" => new("recruitment", Deliveries.Key(0x4d, 0x32)),
         // A purchase lands on whichever screen opened the recruitment window — the town, or the
         // fort when every tier was hired from there — so the proof is the gold, not the screen.
-        "recruit:buy" => new("town,town_fort", Deliveries.Key(0x0d, 0x1c)) { Confirm = Confirm.GoldSpent },
+        "recruit:buy" => new("town,town_fort,adventure", Deliveries.Key(0x0d, 0x1c)) { Confirm = Confirm.GoldSpent },
         "recruit:cancel" => new("town", Deliveries.Key(0x1b, 0x01)),
 
         // Combat.
