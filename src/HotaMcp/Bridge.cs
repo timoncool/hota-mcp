@@ -803,10 +803,11 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             // stack today, the hero would spend the whole day walking a detour and arrive
             // tomorrow with nothing left. That is refused with the reason, so the detour is a
             // decision taken with move_to_tile rather than a side effect of an attack order.
-            if(attack&&target.Route.State!="reachable_today")
-                throw new InvalidOperationException($"Отряд сегодня не достать: маршрут {target.Route.State}"
-                    +(target.Route.MovementCost is int cost?$", нужно {cost} хода":"")
-                    +(target.Route.Detail is {} why?$" ({why})":"")
+            var route=attack?new RouteReader(game,player).Read(before,target):null;
+            if(route is not null&&route.State!="reachable_today")
+                throw new InvalidOperationException($"Отряд сегодня не достать: маршрут {route.State}"
+                    +(route.MovementCost is int cost?$", нужно {cost} хода":"")
+                    +(route.Detail is {} why?$" ({why})":"")
                     +". Подойди ближе move_to_tile и атакуй, когда nearby_targets покажет reachable_today. Герой не двигался.");
             int[] destination=[target.X,target.Y,target.Z];
             return await RunMove(request.OperationId,identity,before,destination,attack?30:10,"move",
