@@ -1,6 +1,12 @@
 namespace HotaMcp;
 
-public record CombatStack(string Id,int Side,int Slot,int Type,string Name,int Count,int Hex,int Speed,int Attack,int Defence);
+public record CombatStack(string Id,int Side,int Slot,int Type,string Name,int Count,int Hex,int Speed,int Attack,int Defence,
+    int[] Hexes,bool Wide,bool Flying,bool Shooter)
+{
+    /// Every free hex touching the stack. A two-hex creature is struck from around either of its
+    /// hexes, so the head hex alone misses half of the places a blow can come from.
+    public IEnumerable<int> Around()=>Hexes.SelectMany(Deliveries.HexNeighbours).Distinct().Where(h=>!Hexes.Contains(h));
+}
 public record CombatView(int Round,int OwnSide,string? ActiveStack,bool OwnTurn,List<CombatStack> Stacks,int[] ReachableHexes,string[] AttackableTargets, int LogCount, CombatLogEntry[] Log);
 
 public record CombatLogEntry(int Index,string Text);
@@ -15,6 +21,10 @@ internal sealed class CombatReader(WindowsGame game,int player)
         int own=Array.IndexOf(owners,player);
         if(own<0)throw new InvalidOperationException("Player is not a combat participant");
         int side=game.I32(manager+0x132b8),slot=game.I32(manager+0x132bc),activeSide=game.I32(manager+0x132c0);
+        // Each battlefield hex records which stack stands on it (side and slot, 0xff when empty).
+        // That is how the game itself knows the second hex of a two-hex creature, so the bridge
+        // reads it rather than guessing which way the creature faces.
+        byte[] field=game.Read(manager+0x1c4,187*0x70);
         var stacks=new List<CombatStack>();
         for(int s=0;s<2;s++)for(int i=0;i<21;i++)
         {
@@ -29,7 +39,11 @@ internal sealed class CombatReader(WindowsGame game,int player)
             if(type<0||type>1023||hex<0||hex>186||game.I32(a+0xf4)!=s||game.I32(a+0xf8)!=i)continue;
             if((game.U32(a+8)&4)==0||(game.U32(a+8)&8)!=0)continue;
             string name=game.Text(game.U32(a+0x8c))??throw new InvalidOperationException("Combat creature name unavailable");
-            stacks.Add(new($"stack:{s}:{i}",s,i,type,name,count,hex,game.I32(a+0xc4),game.I32(a+0xc8),game.I32(a+0xcc)));
+            int[] hexes=Enumerable.Range(0,187).Where(h=>field[h*0x70+0x18]==s&&field[h*0x70+0x19]==i).ToArray();
+            if(!hexes.Contains(hex))throw new InvalidOperationException("Combat hex occupancy layout unsupported");
+            uint flags=game.U32(a+0x84);
+            stacks.Add(new($"stack:{s}:{i}",s,i,type,name,count,hex,game.I32(a+0xc4),game.I32(a+0xc8),game.I32(a+0xcc),
+                hexes,(flags&1)!=0,(flags&2)!=0,(flags&4)!=0));
         }
         string? active=stacks.Any(s=>s.Side==side&&s.Slot==slot)?$"stack:{side}:{slot}":null;
         bool ownTurn=activeSide==own&&active is not null;
@@ -48,7 +62,7 @@ internal sealed class CombatReader(WindowsGame game,int player)
         }
         if(game.U32(dlg+0x58)!=first||game.U32(dlg+0x5c)!=end)throw new InvalidOperationException("Combat log changed during read");
         return new(game.I32(manager+0x13d6c),own,active,ownTurn,stacks,
-            Enumerable.Range(0,187).Where(h=>(access[h]&2)!=0&&!stacks.Any(s=>s.Hex==h)).ToArray(),
+            Enumerable.Range(0,187).Where(h=>(access[h]&2)!=0&&!stacks.Any(s=>s.Hexes.Contains(h))).ToArray(),
             // Melee reach is what the accessibility plane marks, and during a siege the wall makes
             // every defender unreachable by that measure — which left a shooter with no targets at
             // all. A shot does not care about reach, so every enemy stack is offered while it is

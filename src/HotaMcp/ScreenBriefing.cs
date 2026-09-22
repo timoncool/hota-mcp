@@ -10,7 +10,7 @@ namespace HotaMcp;
 internal static class ScreenBriefing
 {
     public static List<string> Build(string screen,int[] date,int[] resources,List<TownView> towns,
-        List<HeroView> roster,HeroView? selected,SideView? side,string? selectedStack,BuildOffer? offer,int openTown,string? foreignHero,List<string> foreignArmy,List<ForeignHero> foreignHeroes,List<UiElement> items)
+        List<HeroView> roster,HeroView? selected,SideView? side,string? selectedStack,BuildOffer? offer,int openTown,string? foreignHero,List<string> foreignArmy,List<ForeignHero> foreignHeroes,List<UiElement> items,CombatView? combat=null)
     {
         var lines=new List<string>();
         if(side is not null)
@@ -21,7 +21,7 @@ internal static class ScreenBriefing
             lines.Add($"ТРЕВОГА: чужой герой {enemy.Name} ({Colour(enemy.Owner)}) виден на клетке "
                 +$"{enemy.Position[0]},{enemy.Position[1]}. Посмотреть его войско — наведи на него inspect_tile "
                 +"или открой карточку правым щелчком; при угрозе городу переходи в состояние обороны.");
-        if(date.Length>2)
+        if(date.Length>2&&screen!="combat")
         {
             int left=8-date[0];
             // The hall pays every morning and the dwellings fill on the first day of a week; both
@@ -56,6 +56,7 @@ internal static class ScreenBriefing
                 :"Курсы появятся под ресурсами справа, когда выбран ресурс слева (market:give:<ресурс>).");
             lines.Add("Порядок: market:give:<что отдать> → market:get:<что получить> → market:max или ползунок → market:trade.");
         }
+        if(screen=="combat"&&combat is not null)CombatBrief(lines,combat);
         if(screen=="town")TownBrief(lines,resources,towns,roster,selectedStack,openTown);
         if(screen=="exchange")ExchangeBrief(lines,items,roster);
         if(screen=="adventure")AdventureBrief(lines,resources,towns,roster,selected);
@@ -77,6 +78,39 @@ internal static class ScreenBriefing
     };
 
     private static string Part(int[] date,int index)=>index<date.Length?date[index].ToString():"?";
+
+    /// The battlefield as a player reads it at a glance: whose move it is, where every stack
+    /// stands, and which enemies the moving stack can hit this turn.
+    private static void CombatBrief(List<string> lines,CombatView combat)
+    {
+        string Where(CombatStack s)=>s.Hexes.Length>1?$"клетки {string.Join("-",s.Hexes)}":$"клетка {s.Hex}";
+        string Traits(CombatStack s)=>string.Join("",new[]{s.Flying?", летает":"",s.Shooter?", стреляет":"",s.Wide?", занимает две клетки":""});
+        string Line(IEnumerable<CombatStack> list)=>string.Join("; ",list.Select(s=>$"{s.Name} {s.Count} [{s.Id}] ({Where(s)}, скорость {s.Speed}{Traits(s)})"));
+        var active=combat.Stacks.FirstOrDefault(s=>s.Id==combat.ActiveStack);
+        lines.Add($"Бой, раунд {combat.Round+1}. "+(combat.OwnTurn&&active is not null
+            ?$"Ходит твой отряд: {active.Name} {active.Count} ({Where(active)}, скорость {active.Speed}{Traits(active)})."
+            :"Сейчас ходит противник: действий нет, наблюдай, пока ход не вернётся."));
+        lines.Add("Твои отряды: "+Line(combat.Stacks.Where(s=>s.Side==combat.OwnSide))+".");
+        lines.Add("Враги: "+Line(combat.Stacks.Where(s=>s.Side!=combat.OwnSide))+".");
+        if(!combat.OwnTurn||active is null)return;
+        if(active.Speed==0)
+        {
+            lines.Add("Ходящий отряд не двигается (военная машина): цель выбирает combat:attack:<отряд>.");
+            return;
+        }
+        var reach=new HashSet<int>(combat.ReachableHexes);
+        var near=new List<string>();var far=new List<string>();
+        foreach(var enemy in combat.Stacks.Where(s=>s.Side!=combat.OwnSide))
+        {
+            var around=enemy.Around().ToList();
+            bool touching=active.Hexes.Any(around.Contains);
+            if(touching||around.Any(reach.Contains))near.Add($"{enemy.Name} {enemy.Count} [{enemy.Id}]"+(touching?" (уже вплотную)":""));
+            else far.Add($"{enemy.Name} {enemy.Count} [{enemy.Id}]");
+        }
+        lines.Add((near.Count>0?"Ближним боем в этот ход достаёшь: "+string.Join(", ",near)+". ":"Ближним боем в этот ход не достать никого. ")
+            +(far.Count>0?"Не достаёшь: "+string.Join(", ",far)+". ":"")
+            +(active.Shooter?"Отряд стреляет — выстрел бьёт любую цель: combat:attack:<отряд>.":"Удар — combat:attack:<отряд> или с выбранной клетки combat:attack:<отряд>:from:<клетка>."));
+    }
 
     private static string Stacks(int[] types,int[] counts)
     {

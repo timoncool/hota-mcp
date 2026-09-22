@@ -794,7 +794,7 @@ internal sealed class GameReader(WindowsGame game,int player)
             int active=game.I32(0x69ccf4);
             side=new(player,Colour(player),active,Colour(active),active==player);
         }
-        var result=new Observation("",player,date,resources,hero,screen,width,height,items){Towns=towns,Actions=actions,Setup=setup,Combat=combat,Saves=saves,Sheet=sheet,Build=build,Heroes=roster,Side=side,SelectedStack=selected,OpenTown=openTown,ForeignHero=foreignName,ForeignArmy=foreignArmy,ForeignHeroes=foreignHeroes,Brief=ScreenBriefing.Build(screen,date,resources,towns,roster,hero,side,selected,build,openTown,foreignName,foreignArmy,foreignHeroes,items)};
+        var result=new Observation("",player,date,resources,hero,screen,width,height,items){Towns=towns,Actions=actions,Setup=setup,Combat=combat,Saves=saves,Sheet=sheet,Build=build,Heroes=roster,Side=side,SelectedStack=selected,OpenTown=openTown,ForeignHero=foreignName,ForeignArmy=foreignArmy,ForeignHeroes=foreignHeroes,Brief=ScreenBriefing.Build(screen,date,resources,towns,roster,hero,side,selected,build,openTown,foreignName,foreignArmy,foreignHeroes,items,combat)};
         return Revise(result);
     }
 }

@@ -111,7 +111,8 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
         string progress=string.Join("|",
             [string.Join(",",state.Date),string.Join(",",state.Resources),
              string.Join(";",state.Heroes.Select(h=>$"{h.Id}:{string.Join(",",h.Position)}:{h.Movement}:{string.Join(",",h.ArmyCounts)}")),
-             string.Join(";",state.Towns.Select(t=>$"{t.Id}:{t.Buildings.Length}:{t.BuiltToday}"))]);
+             string.Join(";",state.Towns.Select(t=>$"{t.Id}:{t.Buildings.Length}:{t.BuiltToday}")),
+             state.Screen,state.Combat?.LogCount.ToString()??""]);
         if(progress==lastProgress)idleReads++;
         else {lastProgress=progress;idleReads=0;}
         var townsNow=state.Towns.Select(t=>t.Name??"безымянный").ToList();
@@ -600,9 +601,12 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
         if(confirm.HasFlag(Confirm.CombatLog)
             &&!(after.Combat is not null&&after.Combat.LogCount>before.Combat!.LogCount))return false;
         if(confirm.HasFlag(Confirm.ManaSpent)&&!(after.Hero?.Mana<before.Hero?.Mana))return false;
+        // High morale hands the same stack a second move in the same round; the only trace of the
+        // first action then is the log having grown while that stack is still the one to act.
         if(confirm.HasFlag(Confirm.CombatTurn)
             &&!(after.Combat?.OwnTurn==true
-                &&(after.Combat.ActiveStack!=before.Combat?.ActiveStack||after.Combat.Round!=before.Combat?.Round)))return false;
+                &&(after.Combat.ActiveStack!=before.Combat?.ActiveStack||after.Combat.Round!=before.Combat?.Round
+                    ||after.Combat.LogCount>before.Combat!.LogCount)))return false;
         if(confirm.HasFlag(Confirm.PartyLoaded)&&!(after.Hero is not null&&after.Date.Length>0))return false;
         // Handing a stack over must actually change the armies of this side. Counting only the
         // town's own garrison was not enough: when a garrison hero stands in the town the upper

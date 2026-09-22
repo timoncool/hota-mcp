@@ -178,14 +178,14 @@ internal static class Deliveries
     /// defender's cell the cursor is: a press on the dead centre is not an attack from anywhere,
     /// and the order is dropped without a word. Pressing on the side that faces the attacker is
     /// what a player does without thinking, and it is what makes the stack walk up and strike.
-    public static Deliver CombatAttack(Func<CommandContext, int> target, Func<CommandContext, int?>? from = null) => async (context, ct) =>
+    public static Deliver CombatAttack(Func<CommandContext, CombatStack> target, Func<CommandContext, int?>? from = null) => async (context, ct) =>
     {
         var reader = new CombatReader(context.Game, context.Player);
         var combat = context.Before.Combat ?? throw new InvalidOperationException("Бой не прочитан");
         var active = combat.Stacks.FirstOrDefault(s => s.Id == combat.ActiveStack)
             ?? throw new InvalidOperationException("Активный отряд не определён");
-        int targetHex = target(context);
-        var to = reader.Center(targetHex);
+        var victim = target(context);
+        var around = victim.Around().ToList();
         // Which side a melee blow comes from is decided by the part of the defender's hex the
         // cursor stands on. Pointing at the middle left that choice to chance, and a side the
         // attacker cannot reach meant no blow at all. So the cursor is set on the edge of the
@@ -194,12 +194,14 @@ internal static class Deliveries
         var reachable = new HashSet<int>(combat.ReachableHexes);
         // Already standing next to the defender: the blow comes from where the attacker is.
         int? chosen = from?.Invoke(context);
-        if (chosen is int wanted && !HexNeighbours(targetHex).Contains(wanted))
+        if (chosen is int wanted && !around.Contains(wanted))
             throw new InvalidOperationException($"Клетка {wanted} не соседняя с целью — оттуда не ударить");
         int? approach = chosen
-            ?? (HexNeighbours(targetHex).Contains(active.Hex) ? active.Hex
-            : HexNeighbours(targetHex).Where(reachable.Contains)
-                .OrderBy(h => HexDistance(h, active.Hex)).Cast<int?>().FirstOrDefault());
+            ?? active.Hexes.Where(around.Contains).Cast<int?>().FirstOrDefault()
+            ?? around.Where(reachable.Contains)
+                .OrderBy(h => HexDistance(h, active.Hex)).Cast<int?>().FirstOrDefault();
+        int targetHex = approach is int near ? Facing(victim, near) : victim.Hex;
+        var to = reader.Center(targetHex);
         if (approach is int side)
         {
             // The game reads the side of a blow from the sector of the defender's hex under the
@@ -231,6 +233,11 @@ internal static class Deliveries
             yield return n;
         }
     }
+
+    /// The hex of a stack that touches a given neighbour — for a two-hex creature, the half the
+    /// blow from there actually lands on.
+    public static int Facing(CombatStack stack, int side) =>
+        stack.Hexes.Where(h => HexNeighbours(h).Contains(side)).DefaultIfEmpty(stack.Hex).First();
 
     /// Where a neighbouring hex lies seen from a defender, in the words a player would use.
     public static string SideName(int defender, int side)
@@ -486,7 +493,7 @@ internal static class GameCommands
         "spellbook:close" or "spell:cancel" => new("combat", Deliveries.Key(0x1b, 0x01)),
         _ when action.Key.StartsWith("spellbook:select:") => new("combat", SelectSpell),
         _ when action.Key.StartsWith("spell:target:") => new("combat",
-            Deliveries.CombatHex(c => StackHex(c, c.Element[13..])))
+            Deliveries.CombatHex(c => AttackStack(c, c.Element[13..]).Hex))
             { Confirm = Confirm.CombatLog | Confirm.ManaSpent, BattleMayEnd = true },
         "combat:wait" => new("combat", Deliveries.Key(0x57, 0x11))
             { Confirm = Confirm.CombatTurn | Confirm.CombatLog, TimeoutSeconds = 10, BattleMayEnd = true },
@@ -525,7 +532,7 @@ internal static class GameCommands
             Deliveries.CombatHex(c => Suffix(c.Element, 2)))
             { Confirm = Confirm.CombatTurn, TimeoutSeconds = 10, BattleMayEnd = true },
         _ when action.Key.StartsWith("combat:attack:") => new("combat",
-            Deliveries.CombatAttack(c => StackHex(c, AttackTarget(c.Element)), c => AttackSide(c.Element)))
+            Deliveries.CombatAttack(c => AttackStack(c, AttackTarget(c.Element)), c => AttackSide(c.Element)))
             { Confirm = Confirm.CombatTurn | Confirm.CombatLog, TimeoutSeconds = 10, BattleMayEnd = true },
         // After a fight the game may go straight on to a level-up or a message, not the map.
         "battle:accept" => new("adventure,level_up,message", Deliveries.Key(0x0d, 0x1c)),
@@ -573,8 +580,8 @@ internal static class GameCommands
         return from < 0 ? null : int.Parse(key[(from + 6)..]);
     }
 
-    private static int StackHex(CommandContext context, string stackId) =>
-        context.Before.Combat!.Stacks.Single(s => s.Id == stackId).Hex;
+    private static CombatStack AttackStack(CommandContext context, string stackId) =>
+        context.Before.Combat!.Stacks.Single(s => s.Id == stackId);
 
     private static Deliver ClickBuilding(int building) => ClickBuilding(_ => building);
 
