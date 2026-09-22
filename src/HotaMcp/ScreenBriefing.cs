@@ -82,7 +82,7 @@ internal static class ScreenBriefing
             lines.Add("Рынок. В казне: "+string.Join(", ",Enumerable.Range(0,7).Select(i=>$"{ResourceNames[i]} {Txt(35+i)}"))+".");
             var rates=Enumerable.Range(0,7).Where(i=>Txt(77+i).Length>0).Select(i=>$"{ResourceNames[i]} {Txt(77+i)}").ToList();
             lines.Add(rates.Count>0
-                ?$"Курс за выбранный слева ресурс (сколько отдать / сколько получить): {string.Join(", ",rates)}."
+                ?$"Курс за выбранный слева ресурс, как пишет игра: «1/10» — получишь 1 за 10 отданных, одно число — сколько получишь за 1: {string.Join(", ",rates)}."
                 :"Курсы появятся под ресурсами справа, когда выбран ресурс слева (market:give:<ресурс>).");
             lines.Add("Порядок: market:give:<что отдать> → market:get:<что получить> → market:max или ползунок → market:trade.");
         }
