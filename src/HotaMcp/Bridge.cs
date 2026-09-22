@@ -871,8 +871,11 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
         }
         if(planned?.Hero?.Id!=before.Hero.Id||!planned.Hero.PlannedDestination.SequenceEqual(destination))
         {
+            // The game refused to lay a path, so nothing was sent to the hero. That is a plain
+            // refusal with its reason, not an unknown outcome.
             Record(journal+"_preparation_unconfirmed",new{operationId,planned});
-            return pending;
+            operations.Remove(operationId);
+            throw new InvalidOperationException(NoRouteReason(before,destination));
         }
         verifyPlanned?.Invoke(planned);
         if(planned.Hero.Movement!=before.Hero.Movement||!planned.Hero.Position.SequenceEqual(before.Hero.Position))
@@ -919,6 +922,32 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
         }
         Record(journal+"_uncertain",identity);
         return pending;
+    }
+
+    /// Why the game would not lay a path, in the words a player would use: a guard whose zone
+    /// covers the approach, a cell that cannot be stood on, or ground nobody has seen yet.
+    private string NoRouteReason(Observation before,int[] cell)
+    {
+        string where=$"({cell[0]},{cell[1]})";
+        try
+        {
+            var look=new MapReader(game,player).Read(before,cell[0],cell[1],cell[2],1);
+            var guards=look.Objects.Where(o=>string.Equals(o.Kind,"creatures",StringComparison.OrdinalIgnoreCase)
+                &&Math.Abs(o.X-cell[0])<=1&&Math.Abs(o.Y-cell[1])<=1).ToList();
+            if(guards.Count>0)
+                return $"Игра не проложила путь к {where}: рядом стоит охрана — "
+                    +string.Join(", ",guards.Select(g=>$"{(g.Name.Length>0?g.Name:"отряд")} на ({g.X},{g.Y})"))
+                    +". Её зона закрывает подход: сначала разбей её (attack_target) или выбери другую клетку. Герой не двигался.";
+            int row=cell[1]-look.Y,col=cell[0]-look.X;
+            char mark=row>=0&&row<look.Blocked.Length&&col>=0&&col<look.Blocked[row].Length?look.Blocked[row][col]:'?';
+            if(mark=='?')return $"Игра не проложила путь к {where}: клетка в тумане, туда ещё никто не смотрел. Герой не двигался.";
+            if(mark=='#')return $"Игра не проложила путь к {where}: на клетку нельзя встать (скалы, деревья, вода или часть объекта). Вход в объект — его собственная клетка из nearby_targets. Герой не двигался.";
+        }
+        catch(InvalidOperationException e)when(e.Message.Contains("hidden",StringComparison.OrdinalIgnoreCase))
+        {
+            return $"Игра не проложила путь к {where}: клетка скрыта туманом. Герой не двигался.";
+        }
+        return $"Игра не проложила путь к {where}: пути нет — клетка отрезана препятствиями. Посмотри read_map вокруг неё. Герой не двигался.";
     }
 
     /// Stepping onto a creature stack starts a battle; that must be a deliberate attack, never a
