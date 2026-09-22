@@ -326,7 +326,10 @@ public sealed class DocsIndex:IDisposable
             if(all.Count==0)return new(path,heading,false,"No document with this path; ask the catalog for exact paths",string.Empty,0,0,null);
             var chosen=string.IsNullOrWhiteSpace(heading)
                 ?all
-                :all.Where(s=>s.Heading.Split(" / ").Any(part=>part.Contains(heading,StringComparison.OrdinalIgnoreCase))).ToList();
+                :all.Where(s=>s.Heading.Contains(heading.Trim(),StringComparison.OrdinalIgnoreCase)
+                    ||s.Heading.Split(" / ").Any(part=>part.Contains(heading.Trim(),StringComparison.OrdinalIgnoreCase))).ToList();
+            // Search hands out the heading as the whole path «document / section»; that exact string
+            // has to open the section, as well as any single part of it.
             if(chosen.Count==0)
             {
                 var available=all.Select(s=>s.Heading).Where(h=>h.Length>0).Take(12);

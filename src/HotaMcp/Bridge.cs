@@ -445,7 +445,12 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             }
             var before=reader.Observe();
             if(before.Revision!=request.Revision)throw new InvalidOperationException("Observation is stale; observe again before acting");
-            var action=before.Actions.SingleOrDefault(a=>a.Key==request.Element);
+            // A key ending in «:<n>» is a template: the agent fills in the number, and the
+            // command itself checks the number against what the screen allows.
+            var action=before.Actions.SingleOrDefault(a=>a.Key==request.Element)
+                ??before.Actions.Where(a=>a.Key.EndsWith(":<n>")&&request.Element.StartsWith(a.Key[..^3],StringComparison.Ordinal)
+                        &&int.TryParse(request.Element[(a.Key.Length-3)..],out int n)&&n>=0)
+                    .Select(a=>new AvailableAction(request.Element,a.Label)).FirstOrDefault();
             var command=action is not null
                 ?GameCommands.ForAction(action,before)
                 :GameCommands.ForElement(before,request.Element);

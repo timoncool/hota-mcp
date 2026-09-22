@@ -339,6 +339,7 @@ internal static class GameCommands
         _ when action.Key.StartsWith("market:get:",StringComparison.Ordinal)
             => new("marketplace", Deliveries.Control(c => 63 + MarketResource(c.Element))),
         "market:max" => new("marketplace", Deliveries.Control(7, "Ircbtns.def")),
+        _ when action.Key.StartsWith("market:amount:") => new("marketplace", MarketAmount) { TimeoutSeconds = 30 },
         "market:trade" => new("marketplace", Deliveries.Control(5, "TPMrkB.def")) { Confirm = Confirm.None },
         "market:close" => new("town", Deliveries.Control(30722, "iOk6432.def")),
         "popup:подтвердить" => new("scenario_selection,popup_choice",Deliveries.Control(1,"CAMPCHK.def")),
@@ -416,7 +417,7 @@ internal static class GameCommands
             new("load_game", SelectSaveRow),
 
         // Town.
-        "town:construction" => new("town_hall", ClickBuilding(10)),
+        "town:construction" => new("town_hall", ClickBuilding(c => Highest(c, 13, 12, 11, 10))),
         "town:close" => new("adventure", Deliveries.Key(0x1b, 0x01)),
         "construction:close" => new("town", Deliveries.Control(30722,"iokay.def")),
         "building:cancel" => new("town_hall", Deliveries.Control(30721,"icancel.def")),
@@ -584,6 +585,16 @@ internal static class GameCommands
         context.Before.Combat!.Stacks.Single(s => s.Id == stackId);
 
     private static Deliver ClickBuilding(int building) => ClickBuilding(_ => building);
+
+    /// A hall or a fort is rebuilt in place: once the town hall stands, the game clears the bit of
+    /// the village hall it replaced, so the building to press is the highest stage present.
+    private static int Highest(CommandContext context, params int[] stages)
+    {
+        var town = context.Before.Towns.FirstOrDefault(t => t.Id == context.Before.OpenTown)
+            ?? throw new InvalidOperationException("Открытый город не прочитан");
+        return stages.Cast<int?>().FirstOrDefault(b => town.Buildings.Contains(b!.Value))
+            ?? throw new InvalidOperationException("В городе нет ни одной ступени этого здания");
+    }
 
     private static Deliver ClickBuilding(Func<CommandContext, int> building) => async (context, ct) =>
     {
@@ -981,6 +992,29 @@ internal static class GameCommands
         if (i < 0) throw new InvalidOperationException($"Ресурса «{key[(key.LastIndexOf(':') + 1)..]}» на рынке нет");
         return i;
     }
+
+    /// Sets how much to trade the way a player does: the arrows at the two ends of the slider
+    /// move it one unit at a time, and the count under the given resource says where it stands.
+    private static readonly Deliver MarketAmount = async (context, ct) =>
+    {
+        int wanted = int.Parse(context.Element["market:amount:".Length..]);
+        var bar = context.Reader.FindControlById(6)
+            ?? throw new InvalidOperationException("Ползунка количества на экране нет: выбери, что отдать и что получить");
+        int Read() => int.TryParse(context.Reader.Observe().Elements.FirstOrDefault(e => e.Id == 4)?.Text?.Trim(), out int v)
+            ? v : throw new InvalidOperationException("Количество к обмену не прочитано");
+        int now = Read();
+        while (now != wanted)
+        {
+            int x = now < wanted ? bar.X + bar.Width - 8 : bar.X + 8;
+            await Deliveries.Press(context, x, bar.Y + bar.Height / 2, ct);
+            await Task.Delay(40, CancellationToken.None);
+            int next = Read();
+            if (next == now)
+                throw new InvalidOperationException($"Ползунок встал на {now}, до {wanted} не дойти: "
+                    + (now < wanted ? "запаса выбранного ресурса или цены не хватает на большее" : "меньше поставить нельзя"));
+            now = next;
+        }
+    };
 
     private static readonly Deliver SelectScenario = async (context, ct) =>
     {

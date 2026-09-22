@@ -66,7 +66,7 @@ yesterday.
    say so in the plan and replace it — an active task nobody can finish is how a game stalls.
 3. **Town first.** One building per day per town, and with two towns the screen shows one of them
    — the briefing names which. On the first day of a week also recruit: growth appears that morning
-   and is lost if the week turns without it. Recruit from the **fort** (`town:building:7` →
+   and is lost if the week turns without it. Recruit from the **fort** (`town:building:7`, or `:8` / `:9` once it is rebuilt into a citadel or castle — the town briefing names the key →
    `fort:recruit:<уровень>`), never dwelling by dwelling: the fort screen lists every tier at once
    with what each dwelling has in stock, and says which dwellings are still missing — so one screen
    answers what to hire and what to build next. In the hall, **green is what can be built now**,

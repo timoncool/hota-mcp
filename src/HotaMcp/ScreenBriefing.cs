@@ -112,6 +112,11 @@ internal static class ScreenBriefing
             +(active.Shooter?"Отряд стреляет — выстрел бьёт любую цель: combat:attack:<отряд>.":"Удар — combat:attack:<отряд> или с выбранной клетки combat:attack:<отряд>:from:<клетка>."));
     }
 
+    /// Fort, citadel and castle are one building rebuilt in place; the key is whichever stands.
+    private static string FortKey(TownView town)=>new[]{9,8,7}.Where(town.Buildings.Contains)
+        .Select(b=>$"town:building:{b} ({GameReference.Building(b,town.Type)})").FirstOrDefault()
+        ??"форта нет — найм по жилищам town:recruit:<уровень>";
+
     private static string Stacks(int[] types,int[] counts)
     {
         var parts=types.Zip(counts).Where(s=>s.First>=0&&s.Second>0)
@@ -151,7 +156,7 @@ internal static class ScreenBriefing
             if(ready>0)offers.Add($"уровень {tier+1}: {ready}");
         }
         lines.Add(offers.Count>0
-            ?$"К найму готовы — {string.Join(", ",offers)}. Весь список сразу с ценами и приростом: town:building:7 (форт), оттуда fort:recruit:<уровень>."
+            ?$"К найму готовы — {string.Join(", ",offers)}. Весь список сразу с ценами и приростом: {FortKey(town)}, оттуда fort:recruit:<уровень>."
             :"К найму сейчас никого: прирост приходит в первый день недели, в другие дни жилища отвечают «Доступно 0» — это норма, а не сбой.");
         if(selectedStack is not null)
             lines.Add($"Внимание: на экране выделен отряд ({selectedStack}). Следующий щелчок по другой клетке перенесёт его туда. "

@@ -247,6 +247,7 @@ internal static class ScreenActions
                 actions.Add(new($"market:get:{res[i]}",$"Рынок: получить {res[i]} (выбрать справа)"));
             }
             if(items.Any(i=>i.Id==7))actions.Add(new("market:max","Рынок: поставить максимальное количество"));
+            if(items.Any(i=>i.Id==6))actions.Add(new("market:amount:<n>","Рынок: поставить количество выбранного слева ресурса к обмену, например market:amount:12; сколько получишь — число справа внизу"));
             if(items.Any(i=>i.Id==5))actions.Add(new("market:trade","Рынок: совершить обмен выбранного количества"));
             actions.Add(new("market:close","Закрыть рынок"));
         }
