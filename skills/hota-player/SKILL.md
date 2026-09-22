@@ -77,7 +77,9 @@ yesterday.
    then decide.
 5. **Collector.** Free objects, mines, mills once a week, and the fog. `read_map` sees everything
    already discovered, including what lies outside the hero's sight — `nearby_targets` only covers
-   what he can see now.
+   what he can see now. Before sending him anywhere, `inspect_tile` the target: the game's hint
+   ends in «(Посещено)» for a shrine, a warehouse or a weekly object already taken, and a walk
+   there is a wasted day. `nearby_targets` does not carry that mark.
 6. **Spend what is left.** Movement does not carry over. A hero with movement and nothing to do is
    a hero who should be walking toward tomorrow's target.
 7. **Close the day.** Rewrite the plan — state, roles, active task with its deadline, queue, one
