@@ -190,8 +190,36 @@ internal sealed class GameReader(WindowsGame game,int player)
         // Two matching reads reduce transitional snapshots; safe-point synchronization remains future work.
         var first=ReadOnce();
         var second=ReadOnce();
-        if(first.Revision!=second.Revision) throw new InvalidOperationException("State changing; observe again");
-        return second;
+        if(first.Revision==second.Revision)return second;
+        // Some screens animate: the creatures in the fort and in the recruitment window step
+        // through their frames on their own. Two reads that differ only in the frame a picture
+        // happens to show are the same state, not a changing one; those pictures are kept out of
+        // the revision, and nothing else is forgiven.
+        if(first.Elements.Count!=second.Elements.Count)throw new InvalidOperationException("State changing; observe again");
+        var animated=new HashSet<string>();
+        for(int i=0;i<first.Elements.Count;i++)
+        {
+            var a=first.Elements[i];var b=second.Elements[i];
+            if(a==b)continue;
+            if(a with {Frame=0}!=b with {Frame=0})throw new InvalidOperationException("State changing; observe again");
+            animated.Add(a.Key);
+        }
+        animatedKeys=animated;animatedScreen=second.Screen;
+        var settled=Revise(second);
+        return settled;
+    }
+
+    private HashSet<string> animatedKeys=[];
+    private string animatedScreen="";
+
+    /// The revision of an observation, with the frames of pictures that animate on their own left
+    /// out: they change between two reads of the very same state.
+    private Observation Revise(Observation result)
+    {
+        bool same=result.Screen==animatedScreen;
+        var steady=result with {Revision="",Elements=result.Elements.Select(e=>same&&animatedKeys.Contains(e.Key)?e with {Frame=0}:e).ToList()};
+        string revision=Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(epoch+JsonSerializer.Serialize(steady))))[..24];
+        return result with {Revision=revision};
     }
     public object DiagnosticPointers() {
         uint executive=game.U32(0x699550),current=game.U32(executive);
@@ -677,7 +705,6 @@ internal sealed class GameReader(WindowsGame game,int player)
             side=new(player,Colour(player),active,Colour(active),active==player);
         }
         var result=new Observation("",player,date,resources,hero,screen,width,height,items){Towns=towns,Actions=actions,Setup=setup,Combat=combat,Saves=saves,Sheet=sheet,Build=build,Heroes=roster,Side=side,SelectedStack=selected,OpenTown=openTown,ForeignHero=foreignName,ForeignArmy=foreignArmy,ForeignHeroes=foreignHeroes,Brief=ScreenBriefing.Build(screen,date,resources,towns,roster,hero,side,selected,build,openTown,foreignName,foreignArmy,foreignHeroes,items)};
-        string revision=Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(epoch+JsonSerializer.Serialize(result))))[..24];
-        return result with {Revision=revision};
+        return Revise(result);
     }
 }
