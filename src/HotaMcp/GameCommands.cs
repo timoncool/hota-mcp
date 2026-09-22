@@ -281,7 +281,7 @@ internal static class GameCommands
     /// Where answering a modal question can legitimately land.
     // A dwelling out on the map answers «yes, hire» with its recruitment window, and a level-up
     // can follow a reward, so both are ordinary places for a message to lead to.
-    private const string AfterMessage="adventure,message,combat,battle_result,town,hero_screen,exchange,recruitment,level_up";
+    private const string AfterMessage="adventure,message,combat,battle_result,town,hero_screen,exchange,recruitment,level_up,mage_guild,tavern,marketplace";
 
     /// Anything a town building can open.
     private const string AnyTownScreen="town,town_hall,building_confirmation,recruitment,tavern,"

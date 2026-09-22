@@ -62,6 +62,13 @@ internal static class ScreenBriefing
                 +"ни походить, ни открыть город. Текст лежит в Elements; закрой его действием "
                 +"message:accept, а вопрос с двумя кнопками — message:confirm или message:decline.");
         if(screen=="message")RewardBrief(lines,items);
+        if(screen=="mage_guild")
+        {
+            var taught=items.Where(i=>i.Id is >=40 and <70&&i.Width==83&&i.Frame>0).OrderBy(i=>i.Id)
+                .Select(i=>GameReference.Spell(i.Frame)??$"заклинание с картинкой {i.Frame}").ToList();
+            lines.Add("Гильдия магов. Заклинания в ней: "+(taught.Count>0?string.Join(", ",taught):"не видно")
+                +". Герой с книгой и нужной Мудростью выучивает их сам, войдя в гильдию. Описание — inspect_element по свитку; выйти — screen:close.");
+        }
         if(screen=="backpack")
         {
             var carried=items.Where(i=>i.Id is >=2000 and <2064).OrderBy(i=>i.Id)
