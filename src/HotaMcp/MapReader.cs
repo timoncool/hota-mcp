@@ -94,6 +94,8 @@ internal sealed class MapReader(WindowsGame game,int player)
     {
         54 => $"{GameReference.Creature(subtype)} (бродячий отряд)",
         79 when subtype is >=0 and <7 => $"ресурс: {Resources[subtype]}",
+        53 => GameReference.Mine(subtype),
+        16 => GameReference.Bank(subtype),
         _ => GameReference.MapObject(type),
     };
 

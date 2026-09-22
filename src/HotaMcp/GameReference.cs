@@ -202,6 +202,34 @@ internal sealed class GameReference
     /// ordinary «defeat every enemy», which is the first line of the table; type N is line N+1.
     public static string Victory(int type)=>Line("VCDESC.TXT",type==0xFF?0:type+1)??$"особое условие победы №{type}";
 
+    /// A mine by its subtype: the game names them one per line in that order.
+    public static string Mine(int subtype)=>Line("MineName.txt",subtype)??$"шахта №{subtype}";
+
+    private static List<string>? banks;
+
+    /// A creature bank by its subtype. The table gives each bank several rows, one per level of
+    /// guard, and writes the name only on the first; the names in order are the subtypes.
+    public static string Bank(int subtype)
+    {
+        if(banks is null)
+        {
+            banks=[];
+            string? data=FindDataDirectory();
+            if(data is not null)
+                foreach(var archive in new[]{"HotA_lng.lod","H3bitmap.lod"})
+                {
+                    string? text=LodArchive.Open(Path.Combine(data,archive))?.ReadText("CrBanks.txt");
+                    if(text is null)continue;
+                    var rows=Rows(text);
+                    int titles=rows.FindIndex(r=>Clean(r.ElementAtOrDefault(0)??"")=="Adventure Object");
+                    if(titles<0)break;
+                    banks=rows.Skip(titles+1).Select(r=>Clean(r.ElementAtOrDefault(0)??"")).Where(n=>n.Length>0).ToList();
+                    break;
+                }
+        }
+        return subtype>=0&&subtype<banks.Count?banks[subtype]:$"банк существ №{subtype}";
+    }
+
     /// The loss condition, numbered the same way.
     public static string Loss(int type)=>Line("LCDESC.TXT",type==0xFF?0:type+1)??$"особое условие поражения №{type}";
 
