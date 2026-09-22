@@ -611,11 +611,25 @@ internal static class ScreenActions
             actions.Add(new("combat:surrender","Сдаться: сохранить героя и армию за золото (S)"));
             actions.Add(new("combat:options","Настройки боя (O)"));
             foreach(int hex in combat.ReachableHexes)actions.Add(new($"combat:move:{hex}",$"Переместиться на клетку {hex}"));
+            // Whether a blow can land this turn is exactly what the shaded hexes show a player: a
+            // melee attacker must be able to step next to the defender. Each target says so, so a
+            // stack that cannot reach is not sent on a blow that cannot happen.
+            var reach=new HashSet<int>(combat.ReachableHexes);
             foreach(string id in combat.AttackableTargets)
             {
                 var victim=combat.Stacks.Single(s=>s.Id==id);
+                bool inReach=Deliveries.HexNeighbours(victim.Hex).Any(reach.Contains)
+                    ||combat.Stacks.Any(s=>s.Id==combat.ActiveStack&&Deliveries.HexNeighbours(s.Hex).Contains(victim.Hex));
                 actions.Add(new("combat:attack:"+id,
-                    $"Атаковать: {victim.Name} ({victim.Count}) — стрелок бьёт с места, ближний бой требует подойти; законность проверяет игра"));
+                    $"Атаковать: {victim.Name} ({victim.Count}) — "
+                    +(inReach?"ближний бой дотянется в этот ход; сторону удара мост выберет ближайшую"
+                        :"ближним боем в этот ход НЕ дотянуться; сработает только выстрел, если ходящий отряд стреляет")));
+                // Where the blow comes from matters — a flank, a stack that retaliates, a
+                // neighbour that would be hit too — so every side the attacker can strike from is
+                // offered by the hex it would stand on and its direction from the defender.
+                foreach(int side in Deliveries.HexNeighbours(victim.Hex).Where(reach.Contains))
+                    actions.Add(new($"combat:attack:{id}:from:{side}",
+                        $"Атаковать {victim.Name} ({victim.Count}) {Deliveries.SideName(victim.Hex,side)}, встав на клетку {side}"));
             }
             }
         }

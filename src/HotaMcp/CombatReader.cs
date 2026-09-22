@@ -55,6 +55,18 @@ internal sealed class CombatReader(WindowsGame game,int player)
             // our turn and the game decides what is legal, the same way it does for a spell.
             ownTurn?stacks.Where(s=>s.Side!=own).Select(s=>s.Id).ToArray():[],countLog,log.ToArray());
     }
+    /// The middle of a battlefield hex. Each hex record keeps first the point where a creature
+    /// stands — the bottom tip of the hex — and then the hex's own box: left, top, right, bottom.
+    /// A click on the tip sits on the border with the hexes below it, so aiming uses the middle.
+    public (int X,int Y) Center(int hex)
+    {
+        if(hex<0||hex>=187)throw new InvalidOperationException("Invalid combat hex");
+        uint square=game.U32(0x699420)+0x1c4+(uint)hex*0x70;
+        byte[] b=game.Read(square,12);
+        int left=BitConverter.ToInt16(b,4),top=BitConverter.ToInt16(b,6),right=BitConverter.ToInt16(b,8),bottom=BitConverter.ToInt16(b,10);
+        return ((left+right)/2,(top+bottom)/2);
+    }
+
     public (int X,int Y) Point(int hex)
     {
         if(hex<0||hex>=187)throw new InvalidOperationException("Invalid combat hex");

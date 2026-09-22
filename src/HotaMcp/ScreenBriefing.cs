@@ -45,6 +45,7 @@ internal static class ScreenBriefing
                 +"ни походить, ни открыть город. Текст лежит в Elements; закрой его действием "
                 +"message:accept, а вопрос с двумя кнопками — message:confirm или message:decline.");
         if(screen=="message")RewardBrief(lines,items);
+        if(screen=="battle_result")BattleResultBrief(lines,items);
         if(screen=="town")TownBrief(lines,resources,towns,roster,selectedStack,openTown);
         if(screen=="exchange")ExchangeBrief(lines,items,roster);
         if(screen=="adventure")AdventureBrief(lines,resources,towns,roster,selected);
@@ -143,6 +144,33 @@ internal static class ScreenBriefing
             +$"опыт {Text(82)}, мана {Text(84)}. Специальность: {Specialty(106)}. Навыки: {Skills(208)}.");
         lines.Add("Специальность решает, кто из двоих главный: она растёт с каждым уровнем и "
             +"привязана к герою навсегда. Сведи армию тому, чья специальность работает на твою армию.");
+    }
+
+    /// The end of a fight in words: who won, and what each side lost. The losses are rows of
+    /// small creature portraits under «Нападающий» and «Обороняющийся», each with the number lost
+    /// under it; a small portrait draws the creature number plus two.
+    private static void BattleResultBrief(List<string> lines,List<UiElement> items)
+    {
+        string? verdict=items.FirstOrDefault(i=>i.Text is not null&&i.Text.Contains("опыт",StringComparison.OrdinalIgnoreCase))?.Text?.Replace("\n"," ").Trim();
+        if(verdict is not null)lines.Add($"Итог боя: {verdict}");
+        var attacker=items.FirstOrDefault(i=>i.Text?.Trim()=="Нападающий");
+        var defender=items.FirstOrDefault(i=>i.Text?.Trim()=="Обороняющийся");
+        string Losses(int top,int bottom)
+        {
+            var parts=items.Where(i=>i.Width==32&&i.Height==32&&i.Frame>=2&&i.Text is null&&i.Y>top&&i.Y<bottom)
+                .OrderBy(i=>i.X)
+                .Select(p=>
+                {
+                    var n=items.FirstOrDefault(t=>t.Text is not null&&t.Y>p.Y&&t.Y<p.Y+60&&Math.Abs(t.X+t.Width/2-(p.X+p.Width/2))<12);
+                    return $"{GameReference.Creature(p.Frame-2)} {n?.Text?.Trim()??"?"}";
+                }).ToList();
+            return parts.Count==0?"нет":string.Join(", ",parts);
+        }
+        if(attacker is not null)
+            lines.Add($"Потери нападающего: {Losses(attacker.Y,defender?.Y??int.MaxValue)}.");
+        if(defender is not null)
+            lines.Add($"Потери обороняющегося: {Losses(defender.Y,int.MaxValue)}.");
+        lines.Add("Принять итог — battle:accept.");
     }
 
     private static readonly string[] ResourceNames=["дерево","ртуть","руда","сера","кристаллы","самоцветы","золото"];

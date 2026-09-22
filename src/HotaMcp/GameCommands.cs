@@ -178,14 +178,36 @@ internal static class Deliveries
     /// defender's cell the cursor is: a press on the dead centre is not an attack from anywhere,
     /// and the order is dropped without a word. Pressing on the side that faces the attacker is
     /// what a player does without thinking, and it is what makes the stack walk up and strike.
-    public static Deliver CombatAttack(Func<CommandContext, int> target) => async (context, ct) =>
+    public static Deliver CombatAttack(Func<CommandContext, int> target, Func<CommandContext, int?>? from = null) => async (context, ct) =>
     {
         var reader = new CombatReader(context.Game, context.Player);
         var combat = context.Before.Combat ?? throw new InvalidOperationException("Бой не прочитан");
         var active = combat.Stacks.FirstOrDefault(s => s.Id == combat.ActiveStack)
             ?? throw new InvalidOperationException("Активный отряд не определён");
-        _ = active;
-        var to = reader.Point(target(context));
+        int targetHex = target(context);
+        var to = reader.Center(targetHex);
+        // Which side a melee blow comes from is decided by the part of the defender's hex the
+        // cursor stands on. Pointing at the middle left that choice to chance, and a side the
+        // attacker cannot reach meant no blow at all. So the cursor is set on the edge of the
+        // defender's hex that faces a neighbouring hex the attacker can actually reach, the one
+        // nearest to him. A shooter's shot goes wherever inside the hex the cursor is.
+        var reachable = new HashSet<int>(combat.ReachableHexes);
+        // Already standing next to the defender: the blow comes from where the attacker is.
+        int? chosen = from?.Invoke(context);
+        if (chosen is int wanted && !HexNeighbours(targetHex).Contains(wanted))
+            throw new InvalidOperationException($"Клетка {wanted} не соседняя с целью — оттуда не ударить");
+        int? approach = chosen
+            ?? (HexNeighbours(targetHex).Contains(active.Hex) ? active.Hex
+            : HexNeighbours(targetHex).Where(reachable.Contains)
+                .OrderBy(h => HexDistance(h, active.Hex)).Cast<int?>().FirstOrDefault());
+        if (approach is int side)
+        {
+            // The game reads the side of a blow from the sector of the defender's hex under the
+            // cursor. A third of the way from its middle toward the chosen neighbour stays inside
+            // the defender's hex and in that neighbour's sector.
+            var edge = reader.Center(side);
+            to = (to.X + (edge.X - to.X) / 3, to.Y + (edge.Y - to.Y) / 3);
+        }
         // The game works out what a click means from where the cursor already is: it decides
         // «attack this stack» while the mouse travels over the defender, and a click that arrives
         // without that journey is discarded. So the cursor is moved first, exactly as a hand does.
@@ -193,6 +215,40 @@ internal static class Deliveries
         await Task.Delay(200, CancellationToken.None);
         await Press(context, to.X, to.Y, ct);
     };
+
+    /// The six hexes around one battlefield hex: seventeen to a row, and even rows sit half a
+    /// hex to the right of odd ones — read off the hex boxes the game keeps: hex 133 (odd row)
+    /// has its lower neighbours 149 and 150, hex 151 (even row) its upper ones 134 and 135.
+    public static IEnumerable<int> HexNeighbours(int hex)
+    {
+        int row = hex / 17;
+        int[] around = row % 2 == 0 ? [-1, 1, -17, -16, 17, 18] : [-1, 1, -18, -17, 16, 17];
+        foreach (int d in around)
+        {
+            int n = hex + d;
+            if (n < 0 || n >= 187) continue;
+            if (d is -1 or 1 && n / 17 != row) continue;
+            yield return n;
+        }
+    }
+
+    /// Where a neighbouring hex lies seen from a defender, in the words a player would use.
+    public static string SideName(int defender, int side)
+    {
+        int d = side - defender, row = defender / 17;
+        return d switch
+        {
+            -1 => "слева",
+            1 => "справа",
+            _ when side / 17 < row && (d == (row % 2 == 0 ? -17 : -18)) => "сверху-слева",
+            _ when side / 17 < row => "сверху-справа",
+            _ when side / 17 > row && (d == (row % 2 == 0 ? 17 : 16)) => "снизу-слева",
+            _ => "снизу-справа",
+        };
+    }
+
+    /// Rough distance between two hexes, enough to prefer the nearer side of a defender.
+    private static int HexDistance(int a, int b) => Math.Abs(a / 17 - b / 17) + Math.Abs(a % 17 - b % 17);
 }
 
 /// Maps every published action key and every clickable UI element to its command.
@@ -460,7 +516,7 @@ internal static class GameCommands
             Deliveries.CombatHex(c => Suffix(c.Element, 2)))
             { Confirm = Confirm.CombatTurn, TimeoutSeconds = 10, BattleMayEnd = true },
         _ when action.Key.StartsWith("combat:attack:") => new("combat",
-            Deliveries.CombatAttack(c => StackHex(c, c.Element[14..])))
+            Deliveries.CombatAttack(c => StackHex(c, AttackTarget(c.Element)), c => AttackSide(c.Element)))
             { Confirm = Confirm.CombatTurn | Confirm.CombatLog, TimeoutSeconds = 10, BattleMayEnd = true },
         "battle:accept" => new("adventure", Deliveries.Key(0x0d, 0x1c)),
 
@@ -490,6 +546,21 @@ internal static class GameCommands
             _ when freeform => new(before.Screen, Deliveries.Requested),
             _ => throw new InvalidOperationException("Use an available semantic action"),
         };
+    }
+
+    /// combat:attack:<stack> or combat:attack:<stack>:from:<hex> — the second names the hex the
+    /// blow is struck from.
+    private static string AttackTarget(string key)
+    {
+        string rest = key["combat:attack:".Length..];
+        int from = rest.IndexOf(":from:", StringComparison.Ordinal);
+        return from < 0 ? rest : rest[..from];
+    }
+
+    private static int? AttackSide(string key)
+    {
+        int from = key.IndexOf(":from:", StringComparison.Ordinal);
+        return from < 0 ? null : int.Parse(key[(from + 6)..]);
     }
 
     private static int StackHex(CommandContext context, string stackId) =>

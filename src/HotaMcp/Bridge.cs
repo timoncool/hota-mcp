@@ -494,8 +494,41 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
                 Record("combat_action_evidence",new{request.OperationId,Action=request.Element,
                     BeforeLogCount=before.Combat.LogCount,AfterLogCount=after.Combat.LogCount,
                     Entries=after.Combat.Log.Where(e=>e.Index>=before.Combat.LogCount).ToArray()});
+            // In a fight the game fills the shaded-hex table for the next stack a moment after it
+            // becomes active; read too early, the table still belongs to the stack that just moved,
+            // and the next blow is planned against reach it does not have. The answer waits until
+            // two reads a beat apart agree.
+            if(after.Combat is {OwnTurn:true})
+                for(int settle=0;settle<8;settle++)
+                {
+                    await Task.Delay(150,CancellationToken.None);
+                    Observation again;
+                    try{again=reader.Observe();}catch(InvalidOperationException){continue;}
+                    bool same=again.Combat is not null&&again.Combat.ActiveStack==after.Combat.ActiveStack
+                        &&again.Combat.ReachableHexes.SequenceEqual(after.Combat.ReachableHexes);
+                    after=again;
+                    if(same||after.Combat is null)break;
+                }
+            // An attack and a step look alike to the game's input: both are a click on the field.
+            // Which one happened is read from the fight's own log — a blow writes «<отряд>
+            // наносит(ят) урон»; a step writes nothing. The agent is told plainly when a blow it
+            // asked for turned into a move.
+            string blow="";
+            if(request.Element.StartsWith("combat:attack:",StringComparison.Ordinal)&&before.Combat is not null&&after.Combat is not null)
+            {
+                // The log names a lone creature in the singular and a stack in the plural, so the
+                // proof is the defender itself: fewer of them, or none left.
+                string victimId=request.Element["combat:attack:".Length..];
+                int cut=victimId.IndexOf(":from:",StringComparison.Ordinal);
+                if(cut>=0)victimId=victimId[..cut];
+                int was=before.Combat.Stacks.FirstOrDefault(s=>s.Id==victimId)?.Count??0;
+                int now=after.Combat.Stacks.FirstOrDefault(s=>s.Id==victimId)?.Count??0;
+                bool struck=now<was;
+                blow=struck?" Удар состоялся."
+                    :" УДАРА НЕ БЫЛО: отряд переместился, но не атаковал — цель вне досягаемости или выбрана клетка хода. Посмотри журнал боя и досягаемые клетки.";
+            }
             var result=new OperationResult("completed",
-                (screenChanged?"Screen transition confirmed by revision change":"Same screen, state change confirmed by revision")
+                (screenChanged?"Screen transition confirmed by revision change":"Same screen, state change confirmed by revision")+blow
                 +(command.Confirm.HasFlag(Confirm.GarrisonChanged)?ArmyChange(before,after):""),after);
             operations[request.OperationId]=(request,result);
             Record("operation_completed",new{request.OperationId,after.Revision,after.Screen,BeforeScreen=before.Screen});
