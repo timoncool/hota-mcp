@@ -5,7 +5,12 @@ namespace HotaMcp;
 public sealed record OperationRequest(string OperationId,string Revision,string Element);
 public sealed record OperationResult(string Status,string Message,Observation? Observation);
 public sealed record JournalEntry(long Sequence,DateTimeOffset Time,string Kind,object Data);
-public sealed record TargetView(string Id,string Kind,RouteView Route,int X=0,int Y=0,int Z=0);
+public sealed record TargetView(string Id,string Kind,RouteView Route,int X=0,int Y=0,int Z=0)
+{
+    /// What stands there in the words the game uses: «Троглодит (бродячий отряд)», «Рудник»,
+    /// «Тайник Бесов», «ресурс: сера» — the same name the map reader gives the cell.
+    public string? Name {get;init;}
+}
 public sealed record NearbyTargets(string Revision,int HeroId,int Movement,List<TargetView> Targets,string Coverage);
 public sealed record DocsRequest(string Query,int Limit,string? Detail);
 public sealed record ReferenceRequest(string Name,string? Kind,int Limit);
@@ -253,7 +258,13 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
                     kind=observation.Towns.Any(t=>t.Id==target.Id)?"свой город":"ЧУЖОЙ ГОРОД";
                 if(target.Type==34)
                     kind=observation.Heroes.Any(h=>h.Id==target.Id)?"свой герой":"ЧУЖОЙ ГЕРОЙ";
-                list.Add(new(id,kind,new RouteReader(game,player).Read(observation,target),target.X,target.Y,target.Z));
+                string? name=target.Type switch
+                {
+                    98 => observation.Towns.FirstOrDefault(t=>t.Id==target.Id)?.Name??target.Name,
+                    34 => observation.Heroes.FirstOrDefault(h=>h.Id==target.Id)?.Name??target.Name,
+                    _ => target.Name,
+                };
+                list.Add(new(id,kind,new RouteReader(game,player).Read(observation,target),target.X,target.Y,target.Z){Name=name});
             }
             var settled=reader.Observe();
             if(settled.Hero is null||settled.Screen!="adventure")
