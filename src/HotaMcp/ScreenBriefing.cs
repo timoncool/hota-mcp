@@ -254,7 +254,7 @@ internal static class ScreenBriefing
             var caption=items.Where(t=>!string.IsNullOrWhiteSpace(t.Text)&&t.Y>=picture.Y+picture.Height-4&&t.Y<=picture.Y+picture.Height+40
                     &&Math.Abs(t.X+t.Width/2-centre)<45&&!t.Text.Trim().All(c=>char.IsDigit(c)||c==' ')&&t.Text.Trim()!="или")
                 .OrderBy(t=>t.Y).FirstOrDefault();
-            if(caption is not null)parts.Add(caption.Text!.Trim());
+            if(caption is not null&&!parts.Contains(caption.Text!.Trim()))parts.Add(caption.Text!.Trim());
         }
         if(parts.Count>0)lines.Add($"Награда в этом окне: {string.Join(", ",parts)}.");
     }
