@@ -572,6 +572,17 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
                     try{settled=reader.Observe();}catch(InvalidOperationException){continue;}
                     if(settled.Screen!="adventure"){after=settled;next=$"; the game then opened {settled.Screen} — read it";break;}
                 }
+            // After a press the camera may still glide to the hero and pictures still settle; the
+            // revision handed back is the one the next action will be checked against, so it is
+            // taken only once two reads in a row agree.
+            for(int beat=0;beat<10;beat++)
+            {
+                await Task.Delay(100,CancellationToken.None);
+                Observation again;
+                try{again=reader.Observe();}catch(InvalidOperationException){continue;}
+                if(again.Revision==after.Revision&&again.Screen==after.Screen)break;
+                after=again;
+            }
             var result=new OperationResult("completed",
                 (screenChanged?"Screen transition confirmed by revision change":"Same screen, state change confirmed by revision")+blow+next
                 +(command.Confirm.HasFlag(Confirm.GarrisonChanged)?ArmyChange(before,after):""),after);
