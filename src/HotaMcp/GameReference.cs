@@ -276,8 +276,15 @@ internal sealed class GameReference
 
     /// An artefact by the number its picture carries: the frame of the artefact picture is the
     /// artefact's entry in the game's own artefact table.
+    private static IReadOnlyDictionary<int,string>? liveArtifacts;
+
+    /// The running game's artefact table names the expansion's artefacts too, which the text
+    /// table of the base game does not carry.
+    public static void UseLiveArtifactNames(IReadOnlyDictionary<int,string> names)=>liveArtifacts=names;
+
     public static string? Artifact(int frame)
     {
+        if(liveArtifacts is not null&&liveArtifacts.TryGetValue(frame,out var live))return live;
         artifacts??=Entries("artraits.txt");
         if(frame<0||frame>=artifacts.Count)return null;
         return Clean(artifacts[frame].ElementAtOrDefault(0)??"") is {Length:>0} name?name:null;

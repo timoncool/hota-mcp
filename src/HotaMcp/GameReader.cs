@@ -211,9 +211,32 @@ internal sealed class GameReader(WindowsGame game,int player)
         creaturesRead=true;
     }
 
+    private bool artifactsRead;
+
+    /// Artefact names from the game's own artefact table: a record of 0x20 bytes per artefact
+    /// with the name pointer first, the order being the artefact numbers the pictures carry.
+    private void ReadArtifactNames()
+    {
+        if(artifactsRead)return;
+        uint table=game.U32(0x660B68);
+        if(table<0x10000)return;
+        var names=new Dictionary<int,string>();
+        for(int id=0;id<512;id++)
+        {
+            string? name;
+            try{name=game.Text(game.U32(table+(uint)id*0x20));}catch(InvalidOperationException){continue;}
+            if(string.IsNullOrWhiteSpace(name)||name.Length>60||!name.Any(char.IsLetter))continue;
+            names[id]=name.Trim();
+        }
+        if(names.Count<100)return;
+        GameReference.UseLiveArtifactNames(names);
+        artifactsRead=true;
+    }
+
     public Observation Observe()
     {
         ReadCreatureNames();
+        ReadArtifactNames();
         // Two matching reads reduce transitional snapshots; safe-point synchronization remains future work.
         var first=ReadOnce();
         var second=ReadOnce();
