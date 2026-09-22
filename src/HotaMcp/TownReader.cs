@@ -13,6 +13,9 @@ public sealed record TownView(int Id,string? Name,int Type,bool BuiltToday,int[]
     public int[] GarrisonTypes {get;init;}=[];
     public int[] GarrisonCounts {get;init;}=[];
     public int[][] Recruitable {get;init;}=[];
+    /// What the town's icon in the side list shows: a cross over it when the town has already
+    /// built today. Null when the list is not on the screen.
+    public bool? IconCross {get;init;}
 }
 public sealed record AvailableAction(string Key,string Label);
 

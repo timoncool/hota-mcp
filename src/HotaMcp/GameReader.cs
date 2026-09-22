@@ -742,6 +742,19 @@ internal sealed class GameReader(WindowsGame game,int player)
         var towns=frontend?new List<TownView>():new TownReader(game,player).Read();
         var setup=screen=="scenario_selection"?new ScenarioReader(game).Read(dlg,items):null;
         var combat=screen=="combat"?new CombatReader(game,player).Read():null;
+        // The side list of towns — on the map and in the town screen — draws each town's icon with
+        // an odd frame once the town has built today: the cross the player sees over it.
+        int iconBase=screen=="adventure"?32:screen=="town"?155:-1;
+        if(iconBase>0&&!frontend)
+        {
+            var order=SidebarTowns(game,player);
+            towns=towns.Select(t=>
+            {
+                int place=Array.IndexOf(order,t.Id);
+                var icon=place<0?null:items.FirstOrDefault(i=>i.Id==iconBase+place);
+                return icon is null?t:t with{IconCross=icon.Frame%2==1};
+            }).ToList();
+        }
         int openTown=-1;
         if(screen is "town" or "town_hall" or "town_fort" or "building_confirmation" or "recruitment" or "marketplace")
             try{openTown=game.Read(game.U32(game.U32(0x69954c)+0x38),1)[0];}

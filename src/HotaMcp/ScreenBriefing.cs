@@ -315,7 +315,10 @@ internal static class ScreenBriefing
             string guard=keeper is not null
                 ?$"гарнизон держит герой {keeper.Name}: {Stacks(keeper.ArmyTypes,keeper.ArmyCounts)}"
                 :$"гарнизон {Stacks(town.GarrisonTypes,town.GarrisonCounts)}";
-            lines.Add($"Город {town.Name}: {(town.BuiltToday?"постройка дня потрачена":"постройка дня свободна")}, "
+            string icon=town.IconCross is null?"":town.IconCross==town.BuiltToday
+                ?(town.IconCross==true?" (на значке в панели крест)":" (значок в панели без креста)")
+                :$" (РАСХОЖДЕНИЕ: значок в панели {(town.IconCross==true?"с крестом":"без креста")}, а память города — {(town.BuiltToday?"строили":"не строили")})";
+            lines.Add($"Город {town.Name}: {(town.BuiltToday?"постройка дня потрачена":"постройка дня свободна")}{icon}, "
                 +$"{guard}. Открыть — town:open:{town.Name}.");
         }
         lines.Add("Рамка решений: у партии одно состояние (осмотреться, экономика, накопление, штурм, сведение тиров, "
