@@ -560,8 +560,20 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
                 blow=struck?" Удар состоялся."
                     :" УДАРА НЕ БЫЛО: отряд переместился, но не атаковал — цель вне досягаемости или выбрана клетка хода. Посмотри журнал боя и досягаемые клетки.";
             }
+            // Closing a window on the map is often followed by the next one — a level-up after a
+            // chest, a message after a fight. It opens a moment later, so the answer waits for it
+            // rather than telling the agent the map is free.
+            string next="";
+            if(after.Screen=="adventure"&&before.Screen!="adventure")
+                for(int beat=0;beat<12;beat++)
+                {
+                    await Task.Delay(100,CancellationToken.None);
+                    Observation settled;
+                    try{settled=reader.Observe();}catch(InvalidOperationException){continue;}
+                    if(settled.Screen!="adventure"){after=settled;next=$"; the game then opened {settled.Screen} — read it";break;}
+                }
             var result=new OperationResult("completed",
-                (screenChanged?"Screen transition confirmed by revision change":"Same screen, state change confirmed by revision")+blow
+                (screenChanged?"Screen transition confirmed by revision change":"Same screen, state change confirmed by revision")+blow+next
                 +(command.Confirm.HasFlag(Confirm.GarrisonChanged)?ArmyChange(before,after):""),after);
             operations[request.OperationId]=(request,result);
             Record("operation_completed",new{request.OperationId,after.Revision,after.Screen,BeforeScreen=before.Screen});
@@ -881,7 +893,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             }
             // Arriving at a town, a bank or a find opens its window a moment after the hero stops;
             // answering on the stop alone told the agent «reached» while a dialog was on its way.
-            for(int beat=0;beat<6&&after.Screen=="adventure";beat++)
+            for(int beat=0;beat<12&&after.Screen=="adventure";beat++)
             {
                 await Task.Delay(100,CancellationToken.None);
                 Observation settled;

@@ -252,7 +252,7 @@ internal static class ScreenBriefing
         {
             int centre=picture.X+picture.Width/2;
             var caption=items.Where(t=>!string.IsNullOrWhiteSpace(t.Text)&&t.Y>=picture.Y+picture.Height-4&&t.Y<=picture.Y+picture.Height+40
-                    &&Math.Abs(t.X+t.Width/2-centre)<45&&!t.Text.Trim().All(c=>char.IsDigit(c)||c==' '))
+                    &&Math.Abs(t.X+t.Width/2-centre)<45&&!t.Text.Trim().All(c=>char.IsDigit(c)||c==' ')&&t.Text.Trim()!="или")
                 .OrderBy(t=>t.Y).FirstOrDefault();
             if(caption is not null)parts.Add(caption.Text!.Trim());
         }
