@@ -446,6 +446,31 @@ internal sealed class GameReader(WindowsGame game,int player)
     /// the sheet itself: name, level and class, the four primary skills, specialty, experience
     /// and mana, secondary skills and the army. The army is a row of portraits without captions;
     /// each portrait draws the creature number plus two, and the count stands under it.
+    /// The card the game shows while the right button is held on a town that is not yours:
+    /// its name and the creatures of its garrison, drawn as small portraits (creature number plus
+    /// two). How many stand in each stack the card does not say, so neither does this.
+    public string? TownCard()
+    {
+        uint manager=game.U32(0x6992d0),dlg=game.U32(manager+0x54);
+        if(dlg==0||game.U32(dlg)!=0x640704)return null;
+        string? name=null;var garrison=new List<(int X,int Y,string Creature)>();
+        var seen=new HashSet<uint>();
+        int dx=game.I32(dlg+0x18),dy=game.I32(dlg+0x1c);
+        for(uint item=game.U32(dlg+0x2c);item!=0&&seen.Add(item)&&seen.Count<512;item=game.U32(item+8))
+        {
+            uint vt=game.U32(item);
+            int id=BitConverter.ToUInt16(game.Read(item+0x10,2));
+            if(id==2002&&vt is 0x642dc0 or 0x642df8)name=game.Text(game.U32(item+0x34))?.Trim();
+            if(id is >=2009 and <=2015&&vt==0x63ec48&&(BitConverter.ToUInt16(game.Read(item+0x16,2))&4)!=0)
+            {
+                int frame=game.I32(item+0x34);
+                if(frame>=2)garrison.Add((BitConverter.ToInt16(game.Read(item+0x18,2),0),BitConverter.ToInt16(game.Read(item+0x1a,2),0),GameReference.Creature(frame-2)));
+            }
+        }
+        string army=garrison.Count==0?"пусто":string.Join(", ",garrison.OrderBy(g=>g.Y).ThenBy(g=>g.X).Select(g=>g.Creature));
+        return $"Город {name}; гарнизон: {army} (сколько в каждом отряде, карточка не показывает)";
+    }
+
     public string? HeroCard()
     {
         uint manager=game.U32(0x6992d0),dlg=game.U32(manager+0x54);

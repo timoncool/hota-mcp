@@ -376,6 +376,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             {
                 await Task.Delay(350,CancellationToken.None);
                 card=reader.ReadCard();
+                if(reader.TownCard() is string town)card=card with {Texts=[town]};
                 Record("cell_inspected",new{request.X,request.Y,request.Z,card.Texts});
             }
             finally{await game.RightMouseUpAsync();}
