@@ -95,7 +95,7 @@ internal sealed class GameReference
     /// silo and blacksmith. The row order of BLDGNEUT is that numbering, so nothing is guessed.
     /// Town-specific buildings above that row are numbered per faction and are not in this table;
     /// their names are on the town's own construction screen.
-    public static string Building(int id)
+    public static string Building(int id,int faction=-1)
     {
         if(buildingNames is null)
         {
@@ -113,9 +113,36 @@ internal sealed class GameReference
             buildingNames=result;
         }
         if(id>=0&&id<17&&id<buildingNames.Count&&buildingNames[id].Length>1)return buildingNames[id];
+        // Buildings of one town type: the special ones are eleven rows per faction in BldgSpec,
+        // row k for building 17+k; the dwellings fourteen rows per faction in Dwelling, the base
+        // ones by level and the upgraded ones seven rows further on.
+        if(faction>=0&&id is >=17 and <=27&&PlainRow("BldgSpec.txt",faction*11+id-17) is {Length:>1} special)return special;
+        if(faction>=0&&id is >=30 and <=36&&PlainRow("Dwelling.txt",faction*14+id-30) is {Length:>1} dwelling)return dwelling;
+        if(faction>=0&&id is >=37 and <=43&&PlainRow("Dwelling.txt",faction*14+7+id-37) is {Length:>1} upgraded)return upgraded;
         if(id is >=30 and <=36)return $"жилище {id-29} уровня";
         if(id is >=37 and <=43)return $"улучшенное жилище {id-36} уровня";
         return $"постройка №{id}";
+    }
+
+    private static readonly Dictionary<string,List<string[]>> plainTables=new();
+
+    /// The first cell of one row of a table that has no heading.
+    private static string? PlainRow(string file,int row)
+    {
+        if(!plainTables.TryGetValue(file,out var rows))
+        {
+            rows=[];
+            string? data=FindDataDirectory();
+            if(data is not null)
+                foreach(var archive in new[]{"HotA_lng.lod","H3bitmap.lod"})
+                {
+                    string? text=LodArchive.Open(Path.Combine(data,archive))?.ReadText(file);
+                    if(text is null)continue;
+                    rows=Rows(text);break;
+                }
+            plainTables[file]=rows;
+        }
+        return row>=0&&row<rows.Count?Clean(rows[row].ElementAtOrDefault(0)??""):null;
     }
 
     /// The twelve town types in the order the starting-town grid itself lays them out, which is

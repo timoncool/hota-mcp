@@ -539,7 +539,13 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
                 if(cut>=0)victimId=victimId[..cut];
                 int was=before.Combat.Stacks.FirstOrDefault(s=>s.Id==victimId)?.Count??0;
                 int now=after.Combat.Stacks.FirstOrDefault(s=>s.Id==victimId)?.Count??0;
-                bool struck=now<was;
+                // A blow that wounds without killing leaves the count as it was; the log still
+                // names the attacker, in the plural for a stack and the singular for one creature.
+                var attacker=before.Combat.Stacks.FirstOrDefault(s=>s.Id==before.Combat.ActiveStack);
+                string[] names=attacker is null?[]:[attacker.Name,GameReference.Creature(attacker.Type)];
+                bool logged=after.Combat.Log.Any(e=>e.Index>=before.Combat.LogCount&&e.Text.Contains("нанос",StringComparison.Ordinal)
+                    &&names.Any(n=>n.Length>0&&e.Text.StartsWith(n,StringComparison.Ordinal)));
+                bool struck=now<was||logged;
                 blow=struck?" Удар состоялся."
                     :" УДАРА НЕ БЫЛО: отряд переместился, но не атаковал — цель вне досягаемости или выбрана клетка хода. Посмотри журнал боя и досягаемые клетки.";
             }

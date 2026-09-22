@@ -234,6 +234,22 @@ internal static class ScreenActions
             if(items.Any(i=>i.Id==103&&i.Interactive))actions.Add(new("menu:tutorial","Обучение"));
             if(items.Any(i=>i.Id==104&&i.Interactive))actions.Add(new("menu:back","Назад в главное меню"));
         }
+        if(screen=="marketplace")
+        {
+            // The market is two columns of the same seven resources: what the kingdom holds on
+            // the left, what can be had for it on the right. Pressing a resource on the left
+            // chooses what to give; pressing one on the right chooses what to get, and the rate
+            // then stands under every resource on the right.
+            string[] res=["дерево","ртуть","руда","сера","кристаллы","самоцветы","золото"];
+            for(int i=0;i<7;i++)
+            {
+                actions.Add(new($"market:give:{res[i]}",$"Рынок: отдать {res[i]} (выбрать слева)"));
+                actions.Add(new($"market:get:{res[i]}",$"Рынок: получить {res[i]} (выбрать справа)"));
+            }
+            if(items.Any(i=>i.Id==7))actions.Add(new("market:max","Рынок: поставить максимальное количество"));
+            if(items.Any(i=>i.Id==5))actions.Add(new("market:trade","Рынок: совершить обмен выбранного количества"));
+            actions.Add(new("market:close","Закрыть рынок"));
+        }
         if(screen=="popup_choice")
         {
             // The expansion opens several different popups over the setup screen and they all share
@@ -401,7 +417,7 @@ internal static class ScreenActions
             // Every building that is actually built can be entered by pressing it, the way a
             // player does. The names the game itself uses come from its own building table.
             foreach(int building in currentTown.Buildings.Where(b=>b is not (>=30 and <=36) and not 5).OrderBy(b=>b))
-                actions.Add(new($"town:building:{building}",$"Войти в постройку города номер {building}"));
+                actions.Add(new($"town:building:{building}",$"Войти: {GameReference.Building(building,currentTown.Type)}"));
             for(int level=0;level<7;level++)if(currentTown.Buildings.Contains(30+level))actions.Add(new($"town:recruit:{level}",$"Открыть найм существ уровня {level+1}"));
             actions.Add(new("town:construction","Открыть зал совета"));
             actions.Add(new("town:close","Вернуться на карту"));

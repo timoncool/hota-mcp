@@ -325,6 +325,13 @@ internal static class GameCommands
             => new("scenario_selection,popup_choice",PickRow),
         _ when action.Key.StartsWith("команда:",StringComparison.Ordinal)
             => new("popup_choice",PickTeamSlot),
+        _ when action.Key.StartsWith("market:give:",StringComparison.Ordinal)
+            => new("marketplace", Deliveries.Control(c => 28 + MarketResource(c.Element))),
+        _ when action.Key.StartsWith("market:get:",StringComparison.Ordinal)
+            => new("marketplace", Deliveries.Control(c => 63 + MarketResource(c.Element))),
+        "market:max" => new("marketplace", Deliveries.Control(7, "Ircbtns.def")),
+        "market:trade" => new("marketplace", Deliveries.Control(5, "TPMrkB.def")) { Confirm = Confirm.None },
+        "market:close" => new("town", Deliveries.Control(30722, "iOk6432.def")),
         "popup:подтвердить" => new("scenario_selection,popup_choice",Deliveries.Control(1,"CAMPCHK.def")),
         "popup:отменить" => new("scenario_selection,popup_choice",Deliveries.Control(2,"CAMPCAN.def")),
         _ when action.Key.StartsWith("setup:",StringComparison.Ordinal)
@@ -957,6 +964,14 @@ internal static class GameCommands
             ?? throw new InvalidOperationException($"В окне команд нет места {place} у команды {team}");
         await Deliveries.Press(context, box, ct);
     };
+
+    private static int MarketResource(string key)
+    {
+        string[] res = ["дерево", "ртуть", "руда", "сера", "кристаллы", "самоцветы", "золото"];
+        int i = Array.IndexOf(res, key[(key.LastIndexOf(':') + 1)..]);
+        if (i < 0) throw new InvalidOperationException($"Ресурса «{key[(key.LastIndexOf(':') + 1)..]}» на рынке нет");
+        return i;
+    }
 
     private static readonly Deliver SelectScenario = async (context, ct) =>
     {
