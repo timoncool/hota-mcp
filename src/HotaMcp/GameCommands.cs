@@ -339,7 +339,8 @@ internal static class GameCommands
         _ when action.Key.StartsWith("market:get:",StringComparison.Ordinal)
             => new("marketplace", Deliveries.Control(c => 63 + MarketResource(c.Element))),
         "market:max" => new("marketplace", Deliveries.Control(7, "Ircbtns.def")),
-        _ when action.Key.StartsWith("market:amount:") => new("marketplace", MarketAmount) { TimeoutSeconds = 30 },
+        _ when action.Key.StartsWith("market:amount:") => new("marketplace", SliderTo("market:amount:", 6, 4)) { TimeoutSeconds = 30 },
+        _ when action.Key.StartsWith("split:amount:") => new("split_army", SliderTo("split:amount:", 6, 5)) { TimeoutSeconds = 30 },
         "market:trade" => new("marketplace", Deliveries.Control(5, "TPMrkB.def")) { Confirm = Confirm.None },
         "market:close" => new("town", Deliveries.Control(30722, "iOk6432.def")),
         "popup:подтвердить" => new("scenario_selection,popup_choice",Deliveries.Control(1,"CAMPCHK.def")),
@@ -507,8 +508,8 @@ internal static class GameCommands
         "army:upgrade" => new("creature_card",Deliveries.Control(300)),
         "army:dismiss" => new("creature_card",Deliveries.Control(30723)),
         "army:close" => new("creature_card",Deliveries.Control(30722)),
-        "split:confirm" => new("split_army",Deliveries.Control(30722)),
-        "split:decline" => new("split_army",Deliveries.Control(30721)),
+        "split:confirm" => new("town,hero_screen,exchange",Deliveries.Control(30722)),
+        "split:decline" => new("town,hero_screen,exchange",Deliveries.Control(30721)),
         // Stacks are addressed the way the agent thinks about them — by creature name — and the
         // adapter finds the row and the slot. The numeric form stays legal for the rare case where
         // the same creature stands in two slots of one row.
@@ -518,6 +519,10 @@ internal static class GameCommands
             => new("town",MoveStack(true,false)){Confirm=Confirm.GarrisonChanged},
         _ when action.Key.StartsWith("army:take:",StringComparison.Ordinal)
             => new("town",MoveStack(false,false)){Confirm=Confirm.GarrisonChanged},
+        _ when action.Key.StartsWith("army:split-give:",StringComparison.Ordinal)
+            => new("split_army",MoveStack(true,false,true)),
+        _ when action.Key.StartsWith("army:split-take:",StringComparison.Ordinal)
+            => new("split_army",MoveStack(false,false,true)),
         _ when action.Key.StartsWith("army:merge:",StringComparison.Ordinal)
             => new("town",MoveStack(false,true)){Confirm=Confirm.GarrisonChanged},
         _ when action.Key.StartsWith("army:join:",StringComparison.Ordinal)
@@ -749,7 +754,7 @@ internal static class GameCommands
     /// silently, an empty slot makes the game ask how to divide. Merging is nearly always the
     /// intent, so a matching slot is preferred; `requireMerge` refuses the move outright when there
     /// is nothing to merge with, so "объединить" never turns into a split dialog by accident.
-    private static Deliver MoveStack(bool toGarrison,bool requireMerge) => async (context, ct) =>
+    private static Deliver MoveStack(bool toGarrison,bool requireMerge,bool split=false) => async (context, ct) =>
     {
         string wanted = context.Element[(context.Element.IndexOf(':') + 1)..];
         wanted = wanted[(wanted.IndexOf(':') + 1)..];
@@ -766,7 +771,8 @@ internal static class GameCommands
         int slot = ResolveStack(wanted, fromTypes, fromCounts,
             toGarrison ? "в армии героя" : "в гарнизоне");
         int moving = slot < fromTypes.Length ? fromTypes[slot] : -1;
-        int target = moving >= 0 ? Array.FindIndex(toTypes, type => type == moving) : -1;
+        // A split always goes to a free cell: pressed onto a twin, Shift would only merge.
+        int target = moving >= 0 && !split ? Array.FindIndex(toTypes, type => type == moving) : -1;
         if (target < 0 && requireMerge)
             throw new InvalidOperationException(
                 $"Объединять не с чем: {(toGarrison ? "в гарнизоне" : "у героя")} нет отряда «{GameReference.Creature(moving)}». " +
@@ -790,7 +796,10 @@ internal static class GameCommands
             throw new InvalidOperationException(
                 $"Нажатие по клетке {slot} не взяло отряд: рамка выделения не появилась там, где ожидалась. "
                 +"Ничего не перенесено, состояние не изменилось.");
-        await Deliveries.Press(context, destination.X, destination.Y, ct);
+        if (split)
+            await context.Game.ShiftClickRealAsync(destination.X, destination.Y, context.Before.Width, context.Before.Height, ct);
+        else
+            await Deliveries.Press(context, destination.X, destination.Y, ct);
     };
 
     /// A stack is named either by creature — the way the agent asks for it — or by slot number for
@@ -993,15 +1002,16 @@ internal static class GameCommands
         return i;
     }
 
-    /// Sets how much to trade the way a player does: the arrows at the two ends of the slider
-    /// move it one unit at a time, and the count under the given resource says where it stands.
-    private static readonly Deliver MarketAmount = async (context, ct) =>
+    /// Sets an amount the way a player does: the arrows at the two ends of a slider move it one
+    /// unit at a time, and a number on the screen says where it stands. The market and the split
+    /// window both work this way; they differ only in which number follows the slider.
+    private static Deliver SliderTo(string prefix, int slider, int count) => async (context, ct) =>
     {
-        int wanted = int.Parse(context.Element["market:amount:".Length..]);
-        var bar = context.Reader.FindControlById(6)
-            ?? throw new InvalidOperationException("Ползунка количества на экране нет: выбери, что отдать и что получить");
-        int Read() => int.TryParse(context.Reader.Observe().Elements.FirstOrDefault(e => e.Id == 4)?.Text?.Trim(), out int v)
-            ? v : throw new InvalidOperationException("Количество к обмену не прочитано");
+        int wanted = int.Parse(context.Element[prefix.Length..]);
+        var bar = context.Reader.FindControlById(slider)
+            ?? throw new InvalidOperationException("Ползунка количества на экране нет");
+        int Read() => int.TryParse(new string((context.Reader.Observe().Elements.FirstOrDefault(e => e.Id == count)?.Text ?? "").Where(char.IsDigit).ToArray()), out int v)
+            ? v : throw new InvalidOperationException("Число у ползунка не прочитано");
         int now = Read();
         while (now != wanted)
         {
@@ -1011,7 +1021,7 @@ internal static class GameCommands
             int next = Read();
             if (next == now)
                 throw new InvalidOperationException($"Ползунок встал на {now}, до {wanted} не дойти: "
-                    + (now < wanted ? "запаса выбранного ресурса или цены не хватает на большее" : "меньше поставить нельзя"));
+                    + (now < wanted ? "больше не позволяет запас" : "меньше поставить нельзя"));
             now = next;
         }
     };

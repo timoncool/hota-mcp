@@ -245,6 +245,11 @@ candidates, structured content of world view / puzzle / thieves guild, town sieg
   построить», «построить нельзя» — the same states the player sees. `town:lead`, `hero:out`,
   `hero:switch`, `town:take:<slot>` move army between hero and garrison; success is the garrison
   changing, not the click landing.
+  Part of a stack: `army:split-give:<creature>` (hero → garrison) or `army:split-take:<creature>`
+  (garrison → hero) opens the split window; `split:amount:<n>` sets how many go to the new cell,
+  `split:confirm` applies. A plain `army:give`/`army:take` onto a free cell moves the whole stack.
+  Market: `market:give:<resource>` → `market:get:<resource>` → `market:amount:<n>` (or `market:max`)
+  → `market:trade`. Fort labels carry the price per creature and for the whole stock.
 - **Combat.** `Combat.Log` carries the last 24 real log entries with zero-based `Index`; `LogCount`
   is the full count. Indices reset each battle. `combat:spellbook` opens the current book — read the
   actual labels and mana costs; `spellbook:select:<id>` picks an exposed icon; in target mode choose

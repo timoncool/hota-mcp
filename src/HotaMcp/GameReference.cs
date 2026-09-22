@@ -334,6 +334,11 @@ internal sealed class GameReference
     /// from the running game's own creature table: the same numbers its creature card shows.
     public static void UseLiveCreatureCards(List<ReferenceCard> cards)=>liveCards=cards;
 
+    /// Gold price of one creature, found by the plural name a dwelling or the fort shows.
+    public static int? CreatureGold(string plural)=>liveCards
+        .Where(c=>c.Fields.TryGetValue("Plural",out var p)&&string.Equals(p,plural.Trim(),StringComparison.OrdinalIgnoreCase))
+        .Select(c=>int.TryParse(c.Fields["Gold"],out int g)?g:(int?)null).FirstOrDefault();
+
     /// Names a stack by its type as the game stores it; an unknown type stays a number rather than
     /// becoming a guess.
     public static string Creature(int type)

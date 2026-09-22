@@ -77,6 +77,8 @@ internal static class ScreenActions
         {
             // Dropping a stack on an empty slot of the other row asks how to divide it: a slider
             // between two halves and the game's own confirm. Cancelling leaves the stack whole.
+            if(items.Any(i=>i.Id==5)&&items.Any(i=>i.Id==4))
+                actions.Add(new("split:amount:<n>",$"Сколько отделить в новую клетку, например split:amount:15. Сейчас: остаётся {items.First(i=>i.Id==4).Text?.Trim()}, отделяется {items.First(i=>i.Id==5).Text?.Trim()}"));
             if(items.Any(i=>i.Id==30722&&i.Interactive))actions.Add(new("split:confirm","Подтвердить разделение отряда"));
             if(items.Any(i=>i.Id==30721&&i.Interactive))actions.Add(new("split:decline","Отменить разделение, отряд останется целым"));
         }
@@ -95,8 +97,11 @@ internal static class ScreenActions
                 var dwelling=items.FirstOrDefault(i=>i.Id==9+tier)?.Text?.Trim();
                 if(items.All(i=>i.Id!=1+tier))continue;
                 bool built=!string.IsNullOrWhiteSpace(available);
+                int? price=GameReference.CreatureGold(name.Text);
+                int.TryParse(new string((available??"").Where(char.IsDigit).ToArray()),out int stock);
+                string cost=price is int p?$", цена {p} золота за одного, весь запас {p*stock}":", цена не прочитана";
                 actions.Add(new($"fort:recruit:{tier}",built
-                    ?$"Нанять {name.Text} (уровень {tier+1}, {dwelling}): {available}, прирост {growth}"
+                    ?$"Нанять {name.Text} (уровень {tier+1}, {dwelling}): {available}, прирост {growth}{cost}"
                     :$"{name.Text} (уровень {tier+1}): жилище {dwelling} не построено"));
             }
         }
@@ -475,7 +480,10 @@ internal static class ScreenActions
                         $"Отдать «{name}» x{count} снизу вверх, в {upper}: там уже стоит такой же отряд ({garrisonCounts[twin]}), отряды сольются в один на {count+garrisonCounts[twin]}. Случай: герой уходит налегке, войско остаётся держать город."));
                 else if(!garrisonFull)
                     actions.Add(new($"army:give:{address}",
-                        $"Отдать «{name}» x{count} снизу вверх, в {upper}, на свободную клетку. Сливать не с чем, поэтому игра откроет экран split_army и спросит, сколько перенести: split:confirm переносит выставленное, split:decline отменяет целиком. Случай: оставить городу охрану или освободить слот у героя."));
+                        $"Отдать «{name}» x{count} снизу вверх, в {upper}, на свободную клетку, весь отряд целиком. Часть отряда — army:split-give:{address}. Случай: освободить слот у героя."));
+                if(!garrisonFull&&count>1)
+                    actions.Add(new($"army:split-give:{address}",
+                        $"Отделить часть «{name}» x{count} в {upper} на свободную клетку: откроется окно разделения, там split:amount:<n> и split:confirm. Случай: оставить городу охрану, не отдавая весь отряд."));
             }
             for(int slot=0;slot<7;slot++)
             {
@@ -504,7 +512,10 @@ internal static class ScreenActions
                 }
                 else if(!heroFull)
                     actions.Add(new($"army:take:{address}",
-                        $"Забрать «{name}» x{count} сверху вниз, из {upper} в {lower}, на свободную клетку. Сливать не с чем, поэтому игра спросит, сколько перенести (экран split_army). Случай: забрать недельный прирост перед походом."));
+                        $"Забрать «{name}» x{count} сверху вниз, из {upper} в {lower}, на свободную клетку, весь отряд целиком. Часть отряда — army:split-take:{address}. Случай: забрать недельный прирост перед походом."));
+                if(!heroFull&&count>1)
+                    actions.Add(new($"army:split-take:{address}",
+                        $"Взять часть «{name}» x{count} из {upper} к герою на свободную клетку: откроется окно разделения, там split:amount:<n> и split:confirm. Случай: взять в поход часть гарнизона, оставив городу охрану."));
             }
             // Two stacks of one creature in the same row waste a slot and a blow.
             foreach(var row in new[]{(Types:heroTypes,Counts:heroCounts,Row:"h",Where:lower),

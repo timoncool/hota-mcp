@@ -73,16 +73,26 @@ internal sealed class WindowsGame : IDisposable
         return(x,y);
     }
 
-    public async Task MouseAsync(int gameX,int gameY,int width,int height,bool click,CancellationToken ct)
+    public async Task MouseAsync(int gameX,int gameY,int width,int height,bool click,CancellationToken ct,bool shift=false)
     {
         var (x,y)=ToWindow(gameX,gameY,width,height);
         nint lp=(nint)(x|(y<<16));
-        if(!PostMessageW(Window,0x200,0,lp)) throw new InvalidOperationException("Mouse dispatch failed");
+        nuint held=shift?4u:0u;
+        if(!PostMessageW(Window,0x200,held,lp)) throw new InvalidOperationException("Mouse dispatch failed");
         if(!click) return;
         ct.ThrowIfCancellationRequested();
-        if(!PostMessageW(Window,0x201,1,lp)) throw new InvalidOperationException("Mouse down failed");
-        try { await Task.Delay(60,CancellationToken.None); }
-        finally { if(!PostMessageW(Window,0x202,0,lp)) throw new InvalidOperationException("Mouse release failed"); }
+        // Shift with a click is how the game splits a stack: the key is held down around the
+        // press and the press itself carries the Shift flag, as a real mouse message does.
+        nint shiftData=(nint)((0x2a<<16)|1);
+        if(shift&&!PostMessageW(Window,0x100,0x10,shiftData)) throw new InvalidOperationException("Key dispatch failed");
+        try
+        {
+            if(shift)await Task.Delay(30,CancellationToken.None);
+            if(!PostMessageW(Window,0x201,1|held,lp)) throw new InvalidOperationException("Mouse down failed");
+            try { await Task.Delay(60,CancellationToken.None); }
+            finally { if(!PostMessageW(Window,0x202,held,lp)) throw new InvalidOperationException("Mouse release failed"); }
+        }
+        finally { if(shift){await Task.Delay(30,CancellationToken.None);PostMessageW(Window,0x101,0x10,(nint)((long)shiftData|0xc0000000));} }
     }
     /// Windows the expansion draws itself — the grids of starting towns and heroes, its drop-down
     /// lists — do not trust the coordinates a click carries: they ask the system where the pointer
@@ -102,6 +112,25 @@ internal sealed class WindowsGame : IDisposable
                      new Input{Type=0,Mouse=new MouseInput{Flags=0x0004}}],
             System.Runtime.InteropServices.Marshal.SizeOf<Input>());
         await Task.Delay(80,CancellationToken.None);
+    }
+
+    /// Splitting a stack is a click with Shift held, and the game asks the keyboard itself whether
+    /// Shift is down — a flag on a posted click is not enough. So Shift is really pressed for the
+    /// length of one real click, as a player's other hand does.
+    public async Task ShiftClickRealAsync(int gameX,int gameY,int width,int height,CancellationToken ct)
+    {
+        int size=System.Runtime.InteropServices.Marshal.SizeOf<KeyInput>();
+        SendKeys(1,[new KeyInput{Type=1,Vk=0x10,Scan=0x2a}],size);
+        try
+        {
+            await Task.Delay(60,CancellationToken.None);
+            await MouseRealAsync(gameX,gameY,width,height,ct);
+        }
+        finally
+        {
+            SendKeys(1,[new KeyInput{Type=1,Vk=0x10,Scan=0x2a,Flags=2}],size);
+            await Task.Delay(60,CancellationToken.None);
+        }
     }
 
     private nint rightButton;
@@ -202,6 +231,16 @@ internal sealed class WindowsGame : IDisposable
     [DllImport("user32.dll")] private static extern bool IsIconic(nint window);
     [DllImport("user32.dll")] private static extern bool SetCursorPos(int x,int y);
     [DllImport("user32.dll",SetLastError=true)] private static extern uint SendInput(uint count,Input[] inputs,int size);
+    [StructLayout(LayoutKind.Explicit,Size=40)] private struct KeyInput
+    {
+        [FieldOffset(0)] public uint Type;
+        [FieldOffset(8)] public ushort Vk;
+        [FieldOffset(10)] public ushort Scan;
+        [FieldOffset(12)] public uint Flags;
+        [FieldOffset(16)] public uint Time;
+        [FieldOffset(24)] public nint Extra;
+    }
+    [DllImport("user32.dll",EntryPoint="SendInput",SetLastError=true)] private static extern uint SendKeys(uint count,KeyInput[] inputs,int size);
     [DllImport("user32.dll")] private static extern bool ClientToScreen(nint window,ref Point point);
     [DllImport("user32.dll")] private static extern bool SetProcessDPIAware();
     [DllImport("user32.dll",SetLastError=true)] private static extern bool PostMessageW(nint window,uint message,nuint wp,nint lp);

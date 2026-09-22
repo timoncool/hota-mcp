@@ -23,7 +23,7 @@ public sealed record TextRequest(string Revision,string Element,string Text);
 public sealed record InspectRequest(string Revision,string Element);
 public sealed record CellRequest(string Revision,int X,int Y,int Z);
 public sealed record KeyRequest(int Key,int Scan,bool Control);
-public sealed record PressRequest(int X,int Y);
+public sealed record PressRequest(int X,int Y,bool Shift=false);
 public sealed record CellCard(int X,int Y,int Z,string[] Card,Observation Observation);
 public sealed record ElementCard(string Element,string[] Card,Observation Observation);
 
@@ -646,9 +646,10 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             // is walked there first, exactly as a hand would.
             await game.MouseAsync(request.X,request.Y,width,height,false,CancellationToken.None);
             await Task.Delay(200,CancellationToken.None);
-            await game.MouseAsync(request.X,request.Y,width,height,true,CancellationToken.None);
+            if(request.Shift)await game.ShiftClickRealAsync(request.X,request.Y,width,height,CancellationToken.None);
+            else await game.MouseAsync(request.X,request.Y,width,height,true,CancellationToken.None);
             await Task.Delay(300,CancellationToken.None);
-            Record("developer_press",new{request.X,request.Y,From=probe.Vtable});
+            Record("developer_press",new{request.X,request.Y,request.Shift,From=probe.Vtable});
             return new{pressed=true,request.X,request.Y};
         }
         finally{gate.Release();}
