@@ -335,7 +335,18 @@ internal static class ScreenActions
             foreach(var (id,key) in new[]{(128,"scenario:maps"),(129,"scenario:players"),(130,"scenario:random")})
                 if(items.Any(i=>i.Id==id&&i.Interactive))actions.Add(new(key,items.Single(i=>i.Id==id).Text!));
         }
-        if(screen=="adventure")foreach(var town in towns)actions.Add(new($"town:open:{town.Id}",$"Открыть город: {town.Name}"));
+        if(screen=="adventure")
+        {
+            // The town list works like the hero list: each place holds the town the player's own
+            // list puts there, and the town is asked for by its name.
+            var owned=GameReader.SidebarTowns(game,player);
+            for(int slot=0;slot<owned.Length&&slot<5;slot++)
+            {
+                var town=towns.FirstOrDefault(t=>t.Id==owned[slot]);
+                if(town is null||items.All(i=>i.Id!=32+slot))continue;
+                actions.Add(new($"town:open:{town.Name}",$"Открыть город {town.Name} (место {slot+1} в списке городов справа)"));
+            }
+        }
         if(screen=="adventure")actions.Add(new("hero:select","Перейти к следующему своему герою на карте (штатная клавиша H)"));
         if(screen=="adventure"&&hero is not null)actions.Add(new("hero:move","Переместить героя по проложенному пути (штатная клавиша M)"));
         if(screen=="adventure")
@@ -343,11 +354,17 @@ internal static class ScreenActions
             // The sidebar hero list: pressing a portrait selects that hero, and pressing the
             // portrait of the hero already selected opens his own screen with skills, spells and
             // artefacts. Occupied slots are the ones the game keeps visible.
+            // Each place is named by the hero standing in it, read from the player's own list,
+            // so the agent asks for a hero by name and never counts portraits.
+            var list=GameReader.SidebarHeroes(game,player);
             for(int slot=0;slot<5;slot++)
             {
                 var portrait=items.FirstOrDefault(i=>i.Id==15+slot);
-                if(portrait is null||!portrait.Interactive)continue;
-                actions.Add(new($"hero:sheet:{slot}",$"Открыть экран героя из списка, место {slot+1}"));
+                if(portrait is null||!portrait.Interactive||list[slot]<0)continue;
+                string name=roster.FirstOrDefault(h=>h.Id==list[slot])?.Name??$"герой №{list[slot]}";
+                bool current=hero?.Id==list[slot];
+                if(!current)actions.Add(new($"hero:pick:{name}",$"Выбрать героя {name} (место {slot+1} в списке справа)"));
+                actions.Add(new($"hero:sheet:{name}",$"Открыть экран героя {name}: навыки, заклинания, артефакты"));
             }
         }
         if(screen=="adventure"&&hero is not null)
@@ -396,7 +413,10 @@ internal static class ScreenActions
                 actions.Add(new("town:previous","Предыдущий город (стрелка вверх)"));
                 actions.Add(new("town:next","Следующий город (стрелка вниз)"));
             }
-            if(currentTown is not null&&currentTown.GarrisonHero>=0)actions.Add(new("hero:out","Вытащить гарнизонного героя на карту: клик по портрету героя, затем клик по строке ниже"));
+            // Bringing the garrison hero out needs the visitor's place free: with a visitor there
+            // the same gesture simply swaps the two heroes, which is what hero:switch is for.
+            if(currentTown is not null&&currentTown.GarrisonHero>=0&&currentTown.VisitingHero<0)
+                actions.Add(new("hero:out","Вытащить гарнизонного героя на карту: клик по портрету героя, затем клик по строке ниже"));
             // The town shows two rows of seven slots. The lower one is the visiting hero's army;
             // the upper one belongs to the garrison hero when a hero stands there, and to the town
             // garrison otherwise — the player sees one row either way, so the actions must not

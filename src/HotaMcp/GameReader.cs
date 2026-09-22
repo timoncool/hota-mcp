@@ -425,6 +425,24 @@ internal sealed class GameReader(WindowsGame game,int player)
             +$"армия: {string.Join(", ",army)}";
     }
 
+    /// Who stands in each place of the hero list on the right of the adventure map. The player
+    /// record keeps the heroes out on the map in list order at +0x08, eight places, empty ones -1;
+    /// a hero leading a town garrison is not in it, exactly as he is not in the panel.
+    public static int[] SidebarHeroes(WindowsGame game,int player)
+    {
+        uint record=game.U32(0x699538)+0x20ad0+(uint)player*0x168;
+        return Enumerable.Range(0,8).Select(i=>game.I32(record+8+(uint)i*4)).ToArray();
+    }
+
+    /// Which town stands in each place of the town list on the right of the adventure map: the
+    /// player record keeps the count at +0x3E and the towns in list order from +0x40.
+    public static int[] SidebarTowns(WindowsGame game,int player)
+    {
+        uint record=game.U32(0x699538)+0x20ad0+(uint)player*0x168;
+        int count=Math.Clamp((int)game.Read(record+0x3e,1)[0],0,48);
+        return game.Read(record+0x40,count).Select(b=>(int)b).ToArray();
+    }
+
     public (int X,int Y)? FindControl(int x,int y,int w,int h)
     {
         // Locate one dialog control by its exact reported rectangle and return its centre.
@@ -623,6 +641,9 @@ internal sealed class GameReader(WindowsGame game,int player)
             // graphic, and the game hit-tests them itself; they are the whole content of the popup,
             // so dropping them would leave the screen empty.
             if(screen=="popup_choice"&&vt is 0x63ec48 or 0x63ba94)interactive=(state&2)!=0;
+            // The hero list on the right of the map is a column of portraits drawn as plain
+            // pictures; pressing one selects that hero, pressing the selected one opens his sheet.
+            if(screen=="adventure"&&vt==0x63ba94&&BitConverter.ToUInt16(b,0x10) is >=15 and <=19)interactive=(state&6)==6;
             // Some controls carry no text and no button graphic yet still say something: the town
             // hall colours a bare picture next to each row to mark built, buildable or blocked.
             bool bareControlMatters=screen is "town_hall" or "town_fort" or "adventure" or "hero_screen" or "building_confirmation" or "popup_choice" or "tavern"||(screen is "message" or "exchange" or "level_up")&&(state&2)!=0;

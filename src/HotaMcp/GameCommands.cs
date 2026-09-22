@@ -311,6 +311,7 @@ internal static class GameCommands
         "turn:end" => new("adventure", Deliveries.Key(0x45, 0x12)) { Confirm = Confirm.TurnAdvanced },
         "hero:select" => new("adventure", SelectOwnHero),
         _ when action.Key.StartsWith("hero:sheet:") => new("hero_screen,adventure", OpenHeroSheet),
+        _ when action.Key.StartsWith("hero:pick:") => new("adventure", SelectMapHero){ Confirm = Confirm.None },
         // "M - Moves current hero" along the planned path.
         "hero:move" => new("adventure", Deliveries.Key(0x4d, 0x32)),
         // "Arrow Keys - Moves current hero": one step in a direction, no route planning involved.
@@ -506,10 +507,13 @@ internal static class GameCommands
     /// player presses it. The press is repeated once because the sidebar can still be animating.
     private static readonly Deliver OpenTown = async (context, ct) =>
     {
-        int townId = Suffix(context.Element, 2);
-        if (context.Before.Towns.Count != 1 || context.Before.Towns[0].Id != townId)
-            throw new InvalidOperationException("Town sidebar selection currently verified for one owned town only");
-        var portrait = context.Before.Elements.Single(e => e.Id == 32 && e.Asset == "itpa.def");
+        string name = context.Element["town:open:".Length..];
+        var owned = GameReader.SidebarTowns(context.Game, context.Player);
+        int slot = Array.FindIndex(owned, id => context.Before.Towns.FirstOrDefault(t => t.Id == id)?.Name == name);
+        if (slot < 0) throw new InvalidOperationException($"Города {name} нет в списке твоих городов");
+        if (slot >= 5) throw new InvalidOperationException($"Город {name} ниже видимой части списка; прокрути список городов");
+        var portrait = context.Before.Elements.FirstOrDefault(e => e.Id == 32 + slot && e.Asset == "itpa.def")
+            ?? throw new InvalidOperationException($"Место города {name} в списке справа не найдено");
         for (int attempt = 0; attempt < 2; attempt++)
         {
             await Deliveries.Press(context, portrait, ct);
@@ -555,9 +559,28 @@ internal static class GameCommands
 
     /// One press on a hero portrait selects that hero; a press on the hero already selected opens
     /// his screen. Both cases are covered by pressing, looking, and pressing once more.
+    /// The portrait of the named hero in the list on the right of the map.
+    private static UiElement HeroPortrait(CommandContext context)
+    {
+        string name = context.Element[(context.Element.IndexOf(':', 5) + 1)..];
+        var list = GameReader.SidebarHeroes(context.Game, context.Player);
+        for (int slot = 0; slot < 5; slot++)
+        {
+            if (list[slot] < 0) continue;
+            var hero = context.Before.Heroes.FirstOrDefault(h => h.Id == list[slot]);
+            if (hero?.Name != name) continue;
+            return context.Before.Elements.FirstOrDefault(e => e.Id == 15 + slot && e.Interactive)
+                ?? throw new InvalidOperationException($"Портрет героя {name} сейчас не на панели");
+        }
+        throw new InvalidOperationException($"Героя {name} нет в списке героев на карте");
+    }
+
+    private static readonly Deliver SelectMapHero = async (context, ct) =>
+        await Deliveries.Press(context, HeroPortrait(context), ct);
+
     private static readonly Deliver OpenHeroSheet = async (context, ct) =>
     {
-        var portrait = context.Before.Elements.First(e => e.Id == 15 + Suffix(context.Element, 2));
+        var portrait = HeroPortrait(context);
         await Deliveries.Press(context, portrait, ct);
         await Task.Delay(400, CancellationToken.None);
         try { if (context.Reader.Observe().Screen == "hero_screen") return; }

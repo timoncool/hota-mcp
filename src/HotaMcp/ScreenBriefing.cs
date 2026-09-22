@@ -44,6 +44,7 @@ internal static class ScreenBriefing
             lines.Add("На экране сообщение игры, и пока оно висит, ничего другого сделать нельзя: "
                 +"ни походить, ни открыть город. Текст лежит в Elements; закрой его действием "
                 +"message:accept, а вопрос с двумя кнопками — message:confirm или message:decline.");
+        if(screen=="message")RewardBrief(lines,items);
         if(screen=="town")TownBrief(lines,resources,towns,roster,selectedStack,openTown);
         if(screen=="exchange")ExchangeBrief(lines,items,roster);
         if(screen=="adventure")AdventureBrief(lines,resources,towns,roster,selected);
@@ -81,14 +82,15 @@ internal static class ScreenBriefing
         // buildings and daily limit the moment a second town was captured.
         var town=towns.FirstOrDefault(t=>t.Id==openTown)??towns.FirstOrDefault();
         if(town is null){lines.Add("Экран города открыт, но город не прочитан.");return;}
-        lines.Add($"Город {town.Name}. Золото {(resources.Length>6?resources[6]:0)}, дерево {Res(resources,0)}, руда {Res(resources,1)}.");
+        lines.Add($"Город {town.Name}. Золото {(resources.Length>6?resources[6]:0)}, дерево {Res(resources,0)}, руда {Res(resources,2)}, "
+            +$"ртуть {Res(resources,1)}, сера {Res(resources,3)}, кристаллы {Res(resources,4)}, самоцветы {Res(resources,5)}.");
         var keeper=roster.FirstOrDefault(h=>h.Id==town.GarrisonHero);
         var guest=roster.FirstOrDefault(h=>h.Id==town.VisitingHero);
         lines.Add(keeper is not null
-            ?$"Верхний ряд — гарнизонный герой {keeper.Name}: {Stacks(keeper.ArmyTypes,keeper.ArmyCounts)}. Он остаётся в городе и держит оборону."
+            ?$"Верхний ряд — гарнизонный герой {keeper.Name}: {Stacks(keeper.ArmyTypes,keeper.ArmyCounts)}. Остаётся в городе и держит оборону."
             :$"Верхний ряд — гарнизон города: {Stacks(town.GarrisonTypes,town.GarrisonCounts)}. Гарнизонного героя нет.");
         lines.Add(guest is not null
-            ?$"Нижний ряд — герой-гость {guest.Name}: {Stacks(guest.ArmyTypes,guest.ArmyCounts)}, ходов {guest.Movement} из {guest.MaxMovement}. Он может выйти из города."
+            ?$"Нижний ряд — герой-гость {guest.Name}: {Stacks(guest.ArmyTypes,guest.ArmyCounts)}, ходов {guest.Movement} из {guest.MaxMovement}. Может выйти из города."
             :"Нижний ряд пуст: героя-гостя в городе нет. Нанять его можно в таверне (town:tavern).");
         if(keeper is not null&&guest is not null)
             lines.Add("Два героя в городе: отряды между ними переносятся действиями army:give, army:take и army:merge по имени существа, "
@@ -143,6 +145,26 @@ internal static class ScreenBriefing
             +"привязана к герою навсегда. Сведи армию тому, чья специальность работает на твою армию.");
     }
 
+    private static readonly string[] ResourceNames=["дерево","ртуть","руда","сера","кристаллы","самоцветы","золото"];
+
+    /// What a message hands out, in words. The game draws each reward as a picture with its
+    /// amount under it; a resource picture comes from the resource icon file and its frame is the
+    /// resource, so «600» and «6» become «золото 600, сера 6».
+    private static void RewardBrief(List<string> lines,List<UiElement> items)
+    {
+        var parts=new List<string>();
+        foreach(var picture in items.Where(i=>i.Asset is not null&&i.Asset.StartsWith("resour",StringComparison.OrdinalIgnoreCase)
+                    &&i.Frame is >=0 and <7).OrderBy(i=>i.X))
+        {
+            int centre=picture.X+picture.Width/2;
+            var amount=items.Where(t=>t.Text is not null&&t.Y>=picture.Y&&Math.Abs(t.X+t.Width/2-centre)<45
+                    &&t.Text.Trim().Split(' ')[0].All(char.IsDigit))
+                .OrderBy(t=>t.Y).FirstOrDefault();
+            parts.Add($"{ResourceNames[picture.Frame]} {amount?.Text?.Trim()??"?"}");
+        }
+        if(parts.Count>0)lines.Add($"Награда в этом окне: {string.Join(", ",parts)}.");
+    }
+
     private static string Res(int[] resources,int index)=>index<resources.Length?resources[index].ToString():"?";
 
     private static void AdventureBrief(List<string> lines,int[] resources,List<TownView> towns,
@@ -154,8 +176,16 @@ internal static class ScreenBriefing
                 +$"ходов {hero.Movement} из {hero.MaxMovement}, мана {hero.Mana}, войско: {Stacks(hero.ArmyTypes,hero.ArmyCounts)}"
                 +(selected is not null&&selected.Id==hero.Id?" — выбран сейчас.":"."));
         foreach(var town in towns)
+        {
+            // A hero leading the garrison holds the town's troops as his own army; saying
+            // «гарнизон пусто» then was simply wrong.
+            var keeper=roster.FirstOrDefault(h=>h.Id==town.GarrisonHero);
+            string guard=keeper is not null
+                ?$"гарнизон держит герой {keeper.Name}: {Stacks(keeper.ArmyTypes,keeper.ArmyCounts)}"
+                :$"гарнизон {Stacks(town.GarrisonTypes,town.GarrisonCounts)}";
             lines.Add($"Город {town.Name}: {(town.BuiltToday?"постройка дня потрачена":"постройка дня свободна")}, "
-                +$"гарнизон {Stacks(town.GarrisonTypes,town.GarrisonCounts)}. Открыть — town:open:{town.Id}.");
+                +$"{guard}. Открыть — town:open:{town.Name}.");
+        }
         lines.Add("Рамка решений: у партии одно состояние (осмотреться, экономика, накопление, штурм, сведение тиров, "
             +"расширение, оборона), у каждого героя роль (главный берёт охраняемое, сборщик — свободное), "
             +"а день решается деревом по приоритету. Целиком — hota_docs(\"машина состояний партии\"). "
