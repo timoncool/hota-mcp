@@ -13,6 +13,10 @@ public record UiElement(string Key,int Id,string? Text,string? Asset,int X,int Y
     /// Picture frame the control is drawing. The game uses it to colour a row: in the town hall
     /// 0 marks a building that already stands, 2 one that can be built now, 3 one that cannot.
     public int Frame {get;init;}
+
+    /// The control is drawn as the chosen one of its row — a pressed difficulty piece, a size
+    /// filter in force, an open panel tab. The game marks it with one bit of the control state.
+    public bool Selected {get;init;}
 }
 public record HeroView(int Id,string Name,int[] Position,int Mana,int Movement,int MaxMovement,int[] Primary,int[] ArmyTypes,int[] ArmyCounts)
 {
@@ -532,7 +536,7 @@ internal sealed class GameReader(WindowsGame game,int player)
             if(string.IsNullOrEmpty(text)&&asset==null&&!bareControlMatters) continue;
             items.Add(new UiElement($"ui:{controlIndex}",BitConverter.ToUInt16(b,0x10),text,asset,
                 dx+BitConverter.ToInt16(b,0x18),dy+BitConverter.ToInt16(b,0x1a),iw,ih,interactive)
-                {Frame=BitConverter.ToInt32(b,0x34)});
+                {Frame=BitConverter.ToInt32(b,0x34),Selected=(state&16)!=0});
         }
         if(screen=="scenario_selection"&&items.Any(i=>i.Id==186&&i.Asset=="scnrsav.def"))screen="save_game";
         SaveList? saves=null;

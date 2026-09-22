@@ -175,6 +175,36 @@ internal sealed class GameReference
         return [];
     }
 
+    private static readonly Dictionary<string,List<string>> lineTables=new();
+
+    /// A table the game keeps one entry per line, with no heading: the victory and loss
+    /// conditions a scenario can have.
+    private static string? Line(string file,int row)
+    {
+        if(!lineTables.TryGetValue(file,out var lines))
+        {
+            lines=[];
+            string? data=FindDataDirectory();
+            if(data is not null)
+                foreach(var archive in new[]{"HotA_lng.lod","H3bitmap.lod"})
+                {
+                    string? text=LodArchive.Open(Path.Combine(data,archive))?.ReadText(file);
+                    if(text is null)continue;
+                    lines=text.Split('\n').Select(l=>l.Trim()).ToList();
+                    break;
+                }
+            lineTables[file]=lines;
+        }
+        return row>=0&&row<lines.Count&&lines[row].Length>0?lines[row]:null;
+    }
+
+    /// The victory condition of a scenario by the type byte its header carries: 0xFF is the
+    /// ordinary «defeat every enemy», which is the first line of the table; type N is line N+1.
+    public static string Victory(int type)=>Line("VCDESC.TXT",type==0xFF?0:type+1)??$"особое условие победы №{type}";
+
+    /// The loss condition, numbered the same way.
+    public static string Loss(int type)=>Line("LCDESC.TXT",type==0xFF?0:type+1)??$"особое условие поражения №{type}";
+
     private static List<string[]>? specialties;
 
     /// What a hero is a specialist in, by the number of the specialty picture he shows. The

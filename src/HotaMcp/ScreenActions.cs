@@ -560,7 +560,8 @@ internal static class ScreenActions
             for(int level=0;level<5;level++)
                 if(items.Any(i=>i.Id==107+level))
                     actions.Add(new($"scenario:difficulty:{level+1}",
-                        $"Сложность: {names[level]} (фигура {level+1} из 5, слева направо от лёгкой к трудной)"));
+                        $"Сложность: {names[level]} (фигура {level+1} из 5, слева направо от лёгкой к трудной)"
+                        +(items.Any(i=>i.Id==107+level&&i.Selected)?" — ВЫБРАНА СЕЙЧАС":"")));
         }
         if(setup is not null)foreach(var choice in setup.Fields.SelectMany(f=>f.Choices).Where(c=>c.Enabled&&!c.Selected))actions.Add(new(choice.Action,choice.Label));
         if(combat?.OwnTurn==true)

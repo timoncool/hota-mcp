@@ -1,6 +1,6 @@
 namespace HotaMcp;
 
-public record ScenarioMap(string Name,string Description,int Size);
+public record ScenarioMap(string Name,string Description,int Size,int Players,int Humans,string Victory,string Loss);
 public record SetupChoice(string Action,string Label,bool Selected,bool Enabled);
 public record SetupField(string Key,int Value,List<SetupChoice> Choices);
 public record ScenarioSetup(string Panel,ScenarioMap? Map,List<SetupField> Fields);
@@ -45,7 +45,9 @@ internal sealed class ScenarioReader(WindowsGame game)
             uint selected=checked(first+(uint)index*0xca4);
             int size=game.I32(selected+0x18);
             if(size<36||size>252||size%36!=0)throw new InvalidOperationException("Scenario map size unsupported");
-            map=new(game.Text(game.U32(selected+0x2d4))??"",game.Text(game.U32(selected+0x2e4),8192)??"",size);
+            map=new(game.Text(game.U32(selected+0x2d4))??"",game.Text(game.U32(selected+0x2e4),8192)??"",size,
+                game.Read(selected+6,1)[0],game.Read(selected+8,1)[0],
+                GameReference.Victory(game.Read(selected+0x30,1)[0]),GameReference.Loss(game.Read(selected+0x7c,1)[0]));
             // Every scenario the filter currently admits, in the order the list shows them. The
             // player scrolls this list with his eyes; without it the agent knows only the one row
             // that happens to be selected and cannot choose a map at all.
@@ -56,7 +58,15 @@ internal sealed class ScenarioReader(WindowsGame game)
                 string title=game.Text(game.U32(entry+0x2d4))??"";
                 if(title.Length==0)continue;
                 int side=game.I32(entry+0x18);
-                available.Add(new($"scenario:map:{title}",$"{title} — {side}×{side}",row==index,true));
+                // The list shows, beside every name, how many sides play and how many of them may
+                // be people, and pictures of the victory and loss conditions; the header of each
+                // entry carries the same: players at +6, human-playable at +8, the victory type at
+                // +0x30 and the loss type at +0x7c. Checked against the list for three maps.
+                int players=game.Read(entry+6,1)[0],humans=game.Read(entry+8,1)[0];
+                available.Add(new($"scenario:map:{title}",
+                    $"{title} — {side}×{side}, игроков {players} (людьми {humans}), "
+                    +$"победа: {GameReference.Victory(game.Read(entry+0x30,1)[0])}, "
+                    +$"поражение: {GameReference.Loss(game.Read(entry+0x7c,1)[0])}",row==index,true));
             }
         }
         if(available.Count>0)fields.Add(new("map",0,available));
