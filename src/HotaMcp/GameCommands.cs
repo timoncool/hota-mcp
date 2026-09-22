@@ -137,8 +137,21 @@ internal static class Deliveries
     public static Task Press(CommandContext context, UiElement element, CancellationToken ct) =>
         Press(context, element.X + element.Width / 2, element.Y + element.Height / 2, ct);
 
-    public static Task Press(CommandContext context, int x, int y, CancellationToken ct) =>
-        context.Game.MouseAsync(x, y, context.Before.Width, context.Before.Height, true, CancellationToken.None);
+    /// The game works out what a click means from where the cursor already stands, not from the
+    /// coordinates the click carries: a battlefield target ignored a click sent from elsewhere, and
+    /// so do the picture grids of the setup screen. So every press walks the cursor onto the spot
+    /// first and only then presses, the way a hand does.
+    public static async Task Press(CommandContext context, int x, int y, CancellationToken ct)
+    {
+        if (context.Before.Screen == "popup_choice")
+        {
+            await context.Game.MouseRealAsync(x, y, context.Before.Width, context.Before.Height, ct);
+            return;
+        }
+        await context.Game.MouseAsync(x, y, context.Before.Width, context.Before.Height, false, CancellationToken.None);
+        await Task.Delay(120, CancellationToken.None);
+        await context.Game.MouseAsync(x, y, context.Before.Width, context.Before.Height, true, CancellationToken.None);
+    }
 
     /// Two plain clicks on two garrison-row widgets, the way the manual describes the gesture.
     public static Deliver TwoSlots(int firstY, int secondY) => async (context, ct) =>
@@ -242,6 +255,25 @@ internal static class GameCommands
             => new("scenario_selection",Deliveries.Control(filter)),
         _ when action.Key.StartsWith("scenario:map:",StringComparison.Ordinal)
             => new("scenario_selection",SelectScenario){TimeoutSeconds=30},
+        // The popups of the setup screen: the grids of starting towns and heroes, the drop-down
+        // lists and the team agreements. Every one of them is left by pressing what it holds.
+        _ when action.Key.StartsWith("выбор:город:",StringComparison.Ordinal)
+            => new("scenario_selection,popup_choice",PickTown),
+        _ when action.Key.StartsWith("выбор:герой:",StringComparison.Ordinal)
+            => new("scenario_selection,popup_choice",PickHero),
+        _ when action.Key.StartsWith("выбрать:",StringComparison.Ordinal)
+            => new("scenario_selection,popup_choice",PickRow),
+        _ when action.Key.StartsWith("команда:",StringComparison.Ordinal)
+            => new("popup_choice",PickTeamSlot),
+        "popup:подтвердить" => new("scenario_selection,popup_choice",Deliveries.Control(1,"CAMPCHK.def")),
+        "popup:отменить" => new("scenario_selection,popup_choice",Deliveries.Control(2,"CAMPCAN.def")),
+        _ when action.Key.StartsWith("setup:",StringComparison.Ordinal)
+            && action.Key.Count(c=>c==':')==3
+            && action.Key.Split(':')[3] is not ("назад" or "вперёд" or "выбрать")
+            => new("scenario_selection",SetupByName){TimeoutSeconds=30},
+        _ when action.Key.StartsWith("setup:",StringComparison.Ordinal)
+            && action.Key.EndsWith(":выбрать",StringComparison.Ordinal)
+            => new("popup_choice",OpenSetupGrid),
         _ when action.Key.StartsWith("setup:",StringComparison.Ordinal)
             && action.Key.Count(c=>c==':')>=2
             => new("scenario_selection",PlayerSetup),
@@ -768,6 +800,63 @@ internal static class GameCommands
     /// one press moves the selection by one row and the view follows. The bridge walks the
     /// difference between where the selection is and where the named map lies — one decided
     /// intent, carried out mechanically, the same as pressing a stack twice to move it.
+    /// Presses the cell of the starting-town grid that carries the named faction. The grid lays
+    /// the factions out in the order the game numbers them, so the name alone finds the cell.
+    private static readonly Deliver PickTown = async (context, ct) =>
+    {
+        string want = context.Element["выбор:город:".Length..];
+        var cell = want.Equals("случайный", StringComparison.OrdinalIgnoreCase)
+            ? context.Before.Elements.FirstOrDefault(e => e.Id == 999 && e.Interactive)
+            : context.Before.Elements.FirstOrDefault(e => e.Id is >= 1000 and <= 1011 && e.Interactive
+                && GameReference.Faction(e.Id - 1000).Equals(want, StringComparison.OrdinalIgnoreCase));
+        if (cell is null) throw new InvalidOperationException(
+            $"В открытой сетке нет города «{want}». Открой её кнопкой города нужного ряда и посмотри, что предложено.");
+        await Deliveries.Press(context, cell, ct);
+    };
+
+    /// Presses the cell of the starting-hero grid that carries the named hero. The grid holds the
+    /// roster of the town already chosen for that row, in the order the game numbers heroes.
+    private static readonly Deliver PickHero = async (context, ct) =>
+    {
+        string want = context.Element["выбор:герой:".Length..];
+        UiElement? cell = null;
+        if (want.Equals("случайный", StringComparison.OrdinalIgnoreCase))
+            cell = context.Before.Elements.FirstOrDefault(e => e.Id == 2999 && e.Interactive);
+        else
+        {
+            var town = context.Before.Elements.FirstOrDefault(e => e.Id is >= 1000 and <= 1011 && e.Frame % 2 == 1);
+            if (town is null) throw new InvalidOperationException(
+                "Сначала выбери городе ряда: пока город случайный, игра не показывает его героев.");
+            cell = context.Before.Elements.FirstOrDefault(e => e.Id is >= 3000 and < 3016 && e.Interactive
+                && GameReference.Hero((town.Id - 1000) * 16 + e.Id - 3000).Equals(want, StringComparison.OrdinalIgnoreCase));
+        }
+        if (cell is null) throw new InvalidOperationException(
+            $"В открытой сетке нет героя «{want}»; посмотри, кого она предлагает.");
+        await Deliveries.Press(context, cell, ct);
+    };
+
+    /// Presses the row of an open drop-down list by the words written on it.
+    private static readonly Deliver PickRow = async (context, ct) =>
+    {
+        string want = context.Element["выбрать:".Length..];
+        var row = context.Before.Elements.FirstOrDefault(e => e.Interactive
+            && e.Text is not null && e.Text.Trim().Equals(want, StringComparison.OrdinalIgnoreCase));
+        if (row is null) throw new InvalidOperationException($"В открытом списке нет строки «{want}»");
+        await Deliveries.Press(context, row, ct);
+    };
+
+    /// Presses one box of the team agreements dialog.
+    private static readonly Deliver PickTeamSlot = async (context, ct) =>
+    {
+        var parts = context.Element.Split(':');
+        if (parts.Length != 3 || !int.TryParse(parts[1], out int team) || !int.TryParse(parts[2], out int place))
+            throw new InvalidOperationException("Место в команде называется так: команда:<номер>:<место>");
+        int id = (team == 1 ? 100 : 110) + place - 1;
+        var box = context.Before.Elements.FirstOrDefault(e => e.Id == id && e.Interactive)
+            ?? throw new InvalidOperationException($"В окне команд нет места {place} у команды {team}");
+        await Deliveries.Press(context, box, ct);
+    };
+
     private static readonly Deliver SelectScenario = async (context, ct) =>
     {
         string wanted = context.Element["scenario:map:".Length..];
@@ -795,6 +884,84 @@ internal static class GameCommands
 
     /// One control of the players panel. The key names the colour, the column and the direction,
     /// and the row is the colour's place in the game's own order.
+    /// Opens the whole grid of starting towns, or of the heroes of the town already chosen, by
+    /// pressing the picture that stands between the two arrows of that row. Stepping the arrows
+    /// one press at a time is what this replaces.
+    /// Sets one of a player's starting choices by its name. The grid of pictures ignores a click
+    /// that no hand made, so the value is stepped with the row's own arrow and checked after every
+    /// step against what the game itself says about the picture — the card the right button opens.
+    /// The agent names a town or a hero; the walking is the adapter's business.
+    private static readonly Deliver SetupByName = async (context, ct) =>
+    {
+        string[] colours=["красный","синий","коричневый","зелёный","оранжевый","фиолетовый","бирюзовый","розовый"];
+        var parts=context.Element.Split(':');
+        int slot=Array.IndexOf(colours,parts[1]);
+        if(slot<0)throw new InvalidOperationException($"Цвет «{parts[1]}» не опознан");
+        var (forward,column)=parts[2] switch
+        {
+            "город" => (223+slot,176),
+            "герой" => (239+slot,252),
+            "бонус" => (255+slot,328),
+            _ => throw new InvalidOperationException($"Столбец «{parts[2]}» не опознан")
+        };
+        string want=parts[3];
+        var arrow=context.Reader.FindControlById(forward)
+            ?? throw new InvalidOperationException($"У цвета «{parts[1]}» нельзя менять «{parts[2]}»: карта задала это жёстко");
+        int pictureY=arrow.Y-3+16,pictureX=column+24;
+        var seen=new List<string>();
+        for(int step=0;step<14;step++)
+        {
+            string now=await NameUnderPointer(context,pictureX,pictureY,ct);
+            if(now.Contains(want,StringComparison.OrdinalIgnoreCase))return;
+            if(seen.Contains(now))break;
+            seen.Add(now);
+            await Deliveries.Press(context,arrow.X+arrow.Width/2,arrow.Y+arrow.Height/2,ct);
+            await Task.Delay(250,CancellationToken.None);
+        }
+        throw new InvalidOperationException(
+            $"«{want}» не предлагается в столбце «{parts[2]}» у цвета «{parts[1]}». Игра предлагает: {string.Join(", ",seen)}");
+    };
+
+    /// What the game calls the picture at this point: it is asked the way a player asks, by holding
+    /// the right button, and the answer is the line the card puts under its own heading.
+    private static async Task<string> NameUnderPointer(CommandContext context,int x,int y,CancellationToken ct)
+    {
+        await context.Game.RightMouseDownAsync(x,y,context.Before.Width,context.Before.Height,ct);
+        try
+        {
+            await Task.Delay(300,CancellationToken.None);
+            var texts=context.Reader.ReadCard().Texts;
+            if(texts.Length==0)return "";
+            // The last line is the card's heading in braces. Normally the line before it is the
+            // value; when that line is a whole sentence the heading is the value itself, which is
+            // how a random choice is written: «{Случайный бонус}».
+            string heading=texts[^1].Trim('{','}',' ');
+            string value=texts.Length>1?texts[^2]:"";
+            return value.Length is >0 and <40?value:heading;
+        }
+        finally{await context.Game.RightMouseUpAsync();}
+    }
+
+    private static readonly Deliver OpenSetupGrid = async (context, ct) =>
+    {
+        string[] colours=["красный","синий","коричневый","зелёный","оранжевый","фиолетовый","бирюзовый","розовый"];
+        var parts=context.Element.Split(':');
+        int slot=Array.IndexOf(colours,parts[1]);
+        if(slot<0)throw new InvalidOperationException($"Цвет «{parts[1]}» не опознан");
+        int arrow=parts[2] switch
+        {
+            "город" => 215+slot,
+            "герой" => 231+slot,
+            _ => throw new InvalidOperationException($"Открыть можно выбор города или героя, а не «{parts[2]}»")
+        };
+        int column=parts[2]=="город"?176:252;
+        var row=context.Reader.FindControlById(arrow)
+            ?? throw new InvalidOperationException($"Ряд цвета «{parts[1]}» на панели участников не найден");
+        var picture=context.Before.Elements.FirstOrDefault(e=>Math.Abs(e.X-column)<6&&Math.Abs(e.Y-row.Y)<10)
+            ?? throw new InvalidOperationException("Картинка выбора в этом ряду не найдена");
+        await Deliveries.Press(context,picture,ct);
+    };
+
     private static readonly Deliver PlayerSetup = async (context, ct) =>
     {
         string[] colours=["красный","синий","коричневый","зелёный","оранжевый","фиолетовый","бирюзовый","розовый"];

@@ -230,6 +230,49 @@ internal static class ScreenActions
             if(items.Any(i=>i.Id==103&&i.Interactive))actions.Add(new("menu:tutorial","Обучение"));
             if(items.Any(i=>i.Id==104&&i.Interactive))actions.Add(new("menu:back","Назад в главное меню"));
         }
+        if(screen=="popup_choice")
+        {
+            // The expansion opens several different popups over the setup screen and they all share
+            // one class, so each is recognised by what stands in it. A list of captions — the timer
+            // type, the random map template — is chosen by its own words. The starting town and
+            // starting hero are grids of bare pictures: their cells carry no caption at all, and
+            // the game names them only when the right button is held over one. The grid lays the
+            // factions out in the order the game numbers them, and one town's sixteen heroes follow
+            // the same numbering, so every cell can be offered by name.
+            foreach(var row in items.Where(i=>!string.IsNullOrWhiteSpace(i.Text)&&i.Interactive))
+                actions.Add(new($"выбрать:{row.Text!.Trim()}",$"Выбрать в открытом списке: {row.Text!.Trim()}"));
+            if(items.Any(i=>i.Id==999&&i.Interactive))
+                actions.Add(new("выбор:город:случайный","Стартовый город — случайный (кубик)"));
+            foreach(var cell in items.Where(i=>i.Id is >=1000 and <=1011&&i.Interactive))
+                actions.Add(new($"выбор:город:{GameReference.Faction(cell.Id-1000)}",
+                    $"Стартовый город: {GameReference.Faction(cell.Id-1000)}"));
+            if(items.Any(i=>i.Id==2999&&i.Interactive))
+                actions.Add(new("выбор:герой:случайный","Стартовый герой — случайный (кубик)"));
+            // The hero grid holds the roster of the town already chosen for this row, and that
+            // town is the one cell of the town grid drawn in its pressed picture.
+            // The chosen cell is marked by a frame the game draws over it: a separate control that
+            // stands exactly on the picked picture. Which town that is, is read from what lies
+            // under the mark.
+            var mark=items.FirstOrDefault(i=>i.Id==5000);
+            var chosen=mark is null?null:items.FirstOrDefault(i=>i.Id is >=1000 and <=1011
+                &&Math.Abs(i.X-mark.X)<8&&Math.Abs(i.Y-mark.Y)<8);
+            foreach(var cell in items.Where(i=>i.Id is >=3000 and <3016&&i.Interactive))
+            {
+                string name=chosen is null?$"место {cell.Id-2999}"
+                    :GameReference.Hero((chosen.Id-1000)*16+cell.Id-3000);
+                actions.Add(new($"выбор:герой:{name}",chosen is null
+                    ?$"Стартовый герой на месте {cell.Id-2999}: город ряда ещё не выбран, поэтому имя не читается"
+                    :$"Стартовый герой: {name}"));
+            }
+            // The team agreements dialog puts each colour's flag into one of the team boxes.
+            foreach(var cell in items.Where(i=>i.Id is 100 or 101 or 110 or 111&&i.Interactive))
+                actions.Add(new($"команда:{(cell.Id<110?1:2)}:{(cell.Id%10)+1}",
+                    $"Команда {(cell.Id<110?1:2)}, место {(cell.Id%10)+1}"));
+            if(items.Any(i=>i.Asset=="CAMPCHK.def"&&i.Interactive))
+                actions.Add(new("popup:подтвердить","Подтвердить и закрыть окно"));
+            if(items.Any(i=>i.Asset=="CAMPCAN.def"&&i.Interactive))
+                actions.Add(new("popup:отменить","Закрыть окно, ничего не меняя"));
+        }
         if(screen=="scenario_selection"&&items.Any(i=>i.Id==188&&i.Interactive))actions.Add(new("scenario:back","Выйти из выбора сценария"));
         if(screen=="scenario_selection"&&items.Any(i=>i.Id==186&&i.Interactive))actions.Add(new("scenario:start","Начать партию с текущими настройками"));
         if(screen=="scenario_selection")
@@ -247,7 +290,10 @@ internal static class ScreenActions
             // 207 plus the row, town arrows at 215 and 223, hero at 231 and 239, bonus at 247 and
             // 255, with the chosen value written under each picture.
             string[] colours=["красный","синий","коричневый","зелёный","оранжевый","фиолетовый","бирюзовый","розовый"];
-            for(int slot=0;slot<8;slot++)
+            // Three panels share this screen and reuse the same control numbers: the rows of the
+            // random map settings stand exactly where the player rows stand. Offering the player
+            // rows while another panel is shown would change the wrong thing silently.
+            for(int slot=0;setup?.Panel=="players"&&slot<8;slot++)
             {
                 if(items.All(i=>i.Id!=345+slot))continue;
                 string who=items.FirstOrDefault(i=>i.Id==345+slot)?.Text?.Trim()??"?";
@@ -257,6 +303,15 @@ internal static class ScreenActions
                         $"{colour}: переключить, кто играет — сейчас «{who}»"));
                 foreach(var (what,left,right) in new[]{("город",215,223),("герой",231,239),("бонус",247,255)})
                 {
+                    // The picture between the two arrows opens the whole grid at once — every town
+                    // or every hero of that town — which is how a player picks one by sight
+                    // instead of stepping through them one arrow press at a time.
+                    var row=items.FirstOrDefault(i=>i.Id==left+slot);
+                    int column=what=="город"?176:what=="герой"?252:328;
+                    var picture=row is null?null:items.FirstOrDefault(i=>Math.Abs(i.X-column)<6&&Math.Abs(i.Y-row.Y)<8);
+                    if(picture is not null&&what!="бонус")
+                        actions.Add(new($"setup:{colour}:{what}:выбрать",
+                            $"{colour}: открыть выбор — весь список, что можно поставить в «{what}»"));
                     string now=items.FirstOrDefault(i=>i.Id==(what=="город"?353:what=="герой"?361:369)+slot)?.Text?.Trim()??"";
                     if(items.Any(i=>i.Id==left+slot&&i.Interactive))
                         actions.Add(new($"setup:{colour}:{what}:назад",
@@ -264,6 +319,13 @@ internal static class ScreenActions
                     if(items.Any(i=>i.Id==right+slot&&i.Interactive))
                         actions.Add(new($"setup:{colour}:{what}:вперёд",
                             $"{colour}: следующий стартовый {what}{(now.Length>0?$" (сейчас {now})":"")}"));
+                    // A town can be asked for by name: the adapter steps the row itself and checks
+                    // every step against what the game calls the picture, so the agent never has to
+                    // count arrow presses.
+                    if(what=="город"&&items.Any(i=>i.Id==right+slot&&i.Interactive))
+                        foreach(string faction in GameReference.Factions)
+                            actions.Add(new($"setup:{colour}:город:{faction}",
+                                $"{colour}: поставить стартовым городом {faction}"));
                 }
             }
             foreach(var (id,key) in new[]{(128,"scenario:maps"),(129,"scenario:players"),(130,"scenario:random")})
@@ -429,10 +491,15 @@ internal static class ScreenActions
             {
                 int slot=item.Id-600;
                 var picture=items.FirstOrDefault(i=>i.Id==400+slot);
+                // What the player sees on this screen is a colour under each picture: green is a
+                // building that can be put up now, gold one that already stands, red with a cross
+                // one that cannot be started. These were named the wrong way round, so every row
+                // the adapter called buildable was in fact the one the game refuses.
                 string state=picture?.Frame switch
                 {
                     0=>"уже построено",
-                    2=>"можно построить",
+                    1=>"можно построить",
+                    2=>"построить нельзя",
                     3=>"построить нельзя",
                     null=>"состояние неизвестно",
                     _=>$"состояние {picture.Frame}",

@@ -56,7 +56,11 @@ internal static class BuildProfile
             // A dialog class the screen reader has no name for is an unsupported screen, not a
             // different build: the layout is still this one. Only a class that cannot be a class
             // at all says the manager is being read wrongly.
-            if(vtable<0x400000||vtable>0x700000)
+            // Dialogs the expansion adds live in HotA.dll, which is loaded well above the base
+            // game image, so their class pointer is far outside it and moves between runs. Such a
+            // class is checked by what it points at — a table whose first entry is code — instead
+            // of by the address it happens to have.
+            if(vtable<0x400000||vtable>0x700000&&game.U32(vtable)<0x400000)
                 throw new InvalidOperationException($"active dialog class 0x{vtable:x} is not a class pointer");
             return ScreenVtables.Contains(vtable)
                 ?$"active dialog class 0x{vtable:x}"

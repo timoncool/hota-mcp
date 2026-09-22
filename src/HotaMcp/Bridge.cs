@@ -525,10 +525,44 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             int width=game.I32(surface+0x24),height=game.I32(surface+0x28);
             if(request.X<0||request.Y<0||request.X>=width||request.Y>=height)
                 throw new InvalidOperationException("Point is outside the game surface");
+            // Some surfaces decide what a click means from where the cursor already is, not from
+            // the coordinates carried by the click itself: the grids of starting towns and heroes
+            // ignore a click that arrives without the cursor standing on the cell. So the cursor
+            // is walked there first, exactly as a hand would.
+            await game.MouseAsync(request.X,request.Y,width,height,false,CancellationToken.None);
+            await Task.Delay(200,CancellationToken.None);
             await game.MouseAsync(request.X,request.Y,width,height,true,CancellationToken.None);
             await Task.Delay(300,CancellationToken.None);
             Record("developer_press",new{request.X,request.Y,From=probe.Vtable});
             return new{pressed=true,request.X,request.Y};
+        }
+        finally{gate.Release();}
+    }
+
+    /// Developer mapping only: holds the right button over one point, which is how a player asks
+    /// this game what a picture means — the grids of starting towns and heroes carry no captions
+    /// at all, and their names live only in the card the right button opens. Screens the adapter
+    /// cannot name yet are exactly where this is needed, so it asks for no screen.
+    public async Task<object> PressRight(PressRequest request,CancellationToken ct)
+    {
+        await gate.WaitAsync(ct);
+        try
+        {
+            uint manager=game.U32(0x6992d0),surface=game.U32(manager+0x40);
+            int width=game.I32(surface+0x24),height=game.I32(surface+0x28);
+            if(request.X<0||request.Y<0||request.X>=width||request.Y>=height)
+                throw new InvalidOperationException("Point is outside the game surface");
+            await game.RightMouseDownAsync(request.X,request.Y,width,height,ct);
+            string[] texts;
+            try
+            {
+                await Task.Delay(350,CancellationToken.None);
+                texts=reader.ReadCard().Texts;
+            }
+            finally{await game.RightMouseUpAsync();}
+            await Task.Delay(150,CancellationToken.None);
+            Record("developer_press_right",new{request.X,request.Y,texts});
+            return new{request.X,request.Y,texts};
         }
         finally{gate.Release();}
     }
@@ -923,6 +957,7 @@ public interface IGameEndpoint
     Task<object> ProbeScreen(CancellationToken ct);
     Task<object> SendKey(KeyRequest request,CancellationToken ct);
     Task<object> Press(PressRequest request,CancellationToken ct);
+    Task<object> PressRight(PressRequest request,CancellationToken ct);
     Task<object> Journal(int limit,CancellationToken ct);
     Task<object> Plan(string? value,CancellationToken ct);
     Task<MapView> ReadMap(int x,int y,int z,int radius,CancellationToken ct);
@@ -955,6 +990,7 @@ internal sealed class LocalEndpoint(Bridge bridge) : IGameEndpoint
     public Task<object> ProbeScreen(CancellationToken ct)=>Task.FromResult(bridge.ProbeScreen());
     public Task<object> SendKey(KeyRequest request,CancellationToken ct)=>bridge.SendKey(request,ct);
     public Task<object> Press(PressRequest request,CancellationToken ct)=>bridge.Press(request,ct);
+    public Task<object> PressRight(PressRequest request,CancellationToken ct)=>bridge.PressRight(request,ct);
     public Task<object> Journal(int limit,CancellationToken ct)=>bridge.GetJournal(limit,ct);
     public Task<object> Plan(string? value,CancellationToken ct)=>bridge.Plan(value,ct);
     public Task<MapView> ReadMap(int x,int y,int z,int radius,CancellationToken ct)=>bridge.ReadMap(x,y,z,radius,ct);
@@ -992,6 +1028,7 @@ internal sealed class RemoteEndpoint(HttpClient client) : IGameEndpoint
     public Task<object> ProbeScreen(CancellationToken ct)=>Call<object>("bridge/probe-screen",new{},ct);
     public Task<object> SendKey(KeyRequest request,CancellationToken ct)=>Call<object>("bridge/key",request,ct);
     public Task<object> Press(PressRequest request,CancellationToken ct)=>Call<object>("bridge/press",request,ct);
+    public Task<object> PressRight(PressRequest request,CancellationToken ct)=>Call<object>("bridge/press-right",request,ct);
     public Task<object> Journal(int limit,CancellationToken ct)=>Call<object>("bridge/journal",new{limit},ct);
     public Task<object> Plan(string? value,CancellationToken ct)=>Call<object>("bridge/plan",new{value},ct);
     public Task<MapView> ReadMap(int x,int y,int z,int radius,CancellationToken ct)=>Call<MapView>("bridge/map",new{x,y,z,radius},ct);

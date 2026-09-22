@@ -118,6 +118,82 @@ internal sealed class GameReference
         return $"постройка №{id}";
     }
 
+    /// The twelve town types in the order the starting-town grid itself lays them out, which is
+    /// also the order the game numbers factions. Read off the grid cell by cell with the right
+    /// button, the way a player reads a picture that carries no caption.
+    public static readonly string[] Factions=[
+        "Замок","Оплот","Башня","Инферно","Некрополис","Темница",
+        "Цитадель","Крепость","Сопряжение","Причал","Фабрика","Кронверк"];
+
+    /// The name of a faction by the number the game gives it.
+    public static string Faction(int index)=>
+        index>=0&&index<Factions.Length?Factions[index]:$"город №{index}";
+
+    private static List<string>? heroNames;
+
+    /// Names of the heroes in the order the game numbers them — the row order of HOTRAITS is the
+    /// hero number, and the starting-hero grid of one town holds that town's sixteen heroes in
+    /// that same order, so a portrait in the grid can be named instead of pressed blind.
+    public static string Hero(int id)
+    {
+        if(heroNames is null)
+        {
+            var result=new List<string>();
+            string? data=FindDataDirectory();
+            if(data is not null)
+                foreach(var archive in new[]{"HotA_lng.lod","H3bitmap.lod"})
+                {
+                    var lod=LodArchive.Open(Path.Combine(data,archive));
+                    string? text=lod?.ReadText("HOTRAITS.TXT");
+                    if(text is null)continue;
+                    foreach(var row in Rows(text))result.Add(Clean(row.ElementAtOrDefault(0)??""));
+                    if(result.Count>0)break;
+                }
+            heroNames=result;
+        }
+        return id>=0&&id<heroNames.Count&&heroNames[id].Length>1?heroNames[id]:$"герой №{id}";
+    }
+
+    private static List<string>? skillNames;
+
+    /// Names of the secondary skills in the order the game numbers them — the row order of
+    /// SSTRAITS. The skill icons of a hero draw frame (навык+1)*3 + уровень, checked against the
+    /// cards the game itself shows for those icons, so a slot can be read as «Базовый Мудрость»
+    /// instead of a picture number.
+    public static string Skill(int index)
+    {
+        if(skillNames is null)
+        {
+            var result=new List<string>();
+            string? data=FindDataDirectory();
+            if(data is not null)
+                foreach(var archive in new[]{"HotA_lng.lod","H3bitmap.lod"})
+                {
+                    var lod=LodArchive.Open(Path.Combine(data,archive));
+                    string? text=lod?.ReadText("SSTRAITS.TXT");
+                    if(text is null)continue;
+                    foreach(var row in Rows(text))result.Add(Clean(row.ElementAtOrDefault(0)??""));
+                    if(result.Count>0)break;
+                }
+            skillNames=result;
+        }
+        return index>=0&&index<skillNames.Count&&skillNames[index].Length>1
+            ?skillNames[index]:$"навык №{index}";
+    }
+
+    /// The skill a hero's icon stands for, and how well he knows it, read from the picture frame.
+    public static string? SkillFromFrame(int frame)
+    {
+        if(frame<=0)return null;
+        string level=(frame%3) switch{0=>"базовый",1=>"продвинутый",_=>"экспертный"};
+        // The table keeps two header rows before the first skill, so the row of a skill sits two
+        // places above its number. Checked against the game's own cards for these icons: frame 24
+        // is «Базовый Мудрость», 33 «Базовый Баллистика», 57 «Базовый Грамотность», 72 «Базовый
+        // Доспехи» — the first reading was off by exactly those two rows and named four wrong
+        // skills.
+        return $"{Skill(frame/3+1)} ({level})";
+    }
+
     private static List<string>? objectNames;
 
     /// Names of the map objects in the order the game numbers them — the row order of ObjNames is

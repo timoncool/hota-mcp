@@ -105,6 +105,7 @@ app.MapPost("/bridge/mem",(MemRequest request,CancellationToken ct)=>session.Mem
 app.MapPost("/bridge/tile-raw",(TileRequest request,CancellationToken ct)=>session.TileBytes(request.X,request.Y,request.Z,ct));
 app.MapPost("/bridge/key",(KeyRequest request,CancellationToken ct)=>session.SendKey(request,ct));
 app.MapPost("/bridge/press",(PressRequest request,CancellationToken ct)=>session.Press(request,ct));
+app.MapPost("/bridge/press-right",(PressRequest request,CancellationToken ct)=>session.PressRight(request,ct));
 app.MapPost("/bridge/move",(MoveRequest request,CancellationToken ct)=>session.Move(request,ct));
 app.MapPost("/bridge/attack",(MoveRequest request,CancellationToken ct)=>session.Attack(request,ct));
 app.MapPost("/bridge/map-click",(MapClickRequest request,CancellationToken ct)=>session.MapClick(request,ct));

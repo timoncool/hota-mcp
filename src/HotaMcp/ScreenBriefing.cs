@@ -10,7 +10,7 @@ namespace HotaMcp;
 internal static class ScreenBriefing
 {
     public static List<string> Build(string screen,int[] date,int[] resources,List<TownView> towns,
-        List<HeroView> roster,HeroView? selected,SideView? side,string? selectedStack,BuildOffer? offer,int openTown,string? foreignHero,List<string> foreignArmy,List<ForeignHero> foreignHeroes)
+        List<HeroView> roster,HeroView? selected,SideView? side,string? selectedStack,BuildOffer? offer,int openTown,string? foreignHero,List<string> foreignArmy,List<ForeignHero> foreignHeroes,List<UiElement> items)
     {
         var lines=new List<string>();
         if(side is not null)
@@ -45,6 +45,7 @@ internal static class ScreenBriefing
                 +"ни походить, ни открыть город. Текст лежит в Elements; закрой его действием "
                 +"message:accept, а вопрос с двумя кнопками — message:confirm или message:decline.");
         if(screen=="town")TownBrief(lines,resources,towns,roster,selectedStack,openTown);
+        if(screen=="exchange")ExchangeBrief(lines,items);
         if(screen=="adventure")AdventureBrief(lines,resources,towns,roster,selected);
         if(screen=="building_confirmation"&&offer is not null)
         {
@@ -108,6 +109,31 @@ internal static class ScreenBriefing
         if(selectedStack is not null)
             lines.Add($"Внимание: на экране выделен отряд ({selectedStack}). Следующий щелчок по другой клетке перенесёт его туда. "
                 +"Действия переноса снимают выделение сами; сбросить вручную — army:deselect.");
+    }
+
+    /// Two heroes side by side, written out the way the screen reads to a player.
+    ///
+    /// The screen itself shows only bare numbers in two columns and rows of small pictures: which
+    /// number is attack and which is knowledge, whose column is whose, and what each picture means
+    /// are all things a player knows by sight and an agent cannot guess. Without this the choice of
+    /// a main hero came down to pressing one of the two transfer buttons to find out which side is
+    /// which.
+    private static void ExchangeBrief(List<string> lines,List<UiElement> items)
+    {
+        string Text(int id)=>items.FirstOrDefault(i=>i.Id==id)?.Text?.Trim()??"?";
+        string Skills(int first)=>string.Join(", ",Enumerable.Range(first,8)
+            .Select(id=>GameReference.SkillFromFrame(items.FirstOrDefault(i=>i.Id==id)?.Frame??0))
+            .Where(name=>name is not null)) is {Length:>0} list?list:"навыков нет";
+        lines.Add($"Обмен героев. Слева {Text(87)}, справа {Text(88)}. "
+            +"Кнопки переноса названы по стороне: exchange:army:left отдаёт всё войско левому, "
+            +"exchange:army:right — правому, exchange:army:swap меняет армии местами.");
+        lines.Add($"Слева: атака {Text(3)}, защита {Text(4)}, сила магии {Text(5)}, знание {Text(6)}; "
+            +$"опыт {Text(81)}, мана {Text(83)}. Навыки: {Skills(200)}.");
+        lines.Add($"Справа: атака {Text(8)}, защита {Text(9)}, сила магии {Text(10)}, знание {Text(11)}; "
+            +$"опыт {Text(82)}, мана {Text(84)}. Навыки: {Skills(208)}.");
+        lines.Add("Специальность героя картинкой и без подписи: карточка левого — inspect_element «id:105», "
+            +"правого — «id:106». Специальность решает, кто из двоих главный, поэтому читай обе, "
+            +"прежде чем сводить армию.");
     }
 
     private static string Res(int[] resources,int index)=>index<resources.Length?resources[index].ToString():"?";

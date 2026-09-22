@@ -483,7 +483,11 @@ internal sealed class GameReader(WindowsGame game,int player)
                 }
             }
         }
-        string screen=NameOf(vtable)??"unsupported";
+        // Every small popup the expansion opens over a screen — the grids of starting towns and
+        // heroes, the drop-down lists, the team agreements — is a dialog class from HotA.dll, which
+        // sits far above the base game image and at a different address each run. They are told
+        // apart from one another by what stands in them, not by the class pointer.
+        string screen=NameOf(vtable)??(vtable>0x700000?"popup_choice":"unsupported");
         // Unvalidated dialog classes are not published to the player yet.
         if(screen=="unsupported") throw new InvalidOperationException("Current screen not supported by this adapter yet");
         uint surface=game.U32(manager+0x40);
@@ -495,7 +499,7 @@ internal sealed class GameReader(WindowsGame game,int player)
         if(start>end||end>cap||(end-start)%4!=0||end-start>8192) throw new InvalidOperationException("Invalid UI list");
         var items=new List<UiElement>();
         var controls=new List<uint>();
-        if(screen is "message" or "combat" or "spellbook" or "battle_result" or "tavern" or "recruitment" or "creature_card" or "split_army" or "hero_screen" or "exchange" or "level_up" or "kingdom_overview" or "adventure_options" or "world_view" or "puzzle_map" or "scenario_info" or "thieves_guild" or "marketplace" or "mage_guild" or "town_fort")
+        if(screen is "message" or "combat" or "spellbook" or "battle_result" or "tavern" or "recruitment" or "creature_card" or "split_army" or "hero_screen" or "exchange" or "level_up" or "kingdom_overview" or "adventure_options" or "world_view" or "puzzle_map" or "scenario_info" or "thieves_guild" or "marketplace" or "mage_guild" or "town_fort" or "popup_choice")
         {
             var seen=new HashSet<uint>();
             for(uint item=game.U32(dlg+0x2c);item!=0;item=game.U32(item+8))
@@ -517,10 +521,14 @@ internal sealed class GameReader(WindowsGame game,int player)
             if(vt is 0x642dc0 or 0x642df8 or 0x642d50) text=game.Text(game.U32(a+0x34));
             if(vt is 0x63bb54 or 0x63bb88||(screen=="spellbook"||screen=="adventure")&&vt==0x63ec48) asset=game.Text(game.U32(a+0x30)+4,16);
             if(vt==0x63bb88)text=game.Text(game.U32(a+0x5c));
-            bool interactive=(vt is 0x63bb54 or 0x63bb88||(screen=="spellbook"||screen=="adventure")&&vt==0x63ec48)&&(state&2)!=0&&(state&0x28)==0;
+            bool interactive=(vt is 0x63bb54 or 0x63bb88||(screen is "spellbook" or "adventure" or "popup_choice")&&vt==0x63ec48)&&(state&2)!=0&&(state&0x28)==0;
+            // The grids of starting towns and heroes are pictures with no caption and no button
+            // graphic, and the game hit-tests them itself; they are the whole content of the popup,
+            // so dropping them would leave the screen empty.
+            if(screen=="popup_choice"&&vt is 0x63ec48 or 0x63ba94)interactive=(state&2)!=0;
             // Some controls carry no text and no button graphic yet still say something: the town
             // hall colours a bare picture next to each row to mark built, buildable or blocked.
-            bool bareControlMatters=screen is "town_hall" or "town_fort" or "adventure" or "hero_screen" or "building_confirmation"||(screen is "message" or "exchange" or "level_up")&&(state&2)!=0;
+            bool bareControlMatters=screen is "town_hall" or "town_fort" or "adventure" or "hero_screen" or "building_confirmation" or "popup_choice"||(screen is "message" or "exchange" or "level_up")&&(state&2)!=0;
             if(string.IsNullOrEmpty(text)&&asset==null&&!bareControlMatters) continue;
             items.Add(new UiElement($"ui:{controlIndex}",BitConverter.ToUInt16(b,0x10),text,asset,
                 dx+BitConverter.ToInt16(b,0x18),dy+BitConverter.ToInt16(b,0x1a),iw,ih,interactive)
@@ -599,7 +607,7 @@ internal sealed class GameReader(WindowsGame game,int player)
             int active=game.I32(0x69ccf4);
             side=new(player,Colour(player),active,Colour(active),active==player);
         }
-        var result=new Observation("",player,date,resources,hero,screen,width,height,items){Towns=towns,Actions=actions,Setup=setup,Combat=combat,Saves=saves,Sheet=sheet,Build=build,Heroes=roster,Side=side,SelectedStack=selected,OpenTown=openTown,ForeignHero=foreignName,ForeignArmy=foreignArmy,ForeignHeroes=foreignHeroes,Brief=ScreenBriefing.Build(screen,date,resources,towns,roster,hero,side,selected,build,openTown,foreignName,foreignArmy,foreignHeroes)};
+        var result=new Observation("",player,date,resources,hero,screen,width,height,items){Towns=towns,Actions=actions,Setup=setup,Combat=combat,Saves=saves,Sheet=sheet,Build=build,Heroes=roster,Side=side,SelectedStack=selected,OpenTown=openTown,ForeignHero=foreignName,ForeignArmy=foreignArmy,ForeignHeroes=foreignHeroes,Brief=ScreenBriefing.Build(screen,date,resources,towns,roster,hero,side,selected,build,openTown,foreignName,foreignArmy,foreignHeroes,items)};
         string revision=Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(epoch+JsonSerializer.Serialize(result))))[..24];
         return result with {Revision=revision};
     }

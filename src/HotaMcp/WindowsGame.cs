@@ -84,6 +84,26 @@ internal sealed class WindowsGame : IDisposable
         try { await Task.Delay(60,CancellationToken.None); }
         finally { if(!PostMessageW(Window,0x202,0,lp)) throw new InvalidOperationException("Mouse release failed"); }
     }
+    /// Windows the expansion draws itself — the grids of starting towns and heroes, its drop-down
+    /// lists — do not trust the coordinates a click carries: they ask the system where the pointer
+    /// actually is. A posted click therefore lands nowhere. For those the pointer is really moved
+    /// onto the spot first, which is what a player's hand does anyway.
+    public async Task MouseRealAsync(int gameX,int gameY,int width,int height,CancellationToken ct)
+    {
+        var (x,y)=ToWindow(gameX,gameY,width,height);
+        var point=new Point{X=x,Y=y};
+        if(!ClientToScreen(Window,ref point))throw new InvalidOperationException("Cannot place the pointer");
+        if(!SetCursorPos(point.X,point.Y))throw new InvalidOperationException("Cannot move the pointer");
+        await Task.Delay(120,CancellationToken.None);
+        ct.ThrowIfCancellationRequested();
+        // A posted click is invisible to these windows, so the press is generated as real input,
+        // the same events a mouse produces. The pointer already stands on the spot.
+        SendInput(2,[new Input{Type=0,Mouse=new MouseInput{Flags=0x0002}},
+                     new Input{Type=0,Mouse=new MouseInput{Flags=0x0004}}],
+            System.Runtime.InteropServices.Marshal.SizeOf<Input>());
+        await Task.Delay(80,CancellationToken.None);
+    }
+
     private nint rightButton;
     public Task RightMouseDownAsync(int gameX,int gameY,int width,int height,CancellationToken ct)
     {
@@ -171,10 +191,18 @@ internal sealed class WindowsGame : IDisposable
     }
     public async Task ClickAsync(int gameX,int gameY,int width,int height,CancellationToken ct)=>await MouseAsync(gameX,gameY,width,height,true,ct);
     [StructLayout(LayoutKind.Sequential)] private struct Rect {public int Left,Top,Right,Bottom;}
+    [StructLayout(LayoutKind.Sequential)] private struct Point {public int X,Y;}
+    [StructLayout(LayoutKind.Sequential)] private struct MouseInput
+    {public int X,Y;public uint Data,Flags,Time;public nint Extra;}
+    [StructLayout(LayoutKind.Sequential)] private struct Input
+    {public uint Type;public MouseInput Mouse;}
     [DllImport("kernel32.dll",SetLastError=true)] private static extern SafeProcessHandle OpenProcess(uint access,bool inherit,int pid);
     [DllImport("kernel32.dll",SetLastError=true)] private static extern bool ReadProcessMemory(SafeProcessHandle process,nint address,byte[] buffer,nuint length,out nuint read);
     [DllImport("user32.dll")] private static extern bool GetClientRect(nint window,out Rect rect);
     [DllImport("user32.dll")] private static extern bool IsIconic(nint window);
+    [DllImport("user32.dll")] private static extern bool SetCursorPos(int x,int y);
+    [DllImport("user32.dll",SetLastError=true)] private static extern uint SendInput(uint count,Input[] inputs,int size);
+    [DllImport("user32.dll")] private static extern bool ClientToScreen(nint window,ref Point point);
     [DllImport("user32.dll")] private static extern bool SetProcessDPIAware();
     [DllImport("user32.dll",SetLastError=true)] private static extern bool PostMessageW(nint window,uint message,nuint wp,nint lp);
 }
