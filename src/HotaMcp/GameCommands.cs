@@ -420,7 +420,7 @@ internal static class GameCommands
         // Town.
         "town:construction" => new("town_hall", ClickBuilding(c => Highest(c, 13, 12, 11, 10))),
         "town:close" => new("adventure", Deliveries.Key(0x1b, 0x01)),
-        "construction:close" => new("town", Deliveries.Control(30722,"iokay.def")),
+        "construction:close" => new("town", Deliveries.Control(30722,"iokay.def","TPMage1.def")),
         "building:cancel" => new("town_hall", Deliveries.Control(30721,"icancel.def")),
         "building:buy" => new("town", Deliveries.Control(30722,"iBUY30.def")),
         _ when action.Key.StartsWith("building:inspect:") =>
