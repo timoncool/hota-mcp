@@ -260,6 +260,17 @@ internal sealed class GameReference
     /// The loss condition, numbered the same way.
     public static string Loss(int type)=>Line("LCDESC.TXT",type==0xFF?0:type+1)??$"особое условие поражения №{type}";
 
+    private static List<string[]>? artifacts;
+
+    /// An artefact by the number its picture carries: the frame of the artefact picture is the
+    /// artefact's entry in the game's own artefact table.
+    public static string? Artifact(int frame)
+    {
+        artifacts??=Entries("artraits.txt");
+        if(frame<0||frame>=artifacts.Count)return null;
+        return Clean(artifacts[frame].ElementAtOrDefault(0)??"") is {Length:>0} name?name:null;
+    }
+
     private static List<string[]>? specialties;
 
     /// What a hero is a specialist in, by the number of the specialty picture he shows. The

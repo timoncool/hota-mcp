@@ -45,6 +45,12 @@ internal static class ScreenBriefing
                 +"ни походить, ни открыть город. Текст лежит в Elements; закрой его действием "
                 +"message:accept, а вопрос с двумя кнопками — message:confirm или message:decline.");
         if(screen=="message")RewardBrief(lines,items);
+        if(screen=="level_up")
+        {
+            var offers=items.Where(i=>i.Id is 2010 or 2011).Select(i=>GameReference.SkillFromFrame(i.Frame)).Where(s=>s is not null).ToList();
+            var said=items.Where(i=>i.Id<2000&&!string.IsNullOrWhiteSpace(i.Text)&&(i.Text.Contains("уровн")||i.Text.Contains('+'))).Select(i=>i.Text!.Trim().Replace('\n',' '));
+            lines.Add("Повышение уровня. "+string.Join(" ",said)+(offers.Count>0?$" На выбор: {string.Join(" или ",offers)} — level:choose:<навык>, затем level:accept. Что брать под роль героя — hota_docs(\"повышение уровня что брать\").":" Навыков на выбор нет — level:accept."));
+        }
         if(screen=="battle_result")BattleResultBrief(lines,items);
         if(screen=="marketplace")
         {
@@ -238,6 +244,17 @@ internal static class ScreenBriefing
                     &&t.Text.Trim().Split(' ')[0].All(char.IsDigit))
                 .OrderBy(t=>t.Y).FirstOrDefault();
             parts.Add($"{ResourceNames[picture.Frame]} {amount?.Text?.Trim()??"?"}");
+        }
+        // Any other picture in the window — an artefact, a spell, a creature — is named by the
+        // caption the game prints under it.
+        foreach(var picture in items.Where(i=>i.Asset is not null&&!i.Interactive
+                    &&!i.Asset.StartsWith("resour",StringComparison.OrdinalIgnoreCase)).OrderBy(i=>i.X))
+        {
+            int centre=picture.X+picture.Width/2;
+            var caption=items.Where(t=>!string.IsNullOrWhiteSpace(t.Text)&&t.Y>=picture.Y+picture.Height-4&&t.Y<=picture.Y+picture.Height+40
+                    &&Math.Abs(t.X+t.Width/2-centre)<45&&!t.Text.Trim().All(c=>char.IsDigit(c)||c==' '))
+                .OrderBy(t=>t.Y).FirstOrDefault();
+            if(caption is not null)parts.Add(caption.Text!.Trim());
         }
         if(parts.Count>0)lines.Add($"Награда в этом окне: {string.Join(", ",parts)}.");
     }

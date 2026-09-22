@@ -657,8 +657,10 @@ internal static class GameCommands
 
     private static readonly Deliver SelectLevelSkill = async (context, ct) =>
     {
-        int id = Suffix(context.Element, 2);
-        await Deliveries.Press(context, context.Before.Elements.Single(e => e.Id == id), ct);
+        string skill = context.Element["level:choose:".Length..];
+        var icon = context.Before.Elements.FirstOrDefault(e => e.Id is 2010 or 2011 && GameReference.SkillFromFrame(e.Frame) == skill)
+            ?? throw new InvalidOperationException($"Навыка «{skill}» среди предложенных нет");
+        await Deliveries.Press(context, icon, ct);
     };
 
     /// One press on a hero portrait selects that hero; a press on the hero already selected opens

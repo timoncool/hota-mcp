@@ -520,16 +520,21 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             // becomes active; read too early, the table still belongs to the stack that just moved,
             // and the next blow is planned against reach it does not have. The answer waits until
             // two reads a beat apart agree.
-            if(after.Combat is {OwnTurn:true})
-                for(int settle=0;settle<8;settle++)
+            // Enemy stacks moving in between pause for their animations, and two reads inside one
+            // such pause agree while the fight is still running; so the log has to stand still
+            // too, and for three reads in a row.
+            if(after.Combat is not null)
+                for(int settle=0,agree=0;settle<20&&agree<2;settle++)
                 {
                     await Task.Delay(150,CancellationToken.None);
                     Observation again;
                     try{again=reader.Observe();}catch(InvalidOperationException){continue;}
-                    bool same=again.Combat is not null&&again.Combat.ActiveStack==after.Combat.ActiveStack
+                    if(again.Combat is null){after=again;break;}
+                    bool same=again.Combat.ActiveStack==after.Combat!.ActiveStack&&again.Combat.OwnTurn==after.Combat.OwnTurn
+                        &&again.Combat.LogCount==after.Combat.LogCount
                         &&again.Combat.ReachableHexes.SequenceEqual(after.Combat.ReachableHexes);
+                    agree=same?agree+1:0;
                     after=again;
-                    if(same||after.Combat is null)break;
                 }
             // An attack and a step look alike to the game's input: both are a click on the field.
             // Which one happened is read from the fight's own log — a blow writes «<отряд>
@@ -873,6 +878,16 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
                 if(still<4)continue;
                 message=stopped(after);
                 if(message is null)continue;
+            }
+            // Arriving at a town, a bank or a find opens its window a moment after the hero stops;
+            // answering on the stop alone told the agent «reached» while a dialog was on its way.
+            for(int beat=0;beat<6&&after.Screen=="adventure";beat++)
+            {
+                await Task.Delay(100,CancellationToken.None);
+                Observation settled;
+                try{settled=reader.Observe();}
+                catch(InvalidOperationException){continue;}
+                if(settled.Screen!="adventure"){after=settled;message+=$"; the game then opened {settled.Screen} — read it";}
             }
             var result=new OperationResult("completed",message,after);
             operations[operationId]=(identity,result);

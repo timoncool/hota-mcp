@@ -209,11 +209,13 @@ internal static class ScreenActions
         if(screen=="level_up")
         {
             // The level-up screen offers its skills as two picture buttons with a label under each.
+            // Each offer is named by its picture: the frame is the skill and its level.
             foreach(var icon in items.Where(i=>i.Id is 2010 or 2011))
             {
                 var label=items.FirstOrDefault(i=>i.Id==icon.Id-3);
-                actions.Add(new($"level:choose:{icon.Id}",
-                    "Выбрать навык при повышении уровня: "+(label?.Text?.Replace('\n',' ')??"вариант "+(icon.Id-2009))));
+                string skill=GameReference.SkillFromFrame(icon.Frame)??$"навык с картинкой {icon.Frame}";
+                actions.Add(new($"level:choose:{skill}",
+                    "Выбрать навык при повышении уровня: "+(label?.Text?.Replace('\n',' ')??skill)+(icon.Selected?" — выбран сейчас":"")));
             }
             if(items.Any(i=>i.Id==30722))actions.Add(new("level:accept","Подтвердить выбор навыка"));
         }

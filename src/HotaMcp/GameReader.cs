@@ -775,7 +775,7 @@ internal sealed class GameReader(WindowsGame game,int player)
             }
             var equipped=new List<HeroSlot>();
             foreach(var slot in items.Where(e=>e.Id is >=2 and <=20&&e.Frame>0&&e.Width==44))
-                equipped.Add(new($"слот {slot.Id}",$"id:{slot.Id}"));
+                equipped.Add(new(GameReference.Artifact(slot.Frame)??$"артефакт с картинкой {slot.Frame}",$"id:{slot.Id}"));
             var inspect=new Dictionary<string,string>
             {
                 ["боевой дух"]="id:116",["удача"]="id:117",["опыт и следующий уровень"]="id:119",
@@ -785,7 +785,8 @@ internal sealed class GameReader(WindowsGame game,int player)
             for(int slot=0;slot<7;slot++)
                 if(items.Any(e=>e.Id==54+slot&&e.Frame>0))inspect[$"отряд {slot+1}"]=$"id:{54+slot}";
             sheet=new(items.FirstOrDefault(e=>e.Id==1)?.Text?.Trim()??"",
-                items.FirstOrDefault(e=>e.Id==140)?.Text?.Trim()??"",skills,equipped,"id:118"){Inspect=inspect};
+                items.FirstOrDefault(e=>e.Id==140)?.Text?.Trim()??"",skills,equipped,
+                GameReference.Specialty(items.FirstOrDefault(e=>e.Id==118)?.Frame??-1)??"id:118"){Inspect=inspect};
         }
         var build=screen=="building_confirmation"?ReadBuildOffer(items,towns,resources):null;
         SideView? side=null;
