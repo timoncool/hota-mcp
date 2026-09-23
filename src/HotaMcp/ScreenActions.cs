@@ -179,20 +179,9 @@ internal static class ScreenActions
                         $"Забрать «{theirs}» x{Count(72+slot)} у второго героя (правый ряд → левый). "
                         +"Если у тебя уже есть такой отряд, они сольются."));
             }
-            // Under every cell sits a single arrow: it hands over exactly one creature from that
-            // stack. Controls 430..436 pass one to the right, 440..446 one to the left. It is how
-            // a scout is given a token stack without opening the split dialog.
-            for(int slot=0;slot<7;slot++)
-            {
-                var mine=Named(13+slot,65+slot);
-                if(mine.Length>0&&items.Any(i=>i.Id==430+slot))
-                    actions.Add(new($"exchange:one:right:{mine}",
-                        $"Передать ОДНОГО «{mine}» правому герою (стрелка под отрядом). Случай: дать разведчику символический отряд."));
-                var theirs=Named(20+slot,72+slot);
-                if(theirs.Length>0&&items.Any(i=>i.Id==440+slot))
-                    actions.Add(new($"exchange:one:left:{theirs}",
-                        $"Забрать ОДНОГО «{theirs}» себе (стрелка под отрядом правого героя)."));
-            }
+            // The arrow under each cell moves the whole stack to the other hero — the same as
+            // exchange:give/take — not one creature: a press on it sent 149 Raiders across at once.
+            // It is not published; splitting a stack here is a Shift gesture still to be mapped.
             // The specialty icon sits beside each portrait — 105 on the left, 106 on the right — and
             // the secondary skills run along the row under it. A left press opens the game's own
             // explanation of what the icon means; it is the only way to read a specialty, and a

@@ -496,8 +496,6 @@ internal static class GameCommands
         "exchange:backpack:справа" => new("backpack", Deliveries.Control(8001, "bckpck.def")),
         "backpack:close" => new("exchange,hero_screen", Deliveries.Key(0x1b, 0x01)),
         _ when action.Key.StartsWith("exchange:artifact:") => new("exchange", GiveArtifact),
-        _ when action.Key.StartsWith("exchange:one:",StringComparison.Ordinal)
-            => new("exchange",ExchangeOne){Confirm=Confirm.GarrisonChanged},
         // Reading only: the comparison is printed in the action's own label, so performing it
         // must not touch the screen. Pressing nothing is the honest delivery.
         "exchange:compare" => new("exchange",static (_,_)=>Task.CompletedTask),
@@ -932,28 +930,6 @@ internal static class GameCommands
         await Deliveries.Press(context, from.X + from.Width / 2, from.Y + from.Height / 2, ct);
         await Task.Delay(250, CancellationToken.None);
         await Deliveries.Press(context, to.X + to.Width / 2, to.Y + to.Height / 2, ct);
-    };
-
-    /// The single arrow under a cell hands over exactly one creature of that stack: 430 plus the
-    /// slot to the right, 440 plus the slot to the left. One press, no split dialog.
-    private static readonly Deliver ExchangeOne = async (context, ct) =>
-    {
-        string rest = context.Element["exchange:one:".Length..];
-        bool right = rest.StartsWith("right:", StringComparison.Ordinal);
-        string wanted = rest[(rest.IndexOf(':') + 1)..];
-        int pictures = right ? 13 : 20, arrows = right ? 430 : 440, counts = right ? 65 : 72;
-        for (int slot = 0; slot < 7; slot++)
-        {
-            var image = context.Before.Elements.FirstOrDefault(e => e.Id == pictures + slot && e.Frame > 0);
-            var number = context.Before.Elements.FirstOrDefault(e => e.Id == counts + slot && !string.IsNullOrWhiteSpace(e.Text));
-            if (image is null || number is null) continue;
-            if (!string.Equals(GameReference.Creature(image.Frame - 2), wanted, StringComparison.OrdinalIgnoreCase)) continue;
-            var arrow = context.Reader.FindControlById(arrows + slot)
-                ?? throw new InvalidOperationException($"Стрелка под клеткой {slot} не найдена");
-            await Deliveries.Press(context, arrow.X + arrow.Width / 2, arrow.Y + arrow.Height / 2, ct);
-            return;
-        }
-        throw new InvalidOperationException($"Отряда «{wanted}» в этом ряду нет");
     };
 
     /// Choosing between the two offers of a reward dialog. The value under a picture is its name
