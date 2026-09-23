@@ -3,7 +3,13 @@ namespace HotaMcp;
 public record ScenarioMap(string Name,string Description,int Size,int Players,int Humans,string Victory,string Loss);
 public record SetupChoice(string Action,string Label,bool Selected,bool Enabled);
 public record SetupField(string Key,int Value,List<SetupChoice> Choices);
-public record ScenarioSetup(string Panel,ScenarioMap? Map,List<SetupField> Fields);
+public record ScenarioSetup(string Panel,ScenarioMap? Map,List<SetupField> Fields)
+{
+    /// The flags the right panel draws under «Союзники» and «Враги» for the chosen map, seen from
+    /// the first human colour: who plays together and who against.
+    public List<string> Allies {get;init;}=[];
+    public List<string> Enemies {get;init;}=[];
+}
 
 internal sealed class ScenarioReader(WindowsGame game)
 {
@@ -18,6 +24,7 @@ internal sealed class ScenarioReader(WindowsGame game)
         new(331,"monsters",0,"Слабые"),new(332,"monsters",1,"Норма"),new(333,"monsters",2,"Сильные"),new(334,"monsters",-1,"Случайно")
     ];
     internal static string Key(Control c)=>$"setup:{c.Field}:{c.Value}";
+    private static string ColourName(int c)=>c switch{0=>"красный",1=>"синий",2=>"коричневый",3=>"зелёный",4=>"оранжевый",5=>"фиолетовый",6=>"бирюзовый",7=>"розовый",_=>"?"};
     public ScenarioSetup Read(uint dialog,List<UiElement> items)
     {
         byte[] flags=game.Read(dialog+0x37c,3);
@@ -35,6 +42,13 @@ internal sealed class ScenarioReader(WindowsGame game)
                 if(!controls.Any(c=>c.Value==value))throw new InvalidOperationException("Scenario setting layout unsupported");
                 fields.Add(new(key,value,controls.Where(c=>items.Any(i=>i.Id==c.Id)).Select(c=>new SetupChoice(Key(c),c.Label,c.Value==value,items.Single(i=>i.Id==c.Id).Interactive)).ToList()));
             }
+            // Switches of the generator: the underground button stays pressed while the map gets a
+            // second level, and each road type is a tick drawn as frame 1.
+            if(items.FirstOrDefault(i=>i.Id==285) is {} under)
+                fields.Add(new("underground",under.Selected?1:0,[new("rmg:underground",under.Selected?"подземный уровень: есть (нажать — убрать)":"подземный уровень: нет (нажать — добавить)",under.Selected,under.Interactive)]));
+            foreach(var (id,road,name) in new[]{(7007,"dirt","грунтовые"),(7008,"gravel","гравийные"),(7009,"cobble","мощёные")})
+                if(items.FirstOrDefault(i=>i.Id==id) is {} tick)
+                    fields.Add(new($"road_{road}",tick.Frame,[new($"rmg:road:{road}",$"{name} дороги: {(tick.Frame==1?"есть":"нет")} (нажать — переключить)",tick.Frame==1,tick.Interactive)]));
         }
         else if(panel=="maps")
         {
@@ -63,13 +77,22 @@ internal sealed class ScenarioReader(WindowsGame game)
                 // entry carries the same: players at +6, human-playable at +8, the victory type at
                 // +0x30 and the loss type at +0x7c. Checked against the list for three maps.
                 int players=game.Read(entry+6,1)[0],humans=game.Read(entry+8,1)[0];
+                // The entry starts with the map header: teams at +0xC and one team number per
+                // colour at +0xD, the underground level at +0x1C.
+                byte[] header=game.Read(entry+0xc,0x14);
+                string teams=header[0]==1?"; команды: "+string.Join(" / ",Enumerable.Range(0,8).Where(c=>header[1+c]<8)
+                    .GroupBy(c=>header[1+c]).OrderBy(g=>g.Key).Select(g=>string.Join("+",g.Select(ColourName)))):"";
+                string under=header[0x10]==1?", с подземельем":"";
                 available.Add(new($"scenario:map:{title}",
-                    $"{title} — {side}×{side}, игроков {players} (людьми {humans}), "
+                    $"{title} — {side}×{side}{under}, игроков {players} (людьми {humans}){teams}, "
                     +$"победа: {GameReference.Victory(game.Read(entry+0x30,1)[0])}, "
                     +$"поражение: {GameReference.Loss(game.Read(entry+0x7c,1)[0])}",row==index,true));
             }
         }
         if(available.Count>0)fields.Add(new("map",0,available));
-        return new(panel,map,fields);
+        // Flags 112-119 stand under «Союзники», 120-127 under «Враги»; each flag's frame is its colour.
+        List<string> Flags(int from)=>items.Where(i=>i.Id>=from&&i.Id<from+8&&i.Frame is >=0 and <8)
+            .OrderBy(i=>i.Id).Select(i=>ColourName(i.Frame)).ToList();
+        return new(panel,map,fields){Allies=Flags(112),Enemies=Flags(120)};
     }
 }

@@ -402,6 +402,15 @@ internal static class GameCommands
         _ when action.Key.StartsWith("setup:",StringComparison.Ordinal)
             && action.Key.Count(c=>c==':')>=2
             => new("scenario_selection",PlayerSetup),
+        "rmg:underground" => new("scenario_selection", Deliveries.Control(285,"RanUndr.def")),
+        "rmg:template" => new("scenario_selection,popup_choice", Deliveries.Control(7001)),
+        "rmg:teams" => new("scenario_selection,popup_choice", Deliveries.Control(7005,"gspbut2.def")),
+        "rmg:road:dirt" => new("scenario_selection", Deliveries.Control(7007)),
+        "rmg:road:gravel" => new("scenario_selection", Deliveries.Control(7008)),
+        "rmg:road:cobble" => new("scenario_selection", Deliveries.Control(7009)),
+        "rmg:generated" => new("scenario_selection,popup_choice", Deliveries.Control(335,"RanShow.def")),
+        "scenario:more" => new("scenario_selection,popup_choice", Deliveries.Control(6999,"gspbut2.def")),
+        "scenario:pvp" => new("scenario_selection,popup_choice", Deliveries.Control(7089,"gspbut2.def")),
         "scenario:maps" => new("scenario_selection", Deliveries.Control(128)),
         "scenario:players" => new("scenario_selection", Deliveries.Control(129)),
         "scenario:random" => new("scenario_selection", Deliveries.Control(130)),
@@ -1373,7 +1382,10 @@ internal static class GameCommands
         if(slot<0)throw new InvalidOperationException($"Цвет «{parts[1]}» не опознан");
         int id=parts[2] switch
         {
-            "кто" => 207+slot,
+            // The flag at the start of the row seats a person at this colour; the button beside the
+            // name is the handicap, not the switch it was once taken for.
+            "кто" => 263+slot,
+            "фора" => 207+slot,
             "город" => (parts[3]=="назад"?215:223)+slot,
             "герой" => (parts[3]=="назад"?231:239)+slot,
             "бонус" => (parts[3]=="назад"?247:255)+slot,

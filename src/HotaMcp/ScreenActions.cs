@@ -382,9 +382,12 @@ internal static class ScreenActions
                 if(items.All(i=>i.Id!=345+slot))continue;
                 string who=items.FirstOrDefault(i=>i.Id==345+slot)?.Text?.Trim()??"?";
                 string colour=slot<colours.Length?colours[slot]:$"игрок {slot+1}";
-                if(items.Any(i=>i.Id==207+slot&&i.Interactive))
+                if(items.Any(i=>i.Id==263+slot&&i.Interactive))
                     actions.Add(new($"setup:{colour}:кто",
-                        $"{colour}: переключить, кто играет — сейчас «{who}»"));
+                        $"{colour}: щелчок по флагу — посадить за этот цвет человека или отдать компьютеру; сейчас «{who}»"));
+                if(items.FirstOrDefault(i=>i.Id==207+slot&&i.Interactive) is {} handicap)
+                    actions.Add(new($"setup:{colour}:фора",
+                        $"{colour}: фора (помеха игроку) — сейчас «{handicap.Text?.Trim()}», нажатие переключает"));
                 foreach(var (what,left,right) in new[]{("город",215,223),("герой",231,239),("бонус",247,255)})
                 {
                     // The picture between the two arrows opens the whole grid at once — every town
@@ -412,6 +415,20 @@ internal static class ScreenActions
                                 $"{colour}: поставить стартовым городом {faction}"));
                 }
             }
+            // The generator's own switches, beside the size and player counts the reader lists: the
+            // underground level, the template list, the team agreements, which roads are laid and
+            // the list of maps already generated.
+            if(setup?.Panel=="random")
+            {
+                actions.Add(new("rmg:underground","Случайная карта: включить или выключить подземный уровень (кнопка у размеров)"));
+                actions.Add(new("rmg:template","Случайная карта: открыть список шаблонов (сейчас — строка «Шаблон»)"));
+                actions.Add(new("rmg:teams","Случайная карта: «Командные соглашения — настроить…» — кто с кем в одной команде"));
+                foreach(var (road,name) in new[]{("dirt","грунтовые"),("gravel","гравийные"),("cobble","мощёные")})
+                    actions.Add(new($"rmg:road:{road}",$"Случайная карта: включить или выключить {name} дороги"));
+                actions.Add(new("rmg:generated","Случайная карта: «Сгенерированные карты» — список уже созданных"));
+            }
+            actions.Add(new("scenario:more","«Ещё опции…» — таймер хода и прочие настройки партии"));
+            actions.Add(new("scenario:pvp","«PvP-опции» — жребий, случайный город, перевод золота и т.п."));
             foreach(var (id,key) in new[]{(128,"scenario:maps"),(129,"scenario:players"),(130,"scenario:random")})
                 if(items.Any(i=>i.Id==id&&i.Interactive))actions.Add(new(key,items.Single(i=>i.Id==id).Text!));
         }
