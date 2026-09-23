@@ -339,9 +339,13 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             // same instead of refusing to look. The press moves the camera only.
             before=await EnsureVisible(before,x,y,z);
             var point=map.ScreenPoint(before,x,y,z);
-            await game.MouseAsync(point.X,point.Y,before.Width,before.Height,false,ct);
-            await Task.Delay(150,ct);
-            map.VerifyMouse(x,y,z);
+            for(int attempt=0;;attempt++)
+            {
+                await game.MouseAsync(point.X,point.Y,before.Width,before.Height,false,ct);
+                await Task.Delay(200,ct);
+                try{map.VerifyMouse(x,y,z);break;}
+                catch(InvalidOperationException)when(attempt<9){}
+            }
             var after=reader.Observe();
             if(after.Screen!="adventure")throw new InvalidOperationException("Screen changed during inspection");
             return new(x,y,z,after.Elements.SingleOrDefault(e=>e.Id==200)?.Text,after);
@@ -1004,19 +1008,18 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
     {
         var map=new MapReader(game,player);
         if(map.IsOnScreen(observation,x,y,z))return observation;
+        // Ctrl+arrow cannot be used here: the game reads Ctrl from the real keyboard, so a posted
+        // Ctrl+arrow arrives as a bare arrow — a step of the selected hero.
         var point=map.MinimapPoint(observation,x,y,z);
         await game.MouseAsync(point.X,point.Y,observation.Width,observation.Height,true,CancellationToken.None);
-        await Task.Delay(200,CancellationToken.None);
-        // After a minimap press the game stays in minimap mode («Карта Мира» in the status line), and
-        // the next pointer move drags the camera. A press on the status line, which does nothing,
-        // ends that mode the way a player's next click elsewhere does.
-        var status=reader.FindControlById(200)
-            ?? throw new InvalidOperationException("Строка состояния карты не найдена");
-        await game.MouseAsync(status.X+status.Width/2,status.Y+status.Height/2,observation.Width,observation.Height,true,CancellationToken.None);
-        await Task.Delay(150,CancellationToken.None);
+        await Task.Delay(300,CancellationToken.None);
         var moved=reader.Observe();
         if(!map.IsOnScreen(moved,x,y,z))
-            throw new InvalidOperationException($"The camera did not reach ({x},{y},{z}); the cell stays outside the visible map");
+        {
+            var view=map.View();
+            throw new InvalidOperationException($"The camera did not reach ({x},{y},{z}): the view shows from ({view.X},{view.Y}); "
+                +$"minimap press at {point}, real pointer at {game.RealPointer()}");
+        }
         Record("view_centered",new{x,y,z});
         return moved;
     }

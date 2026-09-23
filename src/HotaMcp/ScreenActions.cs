@@ -411,8 +411,8 @@ internal static class ScreenActions
         }
         if(screen=="adventure")
         {
-            foreach(var (key,label) in new[]{("north","вверх"),("south","вниз"),("west","влево"),("east","вправо")})
-                actions.Add(new($"view:scroll:{key}",$"Прокрутить карту {label} (Ctrl+стрелка)"));
+            // No Ctrl+arrow scrolling: the game reads Ctrl from the real keyboard, so a posted
+            // Ctrl+arrow is a bare arrow and walks the selected hero one step.
             actions.Add(new("game:kingdom","Обзор королевства: все герои, города, шахты и доход (K)"));
             actions.Add(new("game:world_view","Просмотр мира: вся известная карта с фильтрами (V)"));
             actions.Add(new("game:marketplace","Рынок королевства: обмен ресурсов (B)"));

@@ -417,9 +417,6 @@ internal static class GameCommands
         // The diagonals are the numeric keypad, the way the game has always taken them.
         _ when action.Key.StartsWith("hero:step:") => new("adventure,message,town,hero_screen,combat,battle_result",
             Deliveries.Key(StepKey(action.Key).Key, StepKey(action.Key).Scan)) { Confirm = Confirm.HeroMoved },
-        // "Ctrl + Arrow Keys - Scrolls Adventure Map".
-        _ when action.Key.StartsWith("view:scroll:") => new("adventure",
-            Deliveries.KeyWithControl(StepKey(action.Key).Key, StepKey(action.Key).Scan)),
         "hero:sleep" => new("adventure", Deliveries.Key(0x5a, 0x2c)),
         "hero:wake" => new("adventure", Deliveries.Key(0x57, 0x11)),
         "game:kingdom" => new("kingdom_overview", Deliveries.Key(0x4b, 0x25)),

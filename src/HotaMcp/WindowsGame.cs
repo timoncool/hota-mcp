@@ -175,6 +175,16 @@ internal sealed class WindowsGame : IDisposable
         }
         finally { if(!PostMessageW(Window,0x202,0,(nint)(tx|(ty<<16)))) throw new InvalidOperationException("Mouse release failed"); }
     }
+    /// Where the real pointer stands, in the window's client pixels. Read only, for diagnostics.
+    public string RealPointer()
+    {
+        var point=new Point();
+        if(!GetCursorPos(ref point)||!ScreenToClient(Window,ref point))return "unknown";
+        return $"({point.X},{point.Y}) client";
+    }
+    [DllImport("user32.dll")] private static extern bool GetCursorPos(ref Point point);
+    [DllImport("user32.dll")] private static extern bool ScreenToClient(nint window,ref Point point);
+
     /// A left click posted to the game window only: no cursor, no focus, no global input.
     public static bool SkipIntro(Process process)
     {
@@ -202,8 +212,8 @@ internal sealed class WindowsGame : IDisposable
         finally{PostMessageW(Window,0x101,key,(nint)((long)data|0xc0000000));}
         await Task.Delay(100);
     }
-    /// Holds Ctrl while the key is pressed. The game reads the modifier from the message flags of
-    /// the key it receives, which is how "Ctrl + Arrow Keys - Scrolls Adventure Map" reaches it.
+    /// Posts Ctrl around a key. The adventure map does NOT see this Ctrl — it reads the modifier from
+    /// the real keyboard — so a posted Ctrl+arrow arrives there as a bare arrow, a hero step.
     public async Task KeyWithControlAsync(ushort key,ushort scan)
     {
         const ushort control=0x11;

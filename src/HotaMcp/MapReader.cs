@@ -135,6 +135,14 @@ internal sealed class MapReader(WindowsGame game,int player)
         return game.I32(game.U32(0x6992d4)+8)!=observation.Hero.Movement;
     }
 
+    /// The part of the map the adventure view shows now: its top-left cell, how many cells fit
+    /// across and down, and the level.
+    public (int X,int Y,int Cols,int Rows,int Z) View()
+    {
+        var viewport=GetViewport();
+        return(viewport.MapX,viewport.MapY,viewport.Width/32,viewport.Height/32,viewport.Z);
+    }
+
     public bool IsOnScreen(Observation observation,int x,int y,int z)
     {
         try{_=ScreenPoint(observation,x,y,z);return true;}
