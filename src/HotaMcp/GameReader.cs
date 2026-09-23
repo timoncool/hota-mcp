@@ -174,6 +174,8 @@ internal sealed class GameReader(WindowsGame game,int player)
         [0x63ebbc]="high_score_name",
         // The high score table: tabs for scenarios and campaigns, reset, exit.
         [0x63eb98]="high_scores",
+        [0x6400b0]="multiplayer",
+        [0x6401e8]="hotseat_names",
     };
 
     private readonly string epoch=Guid.NewGuid().ToString("N");
@@ -519,6 +521,11 @@ internal sealed class GameReader(WindowsGame game,int player)
     }
 
     public static string? NameOf(uint vtable)=>ScreenNames.TryGetValue(vtable,out var name)?name:null;
+    /// Screens of a running game: what they show belongs to the player whose turn it is.
+    public static readonly HashSet<string> InGameScreens=["adventure","town","town_hall","town_fort","building_confirmation",
+        "recruitment","tavern","marketplace","mage_guild","thieves_guild","hero_screen","exchange","kingdom_overview",
+        "world_view","puzzle_map","spellbook","combat","battle_result","enemy_hero_card","creature_card","split_army",
+        "level_up","backpack","adventure_options","system_options","message"];
 
     public record CardView(uint Vtable,string[] Texts);
     /// Reads the plain text of whatever dialog is on top right now, without classifying it as a
@@ -709,13 +716,17 @@ internal sealed class GameReader(WindowsGame game,int player)
         if(last<first||last-first>128||(last-first)%4!=0)return [];
         return Enumerable.Range(0,(int)(last-first)/4).Select(i=>game.I32(first+(uint)i*4)).ToArray();
     }
+    /// Screens before a game exists: main menu, game type, scenario choice, multiplayer. Nobody has
+    /// a turn there, and whatever player data is in memory is left over from the last game.
+    public static bool IsFrontend(uint vtable)=>vtable is 0x63ff60 or 0x63e6d8 or 0x641cbc or 0x6400b0 or 0x6401e8;
+
     private Observation ReadOnce()
     {
         if(player is <0 or >7) throw new InvalidOperationException("Player configuration invalid");
         uint manager=game.U32(0x6992d0),dlg=game.U32(manager+0x54);
         if(dlg==0)throw new InvalidOperationException("UI transition in progress");
         uint vtable=game.U32(dlg);
-        bool frontend=vtable is 0x63ff60 or 0x63e6d8 or 0x641cbc;
+        bool frontend=IsFrontend(vtable);
         int[] resources=[],date=[];HeroView? hero=null;
         // Another player's turn in a shared game: the screen is his, so none of its controls are
         // this side's to read or press, but this side's own state is still its own.

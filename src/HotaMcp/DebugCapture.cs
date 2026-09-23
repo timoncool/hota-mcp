@@ -22,7 +22,11 @@ internal static class DebugCapture
     public static CaptureResult Save(WindowsGame game,int player,string directory)
     {
         uint owner=game.U32(0x69ccfc);
-        if(owner!=0&&(game.I32(0x69ccf4)!=player||owner!=game.U32(0x699538)+0x20ad0+(uint)player*0x168))
+        // Only a screen of a running game shows what one player may hide from another; menus and
+        // setup windows before a game belong to nobody.
+        uint top=game.U32(game.U32(0x6992d0)+0x54);
+        bool inGame=top!=0&&GameReader.NameOf(game.U32(top)) is string name&&GameReader.InGameScreens.Contains(name);
+        if(inGame&&owner!=0&&(game.I32(0x69ccf4)!=player||owner!=game.U32(0x699538)+0x20ad0+(uint)player*0x168))
             throw new InvalidOperationException("Capture denied for another player's context");
         try{return FromSurface(game,owner,directory);}
         catch(InvalidOperationException e)when(e.Data.Contains("fallback"))

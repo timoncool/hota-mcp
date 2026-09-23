@@ -337,7 +337,11 @@ internal static class GameCommands
         "menu:back" => new("main_menu", Deliveries.Control(104)),
         // Single player leads to the scenario list after "new game" and to the browser after
         // "load game"; the reader names the browser by the button it carries.
-        "menu:multiplayer" => new("game_type,scenario_selection", Deliveries.Control(102,"gtmulti.def")),
+        "menu:multiplayer" => new("game_type,scenario_selection,multiplayer", Deliveries.Control(102,"gtmulti.def")),
+        "multiplayer:hotseat" => new("popup_choice,scenario_selection,message,multiplayer", Deliveries.Control(102,"muBhot.def")),
+        "multiplayer:cancel" => new("game_type", Deliveries.Control(124,"muBcanc.def")),
+        "hotseat:accept" => new("scenario_selection,message,popup_choice", Deliveries.Control(519,"mubchck.def")),
+        "hotseat:cancel" => new("multiplayer", Deliveries.Control(520,"muBcanc.def")),
         "menu:campaign" => new("game_type,scenario_selection", Deliveries.Control(101,"gtcampn.def")),
         "menu:tutorial" => new("game_type,scenario_selection", Deliveries.Control(103,"gttutor.def")),
         "menu:single" => new("scenario_selection,load_game,save_game", Deliveries.Control(100)),
@@ -383,6 +387,11 @@ internal static class GameCommands
         "market:close" => new("town", Deliveries.Control(30722, "iOk6432.def")),
         "popup:подтвердить" => new("scenario_selection,popup_choice",Deliveries.Control(1,"CAMPCHK.def")),
         "popup:отменить" => new("scenario_selection,popup_choice",Deliveries.Control(2,"CAMPCAN.def")),
+        // The random map settings share the «setup:» prefix with the player rows; they are told
+        // apart by being one of the known generator controls, and must be matched first.
+        _ when ScenarioReader.Controls.Any(x => ScenarioReader.Key(x) == action.Key) => new("scenario_selection",
+            Deliveries.Control(c => ScenarioReader.Controls.Single(x => ScenarioReader.Key(x) == c.Element).Id))
+            { Confirm = Confirm.SetupChoice },
         _ when action.Key.StartsWith("setup:",StringComparison.Ordinal)
             && action.Key.Count(c=>c==':')==3
             && action.Key.Split(':')[3] is not ("назад" or "вперёд" or "выбрать")
@@ -404,9 +413,7 @@ internal static class GameCommands
         // began with no town and no hero — an instant defeat. The button does what a player's press
         // does: it fixes the chosen map and the player slots first.
         "scenario:start" => new("adventure", Deliveries.StartScenario) { TimeoutSeconds = 10 },
-        _ when action.Key.StartsWith("setup:") => new("scenario_selection",
-            Deliveries.Control(c => ScenarioReader.Controls.Single(x => ScenarioReader.Key(x) == c.Element).Id))
-            { Confirm = Confirm.SetupChoice },
+
 
         // Modal questions: ordinary presses on the dialog's own buttons. Answering one can start a
         // battle, open a town or a hero screen, or chain into the next message, so the landing is

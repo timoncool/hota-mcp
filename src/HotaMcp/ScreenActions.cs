@@ -283,6 +283,20 @@ internal static class ScreenActions
             if(items.Any(i=>i.Id==103&&i.Interactive))actions.Add(new("menu:tutorial","Обучение"));
             if(items.Any(i=>i.Id==104&&i.Interactive))actions.Add(new("menu:back","Назад в главное меню"));
         }
+        if(screen=="multiplayer")
+        {
+            // The multiplayer window: a column of connection kinds on the right. Hotseat is several
+            // people at one computer, each playing his own colour in turn.
+            if(items.Any(i=>i.Id==102&&i.Interactive))actions.Add(new("multiplayer:hotseat","Горячее место (hotseat): несколько игроков за одним компьютером, ходят по очереди"));
+            if(items.Any(i=>i.Id==124&&i.Interactive))actions.Add(new("multiplayer:cancel","Отмена — назад к выбору типа игры"));
+        }
+        if(screen=="hotseat_names")
+        {
+            // «Горячий Стул»: one name per person at the keyboard; the number of names filled in is
+            // the number of human players. The names are edit fields 509-516, typed with enter_text.
+            if(items.Any(i=>i.Id==519&&i.Interactive))actions.Add(new("hotseat:accept","Готово: играть с этими именами (сколько имён — столько людей)"));
+            if(items.Any(i=>i.Id==520&&i.Interactive))actions.Add(new("hotseat:cancel","Отмена — назад к выбору сетевой игры"));
+        }
         if(screen=="marketplace")
         {
             // The market is two columns of the same seven resources: what the kingdom holds on
