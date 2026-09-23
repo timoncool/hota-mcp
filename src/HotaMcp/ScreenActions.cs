@@ -235,6 +235,11 @@ internal static class ScreenActions
             if(items.Any(i=>i.Id==451))actions.Add(new("exchange:artifacts:swap","Обменять артефакты героев местами целиком"));
             // The corner buttons close the window and select one of the two heroes on the map; the
             // split buttons at the ends of the army rows divide a stack into two.
+            // The visible backpack row under each doll scrolls with the arrows at its ends (99/101
+            // left hero, 100/102 right hero); they wake up once the backpack holds more than fits.
+            foreach(var (id,key,label) in new[]{(99,"exchange:pack:left:back","левого героя назад"),(101,"exchange:pack:left:forward","левого героя вперёд"),
+                (100,"exchange:pack:right:back","правого героя назад"),(102,"exchange:pack:right:forward","правого героя вперёд")})
+                if(items.Any(i=>i.Id==id&&i.Interactive))actions.Add(new(key,$"Прокрутить видимый ряд рюкзака {label}"));
             if(items.Any(i=>i.Id==501))actions.Add(new("exchange:close:left","Закрыть окно и выбрать левого героя"));
             if(items.Any(i=>i.Id==500))actions.Add(new("exchange:close:right","Закрыть окно и выбрать правого героя"));
             if(items.Any(i=>i.Id==103&&i.Interactive))actions.Add(new("exchange:split:left","Разделить отряд левого героя на два (кнопка у левого ряда армии)"));
