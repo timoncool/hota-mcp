@@ -455,7 +455,38 @@ internal sealed class GameReference
             .Where(x=>x.Rank>0)
             .OrderByDescending(x=>x.Rank).ThenBy(x=>x.Card.Name.Length)
             .Take(Math.Clamp(limit,1,20)).Select(x=>x.Card).ToList();
-        return new(true,matches.Count==0?"No card with this name; try hota_docs for a description in prose":null,source,matches);
+        if(matches.Count>0)return new(true,null,source,matches);
+        // A name dictated by voice or typed from memory arrives with a slip or in another case form;
+        // the closest names by edit distance stand in, and the answer says they are the closest.
+        string wanted=Fold(needle);
+        var near=pool
+            .Where(c=>kind is null||c.Kind.Contains(kind,StringComparison.OrdinalIgnoreCase))
+            .Select(c=>(Card:c,Distance:Distance(Fold(c.Name),wanted)))
+            .Where(x=>x.Distance<=Math.Max(2,wanted.Length/4))
+            .OrderBy(x=>x.Distance).ThenBy(x=>x.Card.Name.Length)
+            .Take(Math.Clamp(limit,1,20)).Select(x=>x.Card).ToList();
+        return near.Count>0
+            ?new(true,$"No card named «{needle}»; the closest names are shown — check that this is the one you meant",source,near)
+            :new(true,"No card with this name; try hota_docs for a description in prose",source,[]);
+    }
+
+    private static string Fold(string text)=>text.Trim().ToLowerInvariant().Replace('ё','е');
+
+    private static int Distance(string a,string b)
+    {
+        var row=new int[b.Length+1];
+        for(int j=0;j<=b.Length;j++)row[j]=j;
+        for(int i=1;i<=a.Length;i++)
+        {
+            int diagonal=row[0];row[0]=i;
+            for(int j=1;j<=b.Length;j++)
+            {
+                int above=row[j];
+                row[j]=Math.Min(Math.Min(row[j]+1,row[j-1]+1),diagonal+(a[i-1]==b[j-1]?0:1));
+                diagonal=above;
+            }
+        }
+        return row[b.Length];
     }
 
     private static int Rank(string cardName,string needle)
