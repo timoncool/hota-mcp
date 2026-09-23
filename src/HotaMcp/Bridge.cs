@@ -917,12 +917,26 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             // Focus the ordinary edit control with a window mouse event, then type characters.
             await game.MouseAsync(field.X+field.Width/2,field.Y+field.Height/2,before.Width,before.Height,true,CancellationToken.None);
             await Task.Delay(200,CancellationToken.None);
-            await game.TextAsync(request.Text);
+            // What is already in the field is erased the way a person does it: to the end, then one
+            // backspace per character.
+            int existing=(field.Text??"").Length;
+            if(existing>0)
+            {
+                await game.KeyAsync(0x23,0x4f);
+                for(int i=0;i<existing;i++)await game.KeyAsync(0x08,0x0e);
+                await Task.Delay(150,CancellationToken.None);
+            }
+            // The hotseat name fields read key presses; the other edit fields read characters.
+            if(reader.ControlClass(field.Id)==0x640220)await game.TypeKeysAsync(request.Text);
+            else await game.TextAsync(request.Text);
             await Task.Delay(200,CancellationToken.None);
             var after=reader.Observe();
             if(after.Screen!=before.Screen)throw new InvalidOperationException("Screen changed while entering text");
-            Record("text_entered",new{request.Element,Length=request.Text.Length,Screen=before.Screen});
-            return new("completed","Text entered into the addressed edit control; read it back before confirming",after);
+            string? now=after.Elements.FirstOrDefault(e=>e.Id==field.Id&&e.X==field.X&&e.Y==field.Y)?.Text;
+            Record("text_entered",new{request.Element,Length=request.Text.Length,Screen=before.Screen,Now=now});
+            return now==request.Text
+                ?new("completed",$"The field now reads «{now}»",after)
+                :new("uncertain",$"The field reads «{now}», not «{request.Text}»; observe and correct before confirming",after);
         }
         finally{gate.Release();}
     }

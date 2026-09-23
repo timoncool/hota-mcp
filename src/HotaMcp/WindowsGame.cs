@@ -238,6 +238,26 @@ internal sealed class WindowsGame : IDisposable
             await Task.Delay(40,CancellationToken.None);
         }
     }
+    [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(nint window,out uint process);
+    [DllImport("user32.dll")] private static extern nint GetKeyboardLayout(uint thread);
+    [DllImport("user32.dll",CharSet=CharSet.Unicode)] private static extern short VkKeyScanExW(char character,nint layout);
+    [DllImport("user32.dll")] private static extern uint MapVirtualKeyExW(uint code,uint type,nint layout);
+
+    /// Key presses for the edit fields that read the keyboard rather than characters (the hotseat
+    /// names). The game turns a key into a letter by the keyboard layout of its own window, so each
+    /// character is found on that layout; one that needs Shift or is not on it is refused.
+    public async Task TypeKeysAsync(string text)
+    {
+        nint layout=GetKeyboardLayout(GetWindowThreadProcessId(Window,out _));
+        foreach(char character in text)
+        {
+            short scan=VkKeyScanExW(character,layout);
+            if(scan==-1||(scan>>8)!=0)
+                throw new InvalidOperationException($"«{character}» не набирается на раскладке окна игры без Shift: используй строчные буквы этой раскладки, цифры и пробел");
+            ushort key=(ushort)(scan&0xff);
+            await KeyAsync(key,(ushort)MapVirtualKeyExW(key,0,layout));
+        }
+    }
     public async Task ClickAsync(int gameX,int gameY,int width,int height,CancellationToken ct)=>await MouseAsync(gameX,gameY,width,height,true,ct);
     [StructLayout(LayoutKind.Sequential)] private struct Rect {public int Left,Top,Right,Bottom;}
     [StructLayout(LayoutKind.Sequential)] private struct Point {public int X,Y;}

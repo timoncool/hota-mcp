@@ -30,9 +30,10 @@ internal sealed class ScenarioReader(WindowsGame game)
         // The panel on display is told by what the player can press on it: the colour flags of the
         // players panel, the size buttons of the generator, the size filters of the map list. The
         // panel bytes of the dialog were read for this once and turned out wrong in a hotseat game.
+        // Right after the names window no left panel is open at all: that is «none».
         bool Shown(int from,int to)=>items.Any(i=>i.Id>=from&&i.Id<=to&&i.Interactive);
         string panel=Shown(263,270)?"players":Shown(281,284)?"random":Shown(137,141)?"maps"
-            :throw new InvalidOperationException("Scenario panel is changing");
+            :"none";
         ScenarioMap? map=null;
         var fields=new List<SetupField>();
         var available=new List<SetupChoice>();

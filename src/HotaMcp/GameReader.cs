@@ -447,6 +447,16 @@ internal sealed class GameReader(WindowsGame game,int player)
 
     /// Finds any control of the active dialog by its own id, whether or not the observation
     /// publishes it. Observations stay compact; inspection still reaches every cell on screen.
+    /// The class of the first control with this id on the top window.
+    public uint ControlClass(int id)
+    {
+        uint dlg=game.U32(game.U32(0x6992d0)+0x54);
+        var seen=new HashSet<uint>();
+        for(uint item=dlg==0?0:game.U32(dlg+0x2c);item!=0&&seen.Add(item)&&seen.Count<2048;item=game.U32(item+8))
+            if(BitConverter.ToUInt16(game.Read(item+0x10,2))==id)return game.U32(item);
+        return 0;
+    }
+
     public ControlBox? FindControlById(int id,int occurrence=0)
     {
         uint manager=game.U32(0x6992d0),dlg=game.U32(manager+0x54);
@@ -491,7 +501,7 @@ internal sealed class GameReader(WindowsGame game,int player)
                 h=(int)BitConverter.ToUInt16(game.Read(item+0x1e,2)),
                 asset=vt is 0x63bb54 or 0x63bb88?game.Text(game.U32(item+0x30)+4,16):null,
                 frame=game.I32(item+0x34),
-                text=vt is 0x642dc0 or 0x642df8 or 0x642d50 or 0x641c70 or 0x63ebf4?game.Text(game.U32(item+0x34))
+                text=vt is 0x642dc0 or 0x642df8 or 0x642d50 or 0x641c70 or 0x63ebf4 or 0x640220?game.Text(game.U32(item+0x34))
                     :vt==0x63bb88?game.Text(game.U32(item+0x5c)):null});
         }
         return new(vtable,NameOf(vtable),items.Count,items.ToArray());
@@ -864,7 +874,7 @@ internal sealed class GameReader(WindowsGame game,int player)
             uint vt=BitConverter.ToUInt32(b);string? text=null,asset=null;
             // 0x641c70 is the edit field (the file name in the save browser): its line lives where a
             // text label keeps its own.
-            if(vt is 0x642dc0 or 0x642df8 or 0x642d50 or 0x641c70 or 0x63ebf4) text=game.Text(game.U32(a+0x34));
+            if(vt is 0x642dc0 or 0x642df8 or 0x642d50 or 0x641c70 or 0x63ebf4 or 0x640220) text=game.Text(game.U32(a+0x34));
             if(vt is 0x63bb54 or 0x63bb88||(screen=="spellbook"||screen=="adventure")&&vt==0x63ec48) asset=game.Text(game.U32(a+0x30)+4,16);
             // A reward in a message is a picture with its amount under it; which file the picture
             // comes from says what kind of reward it is — resource, artifact, creature, skill.
@@ -882,7 +892,7 @@ internal sealed class GameReader(WindowsGame game,int player)
             if(screen=="adventure"&&vt==0x63ba94&&BitConverter.ToUInt16(b,0x10) is >=15 and <=19)interactive=(state&6)==6;
             // Some controls carry no text and no button graphic yet still say something: the town
             // hall colours a bare picture next to each row to mark built, buildable or blocked.
-            bool bareControlMatters=screen=="scenario_selection"&&BitConverter.ToUInt16(b,0x10) is >=112 and <=127||screen is "town_hall" or "town_fort" or "adventure" or "hero_screen" or "building_confirmation" or "popup_choice" or "tavern" or "battle_result" or "marketplace" or "mage_guild" or "enemy_hero_card"||(screen is "message" or "exchange" or "level_up")&&(state&2)!=0;
+            bool bareControlMatters=screen=="hotseat_names"||screen=="scenario_selection"&&BitConverter.ToUInt16(b,0x10) is >=112 and <=127||screen is "town_hall" or "town_fort" or "adventure" or "hero_screen" or "building_confirmation" or "popup_choice" or "tavern" or "battle_result" or "marketplace" or "mage_guild" or "enemy_hero_card"||(screen is "message" or "exchange" or "level_up")&&(state&2)!=0;
             if(string.IsNullOrEmpty(text)&&asset==null&&!bareControlMatters&&vt!=0x641c70) continue;
             items.Add(new UiElement($"ui:{controlIndex}",BitConverter.ToUInt16(b,0x10),text,asset,
                 dx+BitConverter.ToInt16(b,0x18),dy+BitConverter.ToInt16(b,0x1a),iw,ih,interactive)
