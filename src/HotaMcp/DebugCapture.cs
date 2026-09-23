@@ -30,7 +30,7 @@ internal static class DebugCapture
         uint teamsAt=game.U32(0x699538)+0x1f86c+0xc;
         byte[] teams=game.Read(teamsAt,9);
         int active=game.I32(0x69ccf4);
-        bool ally=teams[0]==1&&active is >=0 and <8&&teams[1+active]<8&&teams[1+active]==teams[1+player];
+        bool ally=teams[0] is >0 and <=8&&active is >=0 and <8&&teams[1+active]<8&&teams[1+active]==teams[1+player];
         if(inGame&&!ally&&owner!=0&&(game.I32(0x69ccf4)!=player||owner!=game.U32(0x699538)+0x20ad0+(uint)player*0x168))
             throw new InvalidOperationException("Capture denied for another player's context");
         try{return FromSurface(game,owner,directory);}

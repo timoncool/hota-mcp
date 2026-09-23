@@ -1003,9 +1003,9 @@ internal sealed class GameReader(WindowsGame game,int player)
             // for every colour.
             uint main=game.U32(0x699538),info=main+0x1f86c;
             byte[] header=game.Read(info+0xc,0x14);
-            bool teams=header[0]!=0;
+            bool teams=header[0]>0; // the byte counts the teams (2 on a two-sided map), it is not a 0/1 flag
             // A colour absent from the map carries team 255; only colours in play are checked.
-            if(header[0]>1)throw new InvalidOperationException("Map team layout unsupported");
+            if(header[0]>8)throw new InvalidOperationException("Map team layout unsupported");
             var allies=new List<int>();var participants=new List<string>();
             for(int colour=0;colour<8;colour++)
             {

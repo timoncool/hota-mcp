@@ -84,7 +84,7 @@ internal sealed class ScenarioReader(WindowsGame game)
                 // The entry starts with the map header: teams at +0xC and one team number per
                 // colour at +0xD, the underground level at +0x1C.
                 byte[] header=game.Read(entry+0xc,0x14);
-                string teams=header[0]==1?"; команды: "+string.Join(" / ",Enumerable.Range(0,8).Where(c=>header[1+c]<8)
+                string teams=header[0] is >0 and <=8?"; команды: "+string.Join(" / ",Enumerable.Range(0,8).Where(c=>header[1+c]<8)
                     .GroupBy(c=>header[1+c]).OrderBy(g=>g.Key).Select(g=>string.Join("+",g.Select(ColourName)))):"";
                 string under=header[0x10]==1?", с подземельем":"";
                 available.Add(new($"scenario:map:{title}",
