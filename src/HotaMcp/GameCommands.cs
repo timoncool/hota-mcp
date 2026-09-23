@@ -342,7 +342,7 @@ internal static class GameCommands
         // Single player leads to the scenario list after "new game" and to the browser after
         // "load game"; the reader names the browser by the button it carries.
         "menu:multiplayer" => new("game_type,scenario_selection,multiplayer", Deliveries.Control(102,"gtmulti.def")),
-        "multiplayer:hotseat" => new("popup_choice,scenario_selection,message,multiplayer", Deliveries.Control(102,"muBhot.def")),
+        "multiplayer:hotseat" => new("hotseat_names,popup_choice,scenario_selection,message,multiplayer", Deliveries.Control(102,"muBhot.def")),
         "multiplayer:cancel" => new("game_type", Deliveries.Control(124,"muBcanc.def")),
         "hotseat:accept" => new("scenario_selection,message,popup_choice", Deliveries.Control(519,"mubchck.def")),
         "hotseat:cancel" => new("multiplayer", Deliveries.Control(520,"muBcanc.def")),

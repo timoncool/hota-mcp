@@ -27,9 +27,12 @@ internal sealed class ScenarioReader(WindowsGame game)
     private static string ColourName(int c)=>c switch{0=>"красный",1=>"синий",2=>"коричневый",3=>"зелёный",4=>"оранжевый",5=>"фиолетовый",6=>"бирюзовый",7=>"розовый",_=>"?"};
     public ScenarioSetup Read(uint dialog,List<UiElement> items)
     {
-        byte[] flags=game.Read(dialog+0x37c,3);
-        if(flags.Any(b=>b>1)||flags.Count(b=>b==1)>1)throw new InvalidOperationException("Scenario panel is changing");
-        string panel=flags[2]==1?"random":flags[1]==1?"maps":"players";
+        // The panel on display is told by what the player can press on it: the colour flags of the
+        // players panel, the size buttons of the generator, the size filters of the map list. The
+        // panel bytes of the dialog were read for this once and turned out wrong in a hotseat game.
+        bool Shown(int from,int to)=>items.Any(i=>i.Id>=from&&i.Id<=to&&i.Interactive);
+        string panel=Shown(263,270)?"players":Shown(281,284)?"random":Shown(137,141)?"maps"
+            :throw new InvalidOperationException("Scenario panel is changing");
         ScenarioMap? map=null;
         var fields=new List<SetupField>();
         var available=new List<SetupChoice>();
