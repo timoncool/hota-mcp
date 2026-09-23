@@ -402,11 +402,20 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
                 await Task.Delay(350,CancellationToken.None);
                 card=reader.ReadCard();
                 if(reader.TownCard() is string town)card=card with {Texts=[town]};
+                if(reader.ForeignHeroCard() is string foreign)card=card with {Texts=[foreign]};
                 Record("cell_inspected",new{request.X,request.Y,request.Z,card.Texts});
             }
             finally{await game.RightMouseUpAsync();}
             await Task.Delay(150,CancellationToken.None);
             var after=reader.Observe();
+            // The card of another player's hero can stay up after the button is released; it is
+            // closed the way its own screen closes, so the map is back for the next look.
+            if(after.Screen=="enemy_hero_card")
+            {
+                await game.KeyAsync(0x0d,0x1c);
+                await Task.Delay(150,CancellationToken.None);
+                after=reader.Observe();
+            }
             if(after.Screen!="adventure")throw new InvalidOperationException("The map reacted instead of showing a card; observe again");
             return new(request.X,request.Y,request.Z,card.Texts,after);
         }

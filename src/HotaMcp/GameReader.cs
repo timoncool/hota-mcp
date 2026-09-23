@@ -528,6 +528,33 @@ internal sealed class GameReader(WindowsGame game,int player)
         return $"Город {name}; гарнизон: {army} (сколько в каждом отряде, карточка не показывает)";
     }
 
+    /// The card of somebody else's hero held open by the right button on the map: his name and,
+    /// per stack, the creature picture (creature number plus two) with the size band under it.
+    public string? ForeignHeroCard()
+    {
+        uint manager=game.U32(0x6992d0),dlg=game.U32(manager+0x54);
+        if(dlg==0||game.U32(dlg)!=0x6406b8)return null;
+        var controls=new Dictionary<int,(uint Vt,int Frame,string? Text,bool Shown)>();
+        var seen=new HashSet<uint>();
+        for(uint item=game.U32(dlg+0x2c);item!=0&&seen.Add(item)&&seen.Count<512;item=game.U32(item+8))
+        {
+            uint vt=game.U32(item);
+            int id=BitConverter.ToUInt16(game.Read(item+0x10,2));
+            bool shown=(BitConverter.ToUInt16(game.Read(item+0x16,2))&4)!=0;
+            string? text=vt is 0x642dc0 or 0x642df8 or 0x642d50?game.Text(game.U32(item+0x34))?.Trim():null;
+            controls[id]=(vt,game.I32(item+0x34),text,shown);
+        }
+        string name=controls.TryGetValue(2002,out var n)?n.Text??"":"";
+        var army=new List<string>();
+        for(int slot=0;slot<7;slot++)
+        {
+            if(!controls.TryGetValue(2011+slot*2,out var picture)||!picture.Shown||picture.Frame<2)continue;
+            string size=controls.TryGetValue(2012+slot*2,out var band)?band.Text??"?":"?";
+            army.Add($"{GameReference.Creature(picture.Frame-2)} {size}");
+        }
+        return $"Герой {name}; войско: {(army.Count>0?string.Join(", ",army):"не прочитано")} (размер вилкой — точнее игрок не видит)";
+    }
+
     public string? HeroCard()
     {
         uint manager=game.U32(0x6992d0),dlg=game.U32(manager+0x54);
@@ -775,7 +802,7 @@ internal sealed class GameReader(WindowsGame game,int player)
             if(screen=="adventure"&&vt==0x63ba94&&BitConverter.ToUInt16(b,0x10) is >=15 and <=19)interactive=(state&6)==6;
             // Some controls carry no text and no button graphic yet still say something: the town
             // hall colours a bare picture next to each row to mark built, buildable or blocked.
-            bool bareControlMatters=screen is "town_hall" or "town_fort" or "adventure" or "hero_screen" or "building_confirmation" or "popup_choice" or "tavern" or "battle_result" or "marketplace" or "mage_guild"||(screen is "message" or "exchange" or "level_up")&&(state&2)!=0;
+            bool bareControlMatters=screen is "town_hall" or "town_fort" or "adventure" or "hero_screen" or "building_confirmation" or "popup_choice" or "tavern" or "battle_result" or "marketplace" or "mage_guild" or "enemy_hero_card"||(screen is "message" or "exchange" or "level_up")&&(state&2)!=0;
             if(string.IsNullOrEmpty(text)&&asset==null&&!bareControlMatters&&vt!=0x641c70) continue;
             items.Add(new UiElement($"ui:{controlIndex}",BitConverter.ToUInt16(b,0x10),text,asset,
                 dx+BitConverter.ToInt16(b,0x18),dy+BitConverter.ToInt16(b,0x1a),iw,ih,interactive)
