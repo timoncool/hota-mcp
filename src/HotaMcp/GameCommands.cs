@@ -364,7 +364,9 @@ internal static class GameCommands
         _ when action.Key.StartsWith("market:get:",StringComparison.Ordinal)
             => new("marketplace", Deliveries.Control(c => 63 + MarketResource(c.Element))),
         "market:max" => new("marketplace", Deliveries.Control(7, "Ircbtns.def")),
-        _ when action.Key.StartsWith("market:amount:") => new("marketplace", SliderTo("market:amount:", 6, 4)) { TimeoutSeconds = 30 },
+        // The amount is what is received — the number under the right picture, control 12 — because
+        // the side given moves in steps of the rate (7 sulphur per crystal).
+        _ when action.Key.StartsWith("market:amount:") => new("marketplace", SliderTo("market:amount:", 6, 12)) { TimeoutSeconds = 30 },
         _ when action.Key.StartsWith("split:amount:") => new("split_army", SliderTo("split:amount:", 6, 5)) { TimeoutSeconds = 30 },
         "market:trade" => new("marketplace", Deliveries.Control(5, "TPMrkB.def")) { Confirm = Confirm.None },
         "market:close" => new("town", Deliveries.Control(30722, "iOk6432.def")),
@@ -1099,18 +1101,39 @@ internal static class GameCommands
         int wanted = int.Parse(context.Element[prefix.Length..]);
         var bar = context.Reader.FindControlById(slider)
             ?? throw new InvalidOperationException("Ползунка количества на экране нет");
-        int Read() => int.TryParse(new string((context.Reader.Observe().Elements.FirstOrDefault(e => e.Id == count)?.Text ?? "").Where(char.IsDigit).ToArray()), out int v)
-            ? v : throw new InvalidOperationException("Число у ползунка не прочитано");
+        // The screen is redrawn while the slider moves; a read that lands mid-redraw is repeated.
+        int Read()
+        {
+            for (int attempt = 0; ; attempt++)
+            {
+                try
+                {
+                    string text = context.Reader.Observe().Elements.FirstOrDefault(e => e.Id == count)?.Text ?? "";
+                    return int.TryParse(new string(text.Where(char.IsDigit).ToArray()), out int v)
+                        ? v : throw new InvalidOperationException("Число у ползунка не прочитано");
+                }
+                catch (InvalidOperationException e) when (attempt < 8 && e.Message.StartsWith("State changing", StringComparison.Ordinal))
+                {
+                    Thread.Sleep(80);
+                }
+            }
+        }
         int now = Read();
         while (now != wanted)
         {
-            int x = now < wanted ? bar.X + bar.Width - 8 : bar.X + 8;
+            bool up = now < wanted;
+            int x = up ? bar.X + bar.Width - 8 : bar.X + 8;
             await Deliveries.Press(context, x, bar.Y + bar.Height / 2, ct);
-            await Task.Delay(40, CancellationToken.None);
+            // The number under the slider is redrawn a moment after the press.
             int next = Read();
+            for (int wait = 0; wait < 6 && next == now; wait++) { await Task.Delay(100, CancellationToken.None); next = Read(); }
             if (next == now)
                 throw new InvalidOperationException($"Ползунок встал на {now}, до {wanted} не дойти: "
-                    + (now < wanted ? "больше не позволяет запас" : "меньше поставить нельзя"));
+                    + (up ? "больше не позволяет запас" : "меньше поставить нельзя"));
+            // One step can be larger than one unit; stepping past the wanted number means it cannot be
+            // set exactly, and walking back would only rock the slider to and fro.
+            if (up ? next > wanted : next < wanted)
+                throw new InvalidOperationException($"Ползунок идёт шагами: после {now} сразу {next}, ровно {wanted} не поставить. Выбери число из этого ряда.");
             now = next;
         }
     };
