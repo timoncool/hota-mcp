@@ -112,8 +112,8 @@ public sealed class GameTools(IGameEndpoint endpoint)
         +"Returns the record of what was attempted and what came of it — the answer to \"what did I do yesterday\". "
         +"Does NOT contain opponent history and shows nothing the player could not see.")]
     public Task<object> ReadJournal(
-        [Description("How many recent entries to return; 0 or less means the default window.")] int limit,
-        CancellationToken cancellationToken)=>endpoint.Journal(limit,cancellationToken);
+        [Description("How many recent entries to return; 0 or less means the default window.")] int limit=0,
+        CancellationToken cancellationToken=default)=>endpoint.Journal(limit,cancellationToken);
 
     [McpServerTool(Title="Read or write your plan",ReadOnly=false,Destructive=false,Idempotent=true,OpenWorld=false),
      Description("Reads your stored plan, or replaces it when a value is given. This is the controller's memory between "
@@ -127,8 +127,8 @@ public sealed class GameTools(IGameEndpoint endpoint)
         +"impossible — an active task nobody can finish is how a game stalls. "
         +"Does NOT execute anything or change the game.")]
     public Task<object> Plan(
-        [Description("New plan text, or null to read the stored one without changing it.")] string? value,
-        CancellationToken cancellationToken)=>endpoint.Plan(value,cancellationToken);
+        [Description("New plan text, or null to read the stored one without changing it.")] string? value=null,
+        CancellationToken cancellationToken=default)=>endpoint.Plan(value,cancellationToken);
 
     // ------------------------------------------------------------------ look: the right-button cards
 
@@ -261,8 +261,8 @@ public sealed class GameTools(IGameEndpoint endpoint)
         +"Only change the renderer when the user asks for it — it decides how the game window is drawn. "
         +"Does NOT activate windows or send input.")]
     public Task<object> LauncherGraphics(
-        [Description("Exact renderer label from a previous read, or null to only read.")] string? renderer,
-        CancellationToken cancellationToken)=>endpoint.Graphics(renderer,cancellationToken);
+        [Description("Exact renderer label from a previous read, or null to only read.")] string? renderer=null,
+        CancellationToken cancellationToken=default)=>endpoint.Graphics(renderer,cancellationToken);
 
     // ------------------------------------------------------------------ reference: the knowledge base
 
@@ -278,9 +278,9 @@ public sealed class GameTools(IGameEndpoint endpoint)
         +"Says nothing about the current game; that is observe.")]
     public Task<DocsAnswer> HotaDocs(
         [Description("The question in plain words, for example \"как считается урон\" or \"dragon utopia guards\".")] string query,
-        [Description("How many hits to return; 0 or less means 3.")] int limit,
-        [Description("How much text per hit: \"snippet\" (default) the answering passage, \"titles\" only file and heading for cheap orientation, \"full\" whole sections at several times the cost. Prefer hota_docs_read over asking for full.")] string? detail,
-        CancellationToken cancellationToken)=>endpoint.Docs(new(query,limit<=0?3:limit,detail),cancellationToken);
+        [Description("How many hits to return; 0 or less means 3.")] int limit=0,
+        [Description("How much text per hit: \"snippet\" (default) the answering passage, \"titles\" only file and heading for cheap orientation, \"full\" whole sections at several times the cost. Prefer hota_docs_read over asking for full.")] string? detail=null,
+        CancellationToken cancellationToken=default)=>endpoint.Docs(new(query,limit<=0?3:limit,detail),cancellationToken);
 
     [McpServerTool(Title="What the reference contains",ReadOnly=true,Destructive=false,Idempotent=true,OpenWorld=false),
      Description("Lists the contents of the knowledge base. Without a path it names every document and how many sections each "
@@ -288,8 +288,8 @@ public sealed class GameTools(IGameEndpoint endpoint)
         +"Returns the list only, never the text — read a section with hota_docs_read. "
         +"Use it when no search hit looks right, or to see what subjects exist before asking.")]
     public Task<DocsCatalog> HotaDocsCatalog(
-        [Description("Document path exactly as a catalog entry or a search hit named it, or null to list everything.")] string? path,
-        CancellationToken cancellationToken)=>endpoint.DocsCatalog(path,cancellationToken);
+        [Description("Document path exactly as a catalog entry or a search hit named it, or null to list everything.")] string? path=null,
+        CancellationToken cancellationToken=default)=>endpoint.DocsCatalog(path,cancellationToken);
 
     [McpServerTool(Title="Read a reference section",ReadOnly=true,Destructive=false,Idempotent=true,OpenWorld=false),
      Description("Reads one document, or one heading inside it, exactly as the catalog or a search hit named it. "
@@ -297,10 +297,10 @@ public sealed class GameTools(IGameEndpoint endpoint)
         +"cut silently. Use it after a search instead of asking hota_docs for full detail on every hit.")]
     public Task<DocText> HotaDocsRead(
         [Description("Document path as the catalog or a search hit gave it.")] string path,
-        [Description("Heading inside that document, or null for the whole file.")] string? heading,
-        [Description("Where to continue from; 0 starts at the beginning, later values come from the previous answer.")] int offset,
-        [Description("Window size in characters; 0 or less means 6000.")] int maxChars,
-        CancellationToken cancellationToken)=>endpoint.DocsRead(path,heading,offset,maxChars,cancellationToken);
+        [Description("Heading inside that document, or null for the whole file.")] string? heading=null,
+        [Description("Where to continue from; 0 starts at the beginning, later values come from the previous answer.")] int offset=0,
+        [Description("Window size in characters; 0 or less means 6000.")] int maxChars=0,
+        CancellationToken cancellationToken=default)=>endpoint.DocsRead(path,heading,offset,maxChars,cancellationToken);
 
     [McpServerTool(Title="Rule card of a named thing",ReadOnly=true,Destructive=false,Idempotent=true,OpenWorld=false),
      Description("Looks up the rule card of one named thing — a secondary skill, a spell, a creature, an artefact, a building, a "
@@ -311,9 +311,9 @@ public sealed class GameTools(IGameEndpoint endpoint)
         +"hota_docs for those. Says nothing about the current party; that is observe.")]
     public Task<ReferenceAnswer> HotaReference(
         [Description("The name as the game spells it.")] string name,
-        [Description("Narrows the search: навык, заклинание, существо, артефакт, здание, объект карты. Null searches every kind.")] string? kind,
-        [Description("How many cards to return; 0 or less means 3.")] int limit,
-        CancellationToken cancellationToken)=>endpoint.Reference(new(name,kind,limit<=0?3:limit),cancellationToken);
+        [Description("Narrows the search: навык, заклинание, существо, артефакт, здание, объект карты. Null searches every kind.")] string? kind=null,
+        [Description("How many cards to return; 0 or less means 3.")] int limit=0,
+        CancellationToken cancellationToken=default)=>endpoint.Reference(new(name,kind,limit<=0?3:limit),cancellationToken);
 
     // ------------------------------------------------------------------ diagnostic: not gameplay
 
@@ -325,8 +325,8 @@ public sealed class GameTools(IGameEndpoint endpoint)
         +"paths; the image itself is returned only when includeImage is true, because images are expensive and have no place "
         +"in the play loop. Not part of playing: the play loop reads observe.")]
     public async Task<ModelContextProtocol.Protocol.CallToolResult> DebugSnapshot(
-        [Description("Return the frame as an image in the answer as well. For a developer mapping a screen; default false.")] bool includeImage,
-        CancellationToken cancellationToken)
+        [Description("Return the frame as an image in the answer as well. For a developer mapping a screen; default false.")] bool includeImage=false,
+        CancellationToken cancellationToken=default)
     {
         var snapshot=await endpoint.Snapshot(cancellationToken);
         string state=System.Text.Json.JsonSerializer.Serialize(snapshot,new System.Text.Json.JsonSerializerOptions{WriteIndented=false});

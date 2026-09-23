@@ -105,6 +105,33 @@ internal static class ScreenBriefing
                 ?"Купить — building:buy, отказаться — building:cancel. Постройка тратит дневной лимит города."
                 :$"Построить сейчас нельзя: {offer.Blocked}. Выход — building:cancel.");
         }
+        // Not the rules themselves — those stay out of observations — but where to ask for them.
+        bool siege=combat?.Stacks.Any(s=>s.Name.StartsWith("Катапульт",StringComparison.Ordinal))==true;
+        string topic=screen switch
+        {
+            "combat" when siege=>"как устроена осада стены башни ров ворота",
+            "combat"=>"боевая математика урон ответный удар",
+            "adventure"=>"машина состояний партии",
+            "town" or "town_hall" or "building_confirmation"=>"порядок строительства",
+            "town_fort" or "recruitment"=>"найм существ прирост недели выкуп",
+            "marketplace"=>"рынок курсы обмена",
+            "level_up"=>"повышение уровня что брать",
+            "hero_screen"=>"вторичные навыки какие брать",
+            "exchange" or "split_army"=>"как переносить отряды между героем и гарнизоном",
+            "mage_guild" or "spellbook"=>"заклинания школы магии",
+            "tavern"=>"найм героя в таверне",
+            "creature_card"=>"оценка боя сила армии",
+            "enemy_hero_card"=>"вражеский герой сила армии",
+            "kingdom_overview"=>"доход королевства золото в день",
+            "puzzle_map"=>"карта загадок грааль",
+            "world_view"=>"карта мира разведка",
+            "scenario_selection" or "scenario_info" or "game_type"=>"условия победы и поражения",
+            "main_menu"=>"главное меню новая игра загрузка",
+            "save_game" or "load_game"=>"сохранение и загрузка партии",
+            _=>"реестр экранов как выйти",
+        };
+        lines.Add($"Правила и расчёты для этого экрана — в справочнике: hota_docs(\"{topic}\"); карточка существа, "
+            +"артефакта, заклинания или объекта — hota_reference(<имя>). Не по памяти.");
         return lines;
     }
 

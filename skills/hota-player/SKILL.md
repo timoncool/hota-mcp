@@ -10,6 +10,26 @@ game's own handlers; it never picks a target, plans a route of its own, or decid
 is yours. Tool names come from the connected server as the harness exposes them (a namespace may be
 prepended); call `game_status` first to see what this build supports.
 
+## Start and hard rules
+
+Read this skill and `hota_docs("начало работы")` before the first action, and again after your
+context is compacted — acting from a remembered fragment instead of the document is how turns go
+wrong.
+
+- **Start.** The service brings everything up itself: the «HotA MCP» shortcut, or a stdio client
+  connecting while nothing runs, starts the service, then the player's own HD Launcher with the MCP
+  tab, then the game through the launcher's Play button. You call `game_status`, and `start_game` if
+  the game is not running. Never start `HotaMcp.exe` or the launcher by hand, never click on the
+  screen, never use computer-use or move the real mouse — the bridge delivers every input itself.
+- **One action per call.** Read each result before the next call. No scripts, loops or batches that
+  act for you; this is a benchmark of the model, not of a script.
+- **Names, not numbers.** Act by the semantic keys `observe` lists; a creature, a building, a button
+  is named by what it is. No internal commands of the game's screens.
+- **Rules of the game** come from `hota_docs` and `hota_reference`, not from memory.
+- **A screen read wrongly or not at all** is looked at with `debug_snapshot`: it works on every
+  screen and returns everything the bridge knows at that instant (the image only on request).
+  Report the gap; do not work around it.
+
 ## Everything the bridge gives you
 
 Twenty-three tools, in four groups. `docs/knowledge/agent/01-tools.md` holds the generated list with

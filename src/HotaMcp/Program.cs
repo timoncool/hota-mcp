@@ -26,7 +26,7 @@ if(stdio)
     var host=Host.CreateApplicationBuilder();
     host.Logging.ClearProviders();host.Logging.AddConsole(o=>o.LogToStandardErrorThreshold=LogLevel.Trace);
     host.Services.AddSingleton<IGameEndpoint>(new RemoteEndpoint(http));
-    host.Services.AddMcpServer().WithStdioServerTransport().WithTools<GameTools>();
+    host.Services.AddMcpServer(o=>o.ServerInstructions=ServerInstructions.Text).WithStdioServerTransport().WithTools<GameTools>();
     await host.Build().RunAsync();return;
 }
 
@@ -92,7 +92,7 @@ var builder=WebApplication.CreateBuilder();
 builder.Configuration["AllowedHosts"]="127.0.0.1;localhost;[::1]";
 builder.Logging.ClearProviders();builder.Logging.AddConsole(o=>o.LogToStandardErrorThreshold=LogLevel.Trace);
 builder.Services.AddSingleton<IGameEndpoint>(session);
-builder.Services.AddMcpServer().WithHttpTransport(o=>o.SessionMode=HttpServerSessionMode.StatefulForInitializeClients).WithTools<GameTools>().WithResources<GameResources>();
+builder.Services.AddMcpServer(o=>o.ServerInstructions=ServerInstructions.Text).WithHttpTransport(o=>o.SessionMode=HttpServerSessionMode.StatefulForInitializeClients).WithTools<GameTools>().WithResources<GameResources>();
 var app=builder.Build();
 app.Use(async(context,next)=>{
     string supplied=context.Request.Headers.Authorization.ToString();
