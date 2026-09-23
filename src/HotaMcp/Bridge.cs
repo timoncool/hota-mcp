@@ -499,6 +499,10 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             int centreX,centreY;
             var element=before.Elements.SingleOrDefault(e=>e.Key==request.Element);
             if(element is not null)(centreX,centreY)=(element.X+element.Width/2,element.Y+element.Height/2);
+            // In a fight a stack is looked at where it stands: the pointer resting on it fills the
+            // status line with what the game says about hitting it, the right button opens its card.
+            else if(before.Combat?.Stacks.FirstOrDefault(s=>s.Id==request.Element) is {} stack)
+                (centreX,centreY)=new CombatReader(game,player).Center(stack.Hex);
             else if(request.Element.StartsWith("id:")&&int.TryParse(request.Element[3..],out int wanted))
             {
                 var box=reader.FindControlById(wanted)
@@ -518,9 +522,12 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             await Task.Delay(200,CancellationToken.None);
             var hovered=reader.Observe();
             var was=resting.Elements.GroupBy(e=>e.Key).ToDictionary(g=>g.Key,g=>g.First().Text);
-            string? hint=hovered.Elements
+            var changed=hovered.Elements
                 .Where(e=>!string.IsNullOrWhiteSpace(e.Text)&&(!was.TryGetValue(e.Key,out var old)||old!=e.Text))
-                .Select(e=>e.Text!.Trim()).FirstOrDefault();
+                .Select(e=>e.Text!.Trim()).Distinct().ToList();
+            // Over a stack in a fight several lines answer at once — the status line with what a
+            // blow would do and the panel of the stack's effects — and all of them are the hint.
+            string? hint=before.Screen=="combat"&&changed.Count>0?string.Join(" | ",changed.Take(4)):changed.FirstOrDefault();
             await game.RightMouseDownAsync(centreX,centreY,before.Width,before.Height,ct);
             GameReader.CardView card;
             try

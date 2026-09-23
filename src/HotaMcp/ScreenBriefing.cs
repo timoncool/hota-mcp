@@ -149,7 +149,6 @@ internal static class ScreenBriefing
     {
         string Where(CombatStack s)=>s.Hexes.Length>1?$"клетки {string.Join("-",s.Hexes)}":$"клетка {s.Hex}";
         string Traits(CombatStack s)=>string.Join("",new[]{s.Flying?", летает":"",s.Shooter?", стреляет":"",s.Wide?", занимает две клетки":""});
-        var enemiesAround=new HashSet<int>(combat.Stacks.Where(s=>s.Side!=combat.OwnSide).SelectMany(s=>s.Hexes));
         // The creature card as a player reads it on a right click, plus the stack's state this round.
         string Card(CombatStack s)
         {
@@ -171,9 +170,10 @@ internal static class ScreenBriefing
             // reliably than they work it out from a drawn grid.
             var around=s.Around().ToHashSet();
             var touching=combat.Stacks.Where(o=>o.Id!=s.Id&&o.Hexes.Any(around.Contains))
-                .Select(o=>$"{o.Name} [{o.Id}]"+(o.Side==combat.OwnSide?" (свой)":"")).ToList();
+                .Select(o=>$"{o.Name} [{o.Id}]"+(o.Side==combat.OwnSide?" (твой)":" (враг)")).ToList();
             if(touching.Count>0)parts.Add("вплотную: "+string.Join(", ",touching));
-            if(s.Shooter&&!s.WarMachine&&s.Around().Any(enemiesAround.Contains))parts.Add("враг вплотную — выстрела не будет, только ближний бой");
+            if(s.Shooter&&!s.WarMachine&&combat.Stacks.Any(o=>o.Side!=s.Side&&o.Hexes.Any(around.Contains)))
+                parts.Add("противник вплотную — выстрела не будет, только ближний бой");
             if(s.Effects.Length>0)parts.Add("действует: "+string.Join(", ",s.Effects));
             return $"{s.Name} {s.Count} [{s.Id}] ({string.Join(", ",parts)})";
         }
