@@ -114,6 +114,16 @@ public sealed class GameTools(IGameEndpoint endpoint)
         [Description("How many recent entries to return; 0 or less means the default window.")] int limit=0,
         CancellationToken cancellationToken=default)=>endpoint.Journal(limit,cancellationToken);
 
+    [McpServerTool(Title="What the ally did on his turns",ReadOnly=true,Destructive=false,Idempotent=true,OpenWorld=false),
+     Description("Reads the log of your ally's turns, newest last, each line stamped with the game date and his colour: where "
+        +"his heroes stopped, which objects they reached, picked up or beat, fights, armies, levels, skills, artefacts, what "
+        +"his towns built and hired, and his resource change per turn. The bridge records it while he moves, reading only "
+        +"his side, the way an allied player follows him. The first lines of your brief already sum up his last turn; this "
+        +"tool gives the whole record. Does NOT show opponents and changes nothing.")]
+    public Task<object> AllyLog(
+        [Description("How many recent lines to return; 0 or less means the default window of 60.")] int limit=0,
+        CancellationToken cancellationToken=default)=>endpoint.AllyLog(limit,cancellationToken);
+
     [McpServerTool(Title="Pin a note to a map cell",ReadOnly=false,Destructive=false,Idempotent=true,OpenWorld=false),
      Description("Pins your own note to a map cell, or removes it when the note is empty. Use it for what the map does not "
         +"remember for you: a stack too strong for now, a passage, a guarded pocket worth coming back to, where an enemy "
@@ -360,7 +370,7 @@ public sealed class GameTools(IGameEndpoint endpoint)
     private static readonly (string Prefix,string Group)[] Groups=
     [
         ("hota_tools","state"),("game_status","state"),("observe","state"),("nearby_targets","state"),("inspect_target","state"),("inspect_path","state"),
-        ("read_map","state"),("read_journal","state"),("plan","state"),("mark","state"),
+        ("read_map","state"),("read_journal","state"),("ally_log","state"),("plan","state"),("mark","state"),
         ("inspect_cell","look"),("inspect_element","look"),("inspect_tile","look"),
         ("act","act"),("click_ui","act"),("move_to","act"),("move_to_tile","act"),
         ("attack_target","act"),("map_click","act"),("start_game","act"),("launcher_graphics","act"),

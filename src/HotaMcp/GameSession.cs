@@ -143,6 +143,28 @@ internal sealed class GameSession(int? requestedPid,int player,string directory,
     public Task<object> Press(PressRequest request,CancellationToken ct)=>WithGame(b=>b.Press(request,ct),ct);
     public Task<object> PressRight(PressRequest request,CancellationToken ct)=>WithGame(b=>b.PressRight(request,ct),ct);
     public Task<object> Journal(int limit,CancellationToken ct)=>WithGame(b=>b.GetJournal(limit,ct),ct);
+    public Task<object> AllyLog(int limit,CancellationToken ct)=>WithGame(b=>b.AllyLog(limit,ct),ct);
+
+    /// Follows the ally's turn once a second while the service runs. A look is skipped whenever an
+    /// agent call holds the game, and a read that fails mid-transition is simply taken again; a
+    /// failure that repeats is written to errors.log once, with its stack.
+    public async Task WatchAllies(CancellationToken ct)
+    {
+        string? lastFault=null;
+        while(!ct.IsCancellationRequested)
+        {
+            try{await Task.Delay(1000,ct);}catch(OperationCanceledException){return;}
+            if(!await gate.WaitAsync(0,ct))continue;
+            try{Refresh();bridge?.AllyTick();lastFault=null;}
+            catch(Exception e) when(e is InvalidOperationException or IOException or Win32Exception or ArgumentException)
+            {
+                if(e.Message!=lastFault)
+                    File.AppendAllText(Path.Combine(directory,"errors.log"),$"{DateTimeOffset.Now:O} ally-watch{Environment.NewLine}{e}{Environment.NewLine}{Environment.NewLine}");
+                lastFault=e.Message;
+            }
+            finally{gate.Release();}
+        }
+    }
     public Task<object> Plan(string? value,CancellationToken ct)=>WithGame(b=>b.Plan(value,ct),ct);
     public Task<object> Mark(int x,int y,int z,string? note,CancellationToken ct)=>WithGame(b=>b.Mark(x,y,z,note,ct),ct);
     public Task<MapView> ReadMap(int x,int y,int z,int radius,CancellationToken ct)=>WithGame(b=>b.ReadMap(x,y,z,radius,ct),ct);

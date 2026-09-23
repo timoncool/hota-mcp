@@ -100,7 +100,7 @@ internal sealed class MapReader(WindowsGame game,int player)
     /// pile as its resource, so both are named by what they are — the tile keeps that in its
     /// subtype — and not by the class name «Монстр» or «Ресурс». How many creatures stand there
     /// is not said: the player only sees a size band, and that comes from the right button.
-    private static string ObjectName(int type,int subtype)=>type switch
+    internal static string ObjectName(int type,int subtype)=>type switch
     {
         54 => $"{GameReference.Creature(subtype)} (бродячий отряд)",
         79 when subtype is >=0 and <7 => $"ресурс: {Resources[subtype]}",

@@ -42,6 +42,7 @@ public sealed record ElementCard(string Element,string? Hint,string[] Card,Obser
 internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) : IDisposable
 {
     private readonly GameReader reader=new(game,player);
+    private readonly AllyWatch allies=new(game,player,Directory.GetParent(stateDirectory)?.Parent?.FullName??stateDirectory);
     private readonly SemaphoreSlim gate=new(1,1);
     private readonly Dictionary<string,(OperationRequest Request,OperationResult Result)> operations=new();
     private readonly List<JournalEntry> journal=[];
@@ -122,6 +123,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
         foreach(string file in new[]{PlanFile,MarkersFile})
             if(File.Exists(file))File.Move(file,Path.Combine(Path.GetDirectoryName(file)!,
                 Path.GetFileNameWithoutExtension(file)+$"-{stamp}"+Path.GetExtension(file)));
+        allies.Archive(stamp);
         planCache=null;markersCache=null;planDay=[];
         Record("memory_archived",new{stamp});
     }
@@ -134,6 +136,21 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
         Directory.GetParent(stateDirectory)?.Parent?.FullName??stateDirectory,$"plan-player{player}.txt");
 
     public void Dispose(){game.Dispose();gate.Dispose();}
+
+    /// One look at the ally's side, taken between two agent calls, never during one.
+    public void AllyTick()
+    {
+        if(!gate.Wait(0))return;
+        try{allies.Tick();}
+        finally{gate.Release();}
+    }
+
+    public async Task<object> AllyLog(int limit,CancellationToken ct)
+    {
+        await gate.WaitAsync(ct);
+        try{return allies.Recent(limit);}
+        finally{gate.Release();}
+    }
 
     // ---------------------------------------------------------------- observation
 
@@ -163,6 +180,9 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
     {
         if(state.Date.Length==3)LastDate=state.Date;
         var lines=new List<string>(state.Brief);
+        // On this side's turn the brief opens with what the ally did while it waited.
+        if(state.Side is {Yours:true,Allies.Length:>0}&&allies.SinceLastTurn(12) is {Count:>0} ally)
+            lines.InsertRange(Math.Min(1,lines.Count),ally);
         if(state.Screen!="tavern")tavernCards=[];
         foreach(var (side,card) in tavernCards)
             lines.Add($"Таверна, кандидат {side} (карточка правой кнопки): {card}. "
@@ -1431,6 +1451,7 @@ public interface IGameEndpoint
     Task<object> Press(PressRequest request,CancellationToken ct);
     Task<object> PressRight(PressRequest request,CancellationToken ct);
     Task<object> Journal(int limit,CancellationToken ct);
+    Task<object> AllyLog(int limit,CancellationToken ct);
     Task<object> Plan(string? value,CancellationToken ct);
     Task<object> Mark(int x,int y,int z,string? note,CancellationToken ct);
     Task<MapView> ReadMap(int x,int y,int z,int radius,CancellationToken ct);
@@ -1466,6 +1487,7 @@ internal sealed class LocalEndpoint(Bridge bridge) : IGameEndpoint
     public Task<object> Press(PressRequest request,CancellationToken ct)=>bridge.Press(request,ct);
     public Task<object> PressRight(PressRequest request,CancellationToken ct)=>bridge.PressRight(request,ct);
     public Task<object> Journal(int limit,CancellationToken ct)=>bridge.GetJournal(limit,ct);
+    public Task<object> AllyLog(int limit,CancellationToken ct)=>bridge.AllyLog(limit,ct);
     public Task<object> Plan(string? value,CancellationToken ct)=>bridge.Plan(value,ct);
     public Task<object> Mark(int x,int y,int z,string? note,CancellationToken ct)=>bridge.Mark(x,y,z,note,ct);
     public Task<MapView> ReadMap(int x,int y,int z,int radius,CancellationToken ct)=>bridge.ReadMap(x,y,z,radius,ct);
@@ -1521,6 +1543,7 @@ internal sealed class RemoteEndpoint(HttpClient client) : IGameEndpoint
     public Task<object> Press(PressRequest request,CancellationToken ct)=>Call<object>("bridge/press",request,ct);
     public Task<object> PressRight(PressRequest request,CancellationToken ct)=>Call<object>("bridge/press-right",request,ct);
     public Task<object> Journal(int limit,CancellationToken ct)=>Call<object>("bridge/journal",new{limit},ct);
+    public Task<object> AllyLog(int limit,CancellationToken ct)=>Call<object>("bridge/ally-log",new{limit},ct);
     public Task<object> Plan(string? value,CancellationToken ct)=>Call<object>("bridge/plan",new{value},ct);
     public Task<object> Mark(int x,int y,int z,string? note,CancellationToken ct)=>Call<object>("bridge/mark",new{x,y,z,note},ct);
     public Task<MapView> ReadMap(int x,int y,int z,int radius,CancellationToken ct)=>Call<MapView>("bridge/map",new{x,y,z,radius},ct);

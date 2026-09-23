@@ -146,6 +146,8 @@ app.MapPost("/bridge/docs-catalog",(DocsCatalogRequest request,CancellationToken
 app.MapPost("/bridge/reference",(ReferenceRequest request,CancellationToken ct)=>session.Reference(request,ct));
 app.MapPost("/bridge/docs-read",(DocsReadRequest request,CancellationToken ct)=>session.DocsRead(request.Path,request.Heading,request.Offset,request.MaxChars,ct));
 app.MapPost("/bridge/journal",(JournalRequest request,CancellationToken ct)=>session.Journal(request.Limit,ct));
+app.MapPost("/bridge/ally-log",(JournalRequest request,CancellationToken ct)=>session.AllyLog(request.Limit,ct));
+app.Lifetime.ApplicationStarted.Register(()=>_ = session.WatchAllies(app.Lifetime.ApplicationStopping));
 app.MapPost("/bridge/plan",(PlanRequest request,CancellationToken ct)=>session.Plan(request.Value,ct));
 app.MapPost("/bridge/mark",(MarkRequest request,CancellationToken ct)=>session.Mark(request.X,request.Y,request.Z,request.Note,ct));
 app.MapPost("/bridge/map",(MapRequest request,CancellationToken ct)=>session.ReadMap(request.X,request.Y,request.Z,request.Radius,ct));
