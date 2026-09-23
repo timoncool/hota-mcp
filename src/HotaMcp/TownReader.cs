@@ -64,7 +64,7 @@ internal sealed class TownReader(WindowsGame game,int player)
     public List<TownView> Read()
     {
         uint main=game.U32(0x699538),owner=main+0x20ad0+(uint)player*0x168;
-        if(game.I32(0x69ccf4)!=player||game.U32(0x69ccfc)!=owner)throw new InvalidOperationException("Wrong player context");
+        if(game.I32(0x69ccf4)==player&&game.U32(0x69ccfc)!=owner)throw new InvalidOperationException("Wrong player context");
         var own=game.Read(owner+0x3e,50);int count=own[0];
         if(count>48)throw new InvalidOperationException("Unsupported town list");
         var code=game.Read(0x4081bd,6);

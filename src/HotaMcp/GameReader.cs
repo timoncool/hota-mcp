@@ -717,11 +717,13 @@ internal sealed class GameReader(WindowsGame game,int player)
         uint vtable=game.U32(dlg);
         bool frontend=vtable is 0x63ff60 or 0x63e6d8 or 0x641cbc;
         int[] resources=[],date=[];HeroView? hero=null;
+        // Another player's turn in a shared game: the screen is his, so none of its controls are
+        // this side's to read or press, but this side's own state is still its own.
+        bool waiting=!frontend&&game.I32(0x69ccf4)!=player;
         if(!frontend)
         {
-        if(game.I32(0x69ccf4)!=player) throw new InvalidOperationException("Not this player's active context");
         uint main=game.U32(0x699538),p=main+0x20ad0+(uint)player*0x168;
-        if(game.U32(0x69ccfc)!=p) throw new InvalidOperationException("Active player layout not validated");
+        if(!waiting&&game.U32(0x69ccfc)!=p) throw new InvalidOperationException("Active player layout not validated");
         byte[] person=game.Read(p,0x168);
         if(person[0]!=player) throw new InvalidOperationException("Player identity mismatch");
         resources=Enumerable.Range(0,7).Select(i=>BitConverter.ToInt32(person,0x9c+i*4)).ToArray();
@@ -878,11 +880,19 @@ internal sealed class GameReader(WindowsGame game,int player)
         }
         var towns=frontend?new List<TownView>():new TownReader(game,player).Read();
         var setup=screen=="scenario_selection"?new ScenarioReader(game).Read(dlg,items):null;
-        var combat=Remember(screen=="combat"?new CombatReader(game,player).Read():null);
+        CombatView? fight=null;
+        if(screen=="combat")
+        {
+            // A computer attacking this side on its own turn opens a fight this side must answer.
+            try{fight=new CombatReader(game,player).Read();waiting=false;}
+            catch(InvalidOperationException)when(waiting){}
+        }
+        var combat=Remember(fight);
+        if(waiting)items=[];
         // The side list of towns — on the map and in the town screen — draws each town's icon with
         // an odd frame once the town has built today: the cross the player sees over it.
         int iconBase=screen=="adventure"?32:screen=="town"?155:-1;
-        if(iconBase>0&&!frontend)
+        if(iconBase>0&&!frontend&&!waiting)
         {
             var order=SidebarTowns(game,player);
             towns=towns.Select(t=>
@@ -893,7 +903,7 @@ internal sealed class GameReader(WindowsGame game,int player)
             }).ToList();
         }
         int openTown=-1;
-        if(screen is "town" or "town_hall" or "town_fort" or "building_confirmation" or "recruitment" or "marketplace")
+        if(!waiting&&screen is "town" or "town_hall" or "town_fort" or "building_confirmation" or "recruitment" or "marketplace")
             try{openTown=game.Read(game.U32(game.U32(0x69954c)+0x38),1)[0];}
             catch(InvalidOperationException){openTown=-1;}
         List<string> foreignArmy=[];
@@ -918,7 +928,7 @@ internal sealed class GameReader(WindowsGame game,int player)
             var cell=SelectedArmyCell();
             if(cell is {} picked)selected=$"{(picked.Garrison?"верхний":"нижний")} ряд, слот {picked.Slot}";
         }
-        var actions=ScreenActions.Build(game,player,screen,items,towns,hero,roster,saves,setup,combat,selected);
+        var actions=waiting?[]:ScreenActions.Build(game,player,screen,items,towns,hero,roster,saves,setup,combat,selected);
         HeroSheet? sheet=null;
         if(screen=="hero_screen")
         {
@@ -976,7 +986,7 @@ internal sealed class GameReader(WindowsGame game,int player)
             }
             side=side with{Allies=allies.ToArray(),Participants=participants,Underground=header[0x10]!=0};
         }
-        var result=new Observation("",player,date,resources,hero,screen,width,height,items){Towns=towns,Actions=actions,Setup=setup,Combat=combat,Saves=saves,Sheet=sheet,Build=build,Heroes=roster,Side=side,SelectedStack=selected,OpenTown=openTown,ForeignHero=foreignName,ForeignArmy=foreignArmy,ForeignHeroes=foreignHeroes,Brief=ScreenBriefing.Build(screen,date,resources,towns,roster,hero,side,selected,build,openTown,foreignName,foreignArmy,foreignHeroes,items,combat,screen=="adventure"?SidebarHeroes(game,player):null)};
+        var result=new Observation("",player,date,resources,hero,screen,width,height,items){Towns=towns,Actions=actions,Setup=setup,Combat=combat,Saves=saves,Sheet=sheet,Build=build,Heroes=roster,Side=side,SelectedStack=selected,OpenTown=openTown,ForeignHero=foreignName,ForeignArmy=foreignArmy,ForeignHeroes=foreignHeroes,Brief=ScreenBriefing.Build(waiting?"waiting":screen,date,resources,towns,roster,hero,side,selected,build,openTown,foreignName,foreignArmy,foreignHeroes,items,combat,screen=="adventure"?SidebarHeroes(game,player):null)};
         return Revise(result);
     }
 }

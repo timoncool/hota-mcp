@@ -101,7 +101,13 @@ internal static class ScreenBriefing
                 :"Курсы появятся под ресурсами справа, когда выбран ресурс слева (market:give:<ресурс>).");
             lines.Add("Порядок: market:give:<что отдать> → market:get:<что получить> → market:max или ползунок → market:trade.");
         }
-        if(screen=="combat"&&combat is not null)CombatBrief(lines,combat);
+        if(screen=="waiting")
+        {
+            lines.Add("Экран сейчас принадлежит игроку, который ходит: его кнопок в наблюдении нет, и ничего нажимать нельзя — "
+                +"мост откажет с NOT_YOUR_TURN. Твои герои, города и ресурсы ниже — твои. Когда ход перейдёт к тебе, observe это покажет.");
+            if(side is not null&&side.Participants.Count>0)lines.Add("Участники: "+string.Join("; ",side.Participants)+".");
+        }
+                if(screen=="combat"&&combat is not null)CombatBrief(lines,combat);
         if(screen=="town")TownBrief(lines,resources,towns,roster,selectedStack,openTown);
         if(screen=="exchange")ExchangeBrief(lines,items,roster);
         if(screen=="adventure")AdventureBrief(lines,resources,towns,roster,selected,sidebar,side);

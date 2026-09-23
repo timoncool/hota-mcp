@@ -155,7 +155,9 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
              string.Join(";",state.Heroes.Select(h=>$"{h.Id}:{string.Join(",",h.Position)}:{h.Movement}:{string.Join(",",h.ArmyCounts)}")),
              string.Join(";",state.Towns.Select(t=>$"{t.Id}:{t.Buildings.Length}:{t.BuiltToday}")),
              state.Screen,state.Combat?.LogCount.ToString()??""]);
-        if(progress==lastProgress)idleReads++;
+        // Waiting is not stalling: in a menu, or while another player moves, nothing is this side's to do.
+        if(state.Side is not {Yours:true})idleReads=0;
+        else if(progress==lastProgress)idleReads++;
         else {lastProgress=progress;idleReads=0;}
         var townsNow=state.Towns.Select(t=>t.Name??"безымянный").ToList();
         if(heldTowns.Count>0)
@@ -281,6 +283,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
         try
         {
             var initial=reader.Observe();
+            RequireOwnTurn(initial);
             if(initial.Hero is null)throw new InvalidOperationException("Select a hero first");
             // The hover changes what the game reports under the cursor, so the consistency window
             // starts after it: otherwise this call always invalidates its own observation.
@@ -368,6 +371,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
                 throw new InvalidOperationException("Unknown target; request nearby_targets first");
             var stale=reader.Observe();
             if(stale.Revision!=revision)throw new InvalidOperationException("State changed; request nearby_targets again");
+            RequireOwnTurn(stale);
             var map=new MapReader(game,player);
             map.ValidateTarget(stale,target);
             var before=await PlanRouteTo(stale,target.X,target.Y,target.Z);
@@ -403,6 +407,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
         {
             var before=reader.Observe();
             if(before.Revision!=revision)throw new ActionRefused(ActionRefused.StaleRevision,"Observation is stale; observe again");
+            RequireOwnTurn(before);
             if(before.Screen!="adventure"||before.Hero is null)throw new InvalidOperationException("Own hero on the adventure map required");
             var planned=await PlanRouteTo(before,x,y,z);
             var route=Explain(new RouteExplainer(game,player),planned,new RouteReader(game,player).Read(planned,new MapObject(x,y,z,-1,"cell")),x,y,z);
@@ -419,6 +424,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
         {
             var before=reader.Observe();
             if(before.Revision!=revision)throw new ActionRefused(ActionRefused.StaleRevision,"Observation is stale; observe again");
+            RequireOwnTurn(before);
             var map=new MapReader(game,player);
             // The camera follows the selected hero, so a cell the player knows about is often off
             // screen. A player brings it into view by pressing the minimap; the bridge does the
@@ -449,6 +455,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
         {
             var before=reader.Observe();
             if(before.Revision!=request.Revision)throw new ActionRefused(ActionRefused.StaleRevision,"Observation is stale; observe again");
+            RequireOwnTurn(before);
             if(before.Screen!="adventure")throw new InvalidOperationException("Adventure map required");
             var map=new MapReader(game,player);
             before=await EnsureVisible(before,request.X,request.Y,request.Z);
@@ -499,6 +506,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
         {
             var before=reader.Observe();
             if(before.Revision!=request.Revision)throw new ActionRefused(ActionRefused.StaleRevision,"Observation is stale; observe again");
+            RequireOwnTurn(before);
             // Any cell on screen can be looked at, not only the ones the observation lists: an
             // element key works, and so does "id:<number>" for a control the observation leaves
             // out to stay compact.
@@ -576,6 +584,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             }
             var before=reader.Observe();
             if(before.Revision!=request.Revision)throw new ActionRefused(ActionRefused.StaleRevision,"Observation is stale; observe again before acting");
+            RequireOwnTurn(before);
             // A key ending in «:<n>» is a template: the agent fills in the number, and the
             // command itself checks the number against what the screen allows.
             var action=before.Actions.SingleOrDefault(a=>a.Key==request.Element)
@@ -881,6 +890,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
                 throw new ActionRefused(ActionRefused.BadText,"Text must be 1-64 characters without path separators");
             var before=reader.Observe();
             if(before.Revision!=request.Revision)throw new ActionRefused(ActionRefused.StaleRevision,"Observation is stale; observe again before acting");
+            RequireOwnTurn(before);
             var field=before.Elements.SingleOrDefault(e=>e.Key==request.Element)
                 ??throw new ActionRefused(ActionRefused.UnknownControl,"Unknown edit control; observe again");
             // Focus the ordinary edit control with a window mouse event, then type characters.
@@ -1178,9 +1188,22 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
         await Task.Delay(150,CancellationToken.None);
     }
 
+    /// In a hotseat game the screen belongs to whoever's turn it is. Pointing or pressing on an
+    /// ally's turn would move his hero or spend his gold, so every gesture waits for this side's
+    /// turn. Menus before a game have no turn; a fight this side is part of is answered whoever's
+    /// turn brought it.
+    private static void RequireOwnTurn(Observation before)
+    {
+        if(before.Side is null||before.Side.Yours||before.Combat is not null)return;
+        throw new ActionRefused(ActionRefused.NotYourTurn,
+            $"Сейчас ходит {before.Side.ActiveColour}, а ты играешь за {before.Side.Colour}: ничего не нажато. "
+            +"Жди своего хода — observe покажет, когда он начнётся.");
+    }
+
     private Observation RequireOwnHeroOnMap(string revision)
     {
         var before=reader.Observe();
+        RequireOwnTurn(before);
         if(before.Revision!=revision||before.Screen!="adventure"||before.Hero is null)
             throw new InvalidOperationException("Fresh own-hero adventure observation required");
         return before;

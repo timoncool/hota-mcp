@@ -18,6 +18,7 @@ public sealed class ActionRefused(string code,string message):InvalidOperationEx
     public const string SegmentNotTarget="SEGMENT_NOT_TARGET";
     public const string BadText="BAD_TEXT";
     public const string UnknownControl="UNKNOWN_CONTROL";
+    public const string NotYourTurn="NOT_YOUR_TURN";
 }
 
 internal static class ToolErrors
