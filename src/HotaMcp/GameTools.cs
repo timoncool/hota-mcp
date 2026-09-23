@@ -65,19 +65,18 @@ public sealed class GameTools(IGameEndpoint endpoint)
 
     [McpServerTool(Title="Visible destinations near the hero",ReadOnly=true,Destructive=false,Idempotent=true,OpenWorld=false),
      Description("Lists the recognised objects the selected hero can see, each with a stable target id. "
-        +"Returns ids, object names and coordinates, plus whatever route the game last computed. "
-        +"That route data is a stale cache — the game keeps a route for one destination and any action invalidates it — so a "
-        +"target may read not_available while the hero can plainly reach it. Does NOT plan routes, choose targets or send input. "
-        +"For a live route to one destination call inspect_target; object coverage is not exhaustive and hidden objects are "
-        +"never reported, so an absent target is not proof of an empty map.")]
+        +"Returns ids, object names and coordinates, and the game's own route to each: reachable_today, needs_more_days or "
+        +"not_available. The game's route table is rebuilt first when a step or a fight has made it stale. Where the game "
+        +"lays no path, the reason names what shuts the way — a wandering stack with its cell, a garrison, a border gate, "
+        +"another hero — or says there is no explored land way; LockedBehind groups the targets one fight opens. "
+        +"Does NOT choose targets or move the hero. Object coverage is not exhaustive and hidden objects are never reported, "
+        +"so an absent target is not proof of an empty map.")]
     public Task<NearbyTargets> NearbyTargets(CancellationToken cancellationToken)=>endpoint.Nearby(cancellationToken);
 
     [McpServerTool(Title="Route to one destination",ReadOnly=true,Destructive=false,Idempotent=true,OpenWorld=false),
      Description("Makes the game compute the route to one destination and reads the answer. "
         +"Returns movement cost, number of steps and a state — reachable_today, needs_more_days or not_available with a reason. "
-        +"Does NOT move the hero. This is the live answer; the route attached to nearby_targets is a cache. "
-        +"Known defect: not_available is sometimes returned for a cell the hero can in fact reach, so treat a single refusal "
-        +"as weak evidence and settle it with a short move_to_tile.")]
+        +"Does NOT move the hero. Where the game lays no path, the reason names what shuts the way.")]
     public Task<TargetInspection> InspectTarget(
         [Description("Target id exactly as nearby_targets reported it.")] string targetId,
         [Description("Revision from the observation these targets were read on.")] string revision,

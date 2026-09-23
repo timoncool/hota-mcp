@@ -11,7 +11,12 @@ public sealed record TargetView(string Id,string Kind,RouteView Route,int X=0,in
     /// «Тайник Бесов», «ресурс: сера» — the same name the map reader gives the cell.
     public string? Name {get;init;}
 }
-public sealed record NearbyTargets(string Revision,int HeroId,int Movement,List<TargetView> Targets,string Coverage);
+public sealed record NearbyTargets(string Revision,int HeroId,int Movement,List<TargetView> Targets,string Coverage)
+{
+    /// Targets the game lays no path to, grouped by the stack or gate that shuts them in: one
+    /// fight opens the whole group.
+    public List<string> LockedBehind {get;init;}=[];
+}
 public sealed record DocsRequest(string Query,int Limit,string? Detail);
 public sealed record ReferenceRequest(string Name,string? Kind,int Limit);
 public sealed record TargetInspection(string Id,string Kind,RouteView Route,string Revision);
@@ -250,6 +255,20 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             var observation=initial;
             var hero=observation.Hero??throw new InvalidOperationException("Hero selection lost while refreshing routes");
             var region=new MapReader(game,player).Read(observation,hero.Position[0],hero.Position[1],hero.Position[2],12);
+            // The game keeps one route table for the selected hero and rebuilds it only when a
+            // destination is planned; after a step or a fight every target read as unreachable.
+            // Planning again — to the hero's own destination when he has one — rebuilds it.
+            if(new MapReader(game,player).RoutesAreStale(observation))
+            {
+                int[] planned=hero.PlannedDestination;
+                var anchor=planned.Length==3&&!planned.SequenceEqual(hero.Position)?(planned[0],planned[1],planned[2])
+                    :region.Objects.OrderBy(o=>Math.Max(Math.Abs(o.X-hero.Position[0]),Math.Abs(o.Y-hero.Position[1])))
+                        .Where(o=>o.Z==hero.Position[2]&&(o.X!=hero.Position[0]||o.Y!=hero.Position[1])).Select(o=>(o.X,o.Y,o.Z)).FirstOrDefault(hero.Position is var p?(p[0],p[1],p[2]):default);
+                observation=await PlanRouteTo(observation,anchor.Item1,anchor.Item2,anchor.Item3);
+                if(observation.Hero is null||observation.Screen!="adventure")throw new InvalidOperationException("State changed while refreshing routes; request targets again");
+            }
+            var explainer=new RouteExplainer(game,player);
+            var locked=new List<(string By,string What)>();
             var list=new List<TargetView>();
             foreach(var target in region.Objects)
             {
@@ -283,7 +302,8 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
                     34 => observation.Heroes.FirstOrDefault(h=>h.Id==target.Id)?.Name??target.Name,
                     _ => target.Name,
                 };
-                list.Add(new(id,kind,new RouteReader(game,player).Read(observation,target),target.X,target.Y,target.Z){Name=name});
+                list.Add(new(id,kind,Explain(explainer,observation,new RouteReader(game,player).Read(observation,target),target.X,target.Y,target.Z),target.X,target.Y,target.Z){Name=name});
+                if(explainer.LastBlocker is string lockedBy)locked.Add((lockedBy,name??kind));
             }
             var settled=reader.Observe();
             if(settled.Hero is null||settled.Screen!="adventure")
@@ -291,9 +311,9 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             return new(settled.Revision,hero.Id,hero.Movement,list,
                 "Посещён ли объект выбранным сейчас героем — спроси inspect_cell по его клетке: игра сама пишет "
                 +"в карточке «(Посещено)», и статус этот свой у каждого героя. "
-                +"Recognized visible objects near selected hero; list is not exhaustive. Route data is "
-                +"whatever the game had cached and any action invalidates it — inspect_target computes "
-                +"the route for one destination you choose.");
+                +"Recognized visible objects near selected hero; list is not exhaustive. Routes are the game's own, "
+                +"rebuilt before reading when stale; a target the game lays no path to names what shuts the way.")
+            {LockedBehind=locked.GroupBy(l=>l.By).Select(g=>$"за охраной {g.Key}: {string.Join(", ",g.Select(l=>l.What))}").ToList()};
         }
         finally{gate.Release();}
     }
@@ -315,7 +335,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             var map=new MapReader(game,player);
             map.ValidateTarget(stale,target);
             var before=await PlanRouteTo(stale,target.X,target.Y,target.Z);
-            var route=new RouteReader(game,player).Read(before,target);
+            var route=Explain(new RouteExplainer(game,player),before,new RouteReader(game,player).Read(before,target),target.X,target.Y,target.Z);
             var after=reader.Observe();
             if(after.Revision!=before.Revision)throw new InvalidOperationException("State changed while reading target");
             // Walking into somebody else's town or onto his hero is a battle, but the route is
@@ -346,7 +366,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             if(before.Revision!=revision)throw new ActionRefused(ActionRefused.StaleRevision,"Observation is stale; observe again");
             if(before.Screen!="adventure"||before.Hero is null)throw new InvalidOperationException("Own hero on the adventure map required");
             var planned=await PlanRouteTo(before,x,y,z);
-            var route=new RouteReader(game,player).Read(planned,new MapObject(x,y,z,-1,"cell"));
+            var route=Explain(new RouteExplainer(game,player),planned,new RouteReader(game,player).Read(planned,new MapObject(x,y,z,-1,"cell")),x,y,z);
             Record("path_inspected",new{x,y,z,route.State,route.MovementCost,route.Steps});
             return route;
         }
@@ -1095,6 +1115,15 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
                 return current;
         }
         return reader.Observe();
+    }
+
+    /// The game says only that it found no path; what stands in the way is what a player looks
+    /// for next, so it is named here.
+    private static RouteView Explain(RouteExplainer explainer,Observation observation,RouteView route,int x,int y,int z)
+    {
+        explainer.LastBlocker=null;
+        if(route.State!="not_available"||route.Detail?.StartsWith("The game found no path",StringComparison.Ordinal)!=true)return route;
+        return explainer.WhyNoPath(observation,x,y,z) is string why?route with{Detail=$"{why} ({route.Detail})"}:route;
     }
 
     private async Task HoverAndSettle(Observation observation,int x,int y)
