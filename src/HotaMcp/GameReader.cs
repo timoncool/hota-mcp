@@ -80,7 +80,17 @@ public record Observation(string Revision,int Player,int[] Date,int[] Resources,
 
 /// The side this bridge is bound to, the side the game is currently asking for, and whether they
 /// are the same. `Yours` is the only safe condition for an action.
-public sealed record SideView(int Player,string Colour,int ActivePlayer,string ActiveColour,bool Yours);
+public sealed record SideView(int Player,string Colour,int ActivePlayer,string ActiveColour,bool Yours)
+{
+    /// Colours on this side's team. In a game with teams an ally's heroes and towns are not a
+    /// threat and not a target, and a player reads that off the flag at once.
+    public int[] Allies {get;init;}=[];
+    /// Everyone still in the game: colour, human or computer, team, and whose side each is on.
+    public List<string> Participants {get;init;}=[];
+    /// Whether the map has an underground level — the player sees it as the level switch by the
+    /// minimap.
+    public bool Underground {get;init;}
+}
 
 /// The building purchase card as a player reads it: what is offered, what it gives, whether the
 /// game will take the order right now and, when it will not, why. A missing button is an answer,
@@ -947,6 +957,24 @@ internal sealed class GameReader(WindowsGame game,int player)
         {
             int active=game.I32(0x69ccf4);
             side=new(player,Colour(player),active,Colour(active),active==player);
+            // Teams and who is human come from the map's own header and the record the game keeps
+            // for every colour.
+            uint main=game.U32(0x699538),info=main+0x1f86c;
+            byte[] header=game.Read(info+0xc,0x14);
+            bool teams=header[0]!=0;
+            if(header[0]>1||header.Skip(1).Take(8).Any(t=>t>7))throw new InvalidOperationException("Map team layout unsupported");
+            var allies=new List<int>();var participants=new List<string>();
+            for(int colour=0;colour<8;colour++)
+            {
+                byte[] record=game.Read(main+0x20ad0+(uint)colour*0x168,0xe2);
+                if(record[1]==0&&record[0x3e]==0)continue;
+                bool ally=colour!=player&&teams&&header[1+colour]==header[1+player];
+                if(ally)allies.Add(colour);
+                string who=record[0xe1]!=0?"человек":"компьютер";
+                string relation=colour==player?"это ты":ally?"союзник":"противник";
+                participants.Add($"{Colour(colour)} — {who}"+(teams?$", команда {header[1+colour]+1}":"")+$", {relation}");
+            }
+            side=side with{Allies=allies.ToArray(),Participants=participants,Underground=header[0x10]!=0};
         }
         var result=new Observation("",player,date,resources,hero,screen,width,height,items){Towns=towns,Actions=actions,Setup=setup,Combat=combat,Saves=saves,Sheet=sheet,Build=build,Heroes=roster,Side=side,SelectedStack=selected,OpenTown=openTown,ForeignHero=foreignName,ForeignArmy=foreignArmy,ForeignHeroes=foreignHeroes,Brief=ScreenBriefing.Build(screen,date,resources,towns,roster,hero,side,selected,build,openTown,foreignName,foreignArmy,foreignHeroes,items,combat,screen=="adventure"?SidebarHeroes(game,player):null)};
         return Revise(result);

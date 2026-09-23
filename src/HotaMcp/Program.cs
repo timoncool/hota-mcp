@@ -32,7 +32,7 @@ if(stdio)
 }
 
 int? pid=int.TryParse(Value("--game-pid"),out int configuredPid)?configuredPid:null;
-int player=int.TryParse(Value("--player"),out int configuredPlayer)?configuredPlayer:0;
+int player=PlayerSetting.Read(directory,Value("--player"));
 if(diagnostic)
 {
     var game=new WindowsGame(pid??Process.GetProcessesByName("h3hota HD").Single().Id);

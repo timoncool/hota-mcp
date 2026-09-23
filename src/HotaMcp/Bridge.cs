@@ -323,11 +323,14 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
                     {
                         townName=tn;
                         kind=owner==255?"нейтральный город (без хозяина — можно взять, в нём гарнизон)"
+                            :observation.Side?.Allies.Contains(owner)==true?$"город союзника ({ColourName(owner)})"
                             :$"ЧУЖОЙ ГОРОД ({ColourName(owner)})";
                     }
                 }
                 if(target.Type==34)
-                    kind=observation.Heroes.Any(h=>h.Id==target.Id)?"свой герой":"ЧУЖОЙ ГЕРОЙ";
+                    kind=observation.Heroes.Any(h=>h.Id==target.Id)?"свой герой"
+                        :observation.ForeignHeroes.FirstOrDefault(h=>h.Id==target.Id) is {} other&&observation.Side?.Allies.Contains(other.Owner)==true
+                            ?$"герой союзника ({ColourName(other.Owner)})":"ЧУЖОЙ ГЕРОЙ";
                 string? name=target.Type switch
                 {
                     98 => observation.Towns.FirstOrDefault(t=>t.Id==target.Id)?.Name??townName??target.Name,
@@ -376,10 +379,13 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             // here, where the decision to go is made, is the difference between a siege and a
             // scout walking to his death.
             string kind=target.Kind;
-            if(target.Type==98&&!after.Towns.Any(t=>t.Id==target.Id))
+            bool allied=target.Type==98&&new TownReader(game,player).Describe(target.Id) is var (_,townOwner)&&after.Side?.Allies.Contains(townOwner)==true
+                ||target.Type==34&&after.ForeignHeroes.FirstOrDefault(h=>h.Id==target.Id) is {} ally&&after.Side?.Allies.Contains(ally.Owner)==true;
+            if(allied)kind+=" — союзник: не бой и не штурм";
+            else if(target.Type==98&&!after.Towns.Any(t=>t.Id==target.Id))
                 kind+=" — вход в чужой город это штурм его гарнизона, состав которого не виден; "
                     +"сначала посмотри, кто там, и приходи силой";
-            if(target.Type==34&&!after.Heroes.Any(h=>h.Id==target.Id))
+            if(!allied&&target.Type==34&&!after.Heroes.Any(h=>h.Id==target.Id))
                 kind+=" — шаг на чужого героя это бой с его армией; "
                     +"его состав показывает карточка героя по правому щелчку";
             return new(targetId,kind,route,after.Revision);

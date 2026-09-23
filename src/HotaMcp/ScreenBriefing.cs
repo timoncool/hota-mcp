@@ -35,9 +35,17 @@ internal static class ScreenBriefing
                 ?$"Ход твой, играешь за {side.Colour}. День {Part(date,0)}, неделя {Part(date,1)}, месяц {Part(date,2)}." + (Part(date,0)=="1"?" Первый день недели: в городах появился прирост существ, мельницы и водяные колёса снова дают ресурс.":"")
                 :$"Сейчас ходит {side.ActiveColour}, а ты играешь за {side.Colour} — не действуй за чужой цвет.");
         foreach(var enemy in foreignHeroes)
+        {
+            if(side?.Allies.Contains(enemy.Owner)==true)
+            {
+                lines.Add($"Союзник: герой {enemy.Name} ({Colour(enemy.Owner)}) на клетке {enemy.Position[0]},{enemy.Position[1]}"
+                    +$"{NearestTown(enemy.Position,towns," — от твоего города ")}. Его герои и города не цель и не угроза.");
+                continue;
+            }
             lines.Add($"ТРЕВОГА: чужой герой {enemy.Name} ({Colour(enemy.Owner)}) виден на клетке "
                 +$"{enemy.Position[0]},{enemy.Position[1]}{NearestTown(enemy.Position,towns," — от твоего города ")}. Посмотреть его войско — наведи на него inspect_tile "
                 +"или открой карточку правым щелчком; при угрозе городу переходи в состояние обороны.");
+        }
         if(date.Length>2&&screen!="combat")
         {
             int left=8-date[0];
@@ -96,7 +104,7 @@ internal static class ScreenBriefing
         if(screen=="combat"&&combat is not null)CombatBrief(lines,combat);
         if(screen=="town")TownBrief(lines,resources,towns,roster,selectedStack,openTown);
         if(screen=="exchange")ExchangeBrief(lines,items,roster);
-        if(screen=="adventure")AdventureBrief(lines,resources,towns,roster,selected,sidebar);
+        if(screen=="adventure")AdventureBrief(lines,resources,towns,roster,selected,sidebar,side);
         if(screen=="building_confirmation"&&offer is not null)
         {
             lines.Add($"{offer.Title}. {offer.Effect}");
@@ -413,9 +421,11 @@ internal static class ScreenBriefing
     }
 
     private static void AdventureBrief(List<string> lines,int[] resources,List<TownView> towns,
-        List<HeroView> roster,HeroView? selected,int[]? sidebar)
+        List<HeroView> roster,HeroView? selected,int[]? sidebar,SideView? side)
     {
         lines.Add($"Карта. Золото {(resources.Length>6?resources[6]:0)}. Героев {roster.Count}, городов {towns.Count}.");
+        if(side is not null&&side.Participants.Count>0)
+            lines.Add("Участники: "+string.Join("; ",side.Participants)+"."+(side.Underground?" На карте есть подземный уровень.":" Подземного уровня нет."));
         foreach(var hero in roster)
             lines.Add($"Герой {hero.Name}: клетка {(hero.Position.Length>1?$"{hero.Position[0]},{hero.Position[1]}":"?")}, "
                 +$"ходов {hero.Movement} из {hero.MaxMovement}, мана {hero.Mana}{NearestTown(hero.Position,towns,", до своего города ",true)}, войско: {Stacks(hero.ArmyTypes,hero.ArmyCounts)}"
