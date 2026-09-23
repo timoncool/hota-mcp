@@ -331,7 +331,8 @@ internal static class GameCommands
         "menu:new" => new("game_type", Deliveries.Control(101)),
         "menu:highscores" => new("high_scores", Deliveries.Control(103,"mmenuhs.def")),
         "menu:credits" => new("credits", Deliveries.Control(104,"mmenucr.def")),
-        "menu:quit" => new("main_menu", Deliveries.Control(105,"mmenuqt.def")),
+        // The game asks «Вы действительно хотите выйти?» first.
+        "menu:quit" => new("main_menu,message", Deliveries.Control(105,"mmenuqt.def")),
         "menu:load" => new("game_type", Deliveries.Control(102)),
         "menu:back" => new("main_menu", Deliveries.Control(104)),
         // Single player leads to the scenario list after "new game" and to the browser after
