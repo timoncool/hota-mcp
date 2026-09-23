@@ -160,6 +160,10 @@ internal sealed class GameReader(WindowsGame game,int player)
         [0x640330]="kingdom_overview",[0x63a610]="adventure_options",[0x643c64]="world_view",
         [0x640610]="puzzle_map",[0x641720]="scenario_info",[0x643774]="thieves_guild",
         [0x643a08]="marketplace",[0x6437ec]="mage_guild",[0x6439cc]="town_fort",
+        // After a won scenario that makes the high score table: «введите ваше имя», field 501, OK 503.
+        [0x63ebbc]="high_score_name",
+        // The high score table: tabs for scenarios and campaigns, reset, exit.
+        [0x63eb98]="high_scores",
     };
 
     private readonly string epoch=Guid.NewGuid().ToString("N");
@@ -433,7 +437,7 @@ internal sealed class GameReader(WindowsGame game,int player)
                 h=(int)BitConverter.ToUInt16(game.Read(item+0x1e,2)),
                 asset=vt is 0x63bb54 or 0x63bb88?game.Text(game.U32(item+0x30)+4,16):null,
                 frame=game.I32(item+0x34),
-                text=vt is 0x642dc0 or 0x642df8 or 0x642d50?game.Text(game.U32(item+0x34))
+                text=vt is 0x642dc0 or 0x642df8 or 0x642d50 or 0x641c70 or 0x63ebf4?game.Text(game.U32(item+0x34))
                     :vt==0x63bb88?game.Text(game.U32(item+0x5c)):null});
         }
         return new(vtable,NameOf(vtable),items.Count,items.ToArray());
@@ -784,7 +788,7 @@ internal sealed class GameReader(WindowsGame game,int player)
             uint vt=BitConverter.ToUInt32(b);string? text=null,asset=null;
             // 0x641c70 is the edit field (the file name in the save browser): its line lives where a
             // text label keeps its own.
-            if(vt is 0x642dc0 or 0x642df8 or 0x642d50 or 0x641c70) text=game.Text(game.U32(a+0x34));
+            if(vt is 0x642dc0 or 0x642df8 or 0x642d50 or 0x641c70 or 0x63ebf4) text=game.Text(game.U32(a+0x34));
             if(vt is 0x63bb54 or 0x63bb88||(screen=="spellbook"||screen=="adventure")&&vt==0x63ec48) asset=game.Text(game.U32(a+0x30)+4,16);
             // A reward in a message is a picture with its amount under it; which file the picture
             // comes from says what kind of reward it is — resource, artifact, creature, skill.

@@ -118,9 +118,8 @@ DWORD FindLauncherProcess(){
     return found;
 }
 
-/// The installed mode: the tab must be there every time the player opens their own launcher,
-/// including after HD Mod updates itself and restarts the launcher. Nothing in the game folder is
-/// modified; the watcher only waits for the launcher window and hooks its UI thread.
+/// Waits for any launcher forever. Manual use only: the installed start is the «HotA MCP» shortcut,
+/// which runs HotaMcp.exe --launch; that attaches the tab to the launcher it opens (PID DLL_PATH).
 int Watch(const wchar_t* dllPath){
     std::cout<<"Watching for HD Launcher\n"<<std::flush;
     for(;;){

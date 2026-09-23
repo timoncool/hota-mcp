@@ -1,9 +1,9 @@
 # Installs the HotA MCP add-on over an existing GOG Complete + HotA + HD Mod installation.
 #
 # Nothing inside the game folder is written. The add-on lives in the user's own program folder and
-# a watcher process attaches the MCP tab to the ordinary HD Launcher every time it opens, including
-# after HD Mod updates itself and restarts the launcher. Uninstall removes exactly these files and
-# the autostart entry; the launcher returns to its stock behaviour.
+# starts from its «HotA MCP» shortcut: the service comes up, opens the player's own HD Launcher, puts
+# the MCP tab into it and starts the game through the launcher's Play button. Nothing is left in the
+# Windows autostart. Uninstall removes exactly these files and shortcuts.
 [CmdletBinding()]
 param(
     # Folder of the HotA installation. Detected from a running launcher when omitted.
@@ -44,7 +44,7 @@ foreach ($file in @('h3hota HD.exe', 'HotA.dll', 'HD_Launcher.exe', 'HD_Launcher
     if (Test-Path $full) { Write-Host ("  {0,-24} {1}" -f $file, (Get-FileHash $full -Algorithm SHA256).Hash) }
 }
 
-$tab = Join-Path $repo 'native\launcher\build\v6'
+$tab = Join-Path $repo 'native\launcher\build\v7'
 if (-not (Test-Path (Join-Path $tab 'hota_launcher_tab.dll'))) {
     throw "Launcher tab binaries missing in $tab. Run native\launcher\build.cmd first."
 }
@@ -115,15 +115,31 @@ New-Item -ItemType Directory -Path $state -Force | Out-Null
 Set-Content -Path (Join-Path $state 'install.ini') -Encoding utf8 `
     -Value ("Launcher=" + (Join-Path $game 'HD_Launcher.exe'))
 
-$watcher = Join-Path $app 'launcher-attach.exe'
-$dll = Join-Path $app 'hota_launcher_tab.dll'
-$command = '"{0}" --watch "{1}"' -f $watcher, $dll
+# Earlier versions kept a watcher in the Windows autostart; the start is now the shortcut below.
+if (Get-ItemProperty -Path $runKey -Name $runName -ErrorAction SilentlyContinue) {
+    Remove-ItemProperty -Path $runKey -Name $runName
+    Write-Host 'Old autostart watcher entry removed.'
+}
+Get-CimInstance Win32_Process -Filter "Name='launcher-attach.exe'" -ErrorAction SilentlyContinue |
+    Where-Object { $_.CommandLine -like '*--watch*' } |
+    ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
 
-Get-Process launcher-attach -ErrorAction SilentlyContinue | Stop-Process -Force
-Set-ItemProperty -Path $runKey -Name $runName -Value $command
-Start-Process -FilePath $watcher -ArgumentList '--watch', $dll -WindowStyle Hidden
+# «HotA MCP»: the service starts, opens the player's HD Launcher with the MCP tab, then the game.
+$shell = New-Object -ComObject WScript.Shell
+$places = @([Environment]::GetFolderPath('Desktop'), (Join-Path ([Environment]::GetFolderPath('Programs')) 'HotA MCP'))
+foreach ($place in $places) {
+    New-Item -ItemType Directory -Path $place -Force | Out-Null
+    $link = $shell.CreateShortcut((Join-Path $place 'HotA MCP.lnk'))
+    $link.TargetPath = Join-Path $app 'HotaMcp.exe'
+    $link.Arguments = '--launch'
+    $link.WorkingDirectory = $app
+    $link.WindowStyle = 7
+    $link.IconLocation = (Join-Path $game 'HD_Launcher.exe') + ',0'
+    $link.Description = 'HotA MCP: service, HD Launcher with the MCP tab, then the game'
+    $link.Save()
+}
 
 Write-Host ''
 Write-Host "Installed to $InstallPath"
-Write-Host 'The MCP tab now appears in the HD Launcher every time it is opened.'
+Write-Host 'Start everything with the «HotA MCP» shortcut (desktop and Start menu): service, HD Launcher with the MCP tab, game.'
 Write-Host 'Nothing in the game folder was modified. Run tools\uninstall.ps1 to remove.'

@@ -167,6 +167,16 @@ internal static class ScreenActions
                     +"Герой появится в городе как гость со своей небольшой армией."));
         }
         if(screen=="enemy_hero_card")actions.Add(new("screen:close","Закрыть карточку чужого героя"));
+        if(screen=="high_scores")
+        {
+            // The table rows are drawn by the game itself, not controls. «Сбросить» (HiScRes) wipes the
+            // table and is deliberately not offered.
+            if(items.Any(i=>i.Id==1002))actions.Add(new("scores:scenarios","Показать рекорды сценариев"));
+            if(items.Any(i=>i.Id==1001))actions.Add(new("scores:campaigns","Показать рекорды кампаний"));
+            if(items.Any(i=>i.Id==30722))actions.Add(new("scores:exit","Выйти из таблицы рекордов"));
+        }
+        if(screen=="high_score_name"&&items.Any(i=>i.Id==503))
+            actions.Add(new("score:accept",$"Записать результат в доску почёта под именем «{items.FirstOrDefault(i=>i.Id==501)?.Text?.TrimEnd('_')}» и продолжить"));
         if(screen is "adventure_options" or "world_view" or "puzzle_map" or "scenario_info"
             or "thieves_guild" or "marketplace" or "mage_guild" or "town_fort")
             actions.Add(new("screen:close","Закрыть окно и вернуться"));

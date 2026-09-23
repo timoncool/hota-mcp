@@ -67,8 +67,20 @@ if(diagnostic)
     return;
 }
 Directory.CreateDirectory(directory);
+// The «HotA MCP» shortcut: service first, then the player's launcher with the MCP tab, then the game.
+bool launch=args.Contains("--launch");
+if(launch)
+{
+    ServiceBootstrap.FreeConsole();
+    if(await ServiceBootstrap.Answers(endpoint,tokenFile,CancellationToken.None))
+    {
+        await ServiceBootstrap.StartGame(endpoint,tokenFile,CancellationToken.None);
+        return;
+    }
+}
 using var serviceLock=new FileStream(Path.Combine(directory,"service.lock"),FileMode.OpenOrCreate,FileAccess.ReadWrite,FileShare.None);
-int? hostLauncherPid=int.TryParse(Value("--launcher-pid"),out int parsedLauncherPid)?parsedLauncherPid:null;
+int? hostLauncherPid=launch?ServiceBootstrap.OpenLauncher(directory)
+    :int.TryParse(Value("--launcher-pid"),out int parsedLauncherPid)?parsedLauncherPid:null;
 using var session=new GameSession(pid,player,directory,hostLauncherPid);
 // Remember where the launcher lives so a later cold start can raise this same service again.
 if(hostLauncherPid is int knownLauncher)
@@ -121,7 +133,7 @@ app.MapPost("/bridge/inspect",(TileRequest request,CancellationToken ct)=>sessio
 app.MapPost("/bridge/nearby",(CancellationToken ct)=>session.Nearby(ct));
 app.MapPost("/bridge/target",(TargetRequest request,CancellationToken ct)=>session.InspectTarget(request.TargetId,request.Revision,ct));
 app.MapPost("/bridge/path",(TileRequest request,CancellationToken ct)=>session.InspectPath(request.X,request.Y,request.Z,request.Revision,ct));
-if(int.TryParse(Value("--launcher-pid"),out int launcherPid))
+if(hostLauncherPid is int launcherPid)
 {
     var launcher=Process.GetProcessById(launcherPid);
     _=Task.Run(async()=>{await launcher.WaitForExitAsync();app.Lifetime.StopApplication();});
@@ -130,6 +142,25 @@ if(int.TryParse(Value("--launcher-pid"),out int launcherPid))
 app.Urls.Add(endpoint);
 File.WriteAllText(tokenFile,secret);
 await app.StartAsync();
+if(launch&&hostLauncherPid is int openedLauncher)
+{
+    // The service answers on the launcher's control pipe already, so the tab shows it and does not
+    // start a second one. Then the game, through the launcher's own Play button.
+    string launchLog=Path.Combine(directory,"launch.log");
+    try
+    {
+        await ServiceBootstrap.AttachTab(openedLauncher,app.Lifetime.ApplicationStopping);
+        string? refusal=null;
+        // The Play button is enabled a moment after the launcher window appears.
+        for(int attempt=0;attempt<120;attempt++)
+        {
+            try{await session.Start(app.Lifetime.ApplicationStopping);refusal=null;break;}
+            catch(InvalidOperationException e){refusal=e.Message;await Task.Delay(500,app.Lifetime.ApplicationStopping);}
+        }
+        File.WriteAllText(launchLog,refusal is null?"[OK] service, launcher tab and game started":"[ERROR] game not started: "+refusal);
+    }
+    catch(InvalidOperationException e){File.WriteAllText(launchLog,"[ERROR] "+e.Message);}
+}
 await app.WaitForShutdownAsync();
 record JournalRequest(int Limit);record PlanRequest(string? Value);
 record TargetRequest(string TargetId,string Revision);record MemRequest(uint Address,int Length);

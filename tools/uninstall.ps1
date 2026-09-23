@@ -13,8 +13,13 @@ $runName = 'HotaMcp'
 
 if (Get-ItemProperty -Path $runKey -Name $runName -ErrorAction SilentlyContinue) {
     Remove-ItemProperty -Path $runKey -Name $runName
-    Write-Host 'Autostart entry removed.'
+    Write-Host 'Old autostart entry removed.'
 }
+
+$desktopLink = Join-Path ([Environment]::GetFolderPath('Desktop')) 'HotA MCP.lnk'
+$menuFolder = Join-Path ([Environment]::GetFolderPath('Programs')) 'HotA MCP'
+if (Test-Path $desktopLink) { Remove-Item $desktopLink; Write-Host 'Desktop shortcut removed.' }
+if (Test-Path $menuFolder) { Remove-Item $menuFolder -Recurse; Write-Host 'Start menu shortcut removed.' }
 
 # Take the tab out of a running launcher first, so the launcher is left with its own pages only.
 $dll = Join-Path $InstallPath 'app\hota_launcher_tab.dll'

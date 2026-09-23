@@ -501,6 +501,10 @@ internal static class GameCommands
         // Every one of these windows closes on its own button; Esc is the fallback when the
         // window does not publish one.
         "screen:close" => new("adventure,town,combat,hero_screen", Deliveries.Dismiss),
+        "scores:scenarios" => new("high_scores", Deliveries.Control(1002, "HiScSta.def")),
+        "scores:campaigns" => new("high_scores", Deliveries.Control(1001, "HiScCam.def")),
+        "scores:exit" => new("main_menu", Deliveries.Control(30722, "HiScExt.def")) { Confirm = Confirm.ScreenLeft, TimeoutSeconds = 10 },
+        "score:accept" => new("high_scores,main_menu", Deliveries.Control(503, "mubchck.def")) { Confirm = Confirm.ScreenLeft, TimeoutSeconds = 10 },
         "split:cancel" => new("town,hero_screen,exchange", Deliveries.Key(0x1b, 0x01)),
         // The exchange window closes with the game's ordinary Esc, like the other hero screens.
         // It opens both from a meeting on the map and from the town screen.

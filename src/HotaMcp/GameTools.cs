@@ -318,12 +318,24 @@ public sealed class GameTools(IGameEndpoint endpoint)
     // ------------------------------------------------------------------ diagnostic: not gameplay
 
     [McpServerTool(Title="Diagnostic frame plus state",ReadOnly=false,Destructive=false,Idempotent=false,OpenWorld=false),
-     Description("Developer diagnostic: saves the game's framebuffer as a local PNG together with the matching observation JSON "
-        +"and checks that the revision did not change across the capture. "
-        +"Returns the observation and the file paths, never inline image data. Writes files on the host. "
-        +"This is for mapping a screen that has no adapter yet, or for an illustration the user asked for — not part of playing. "
-        +"The play loop reads observe.")]
-    public Task<DebugSnapshot> DebugSnapshot(CancellationToken cancellationToken)=>endpoint.Snapshot(cancellationToken);
+     Description("Developer diagnostic for mapping screens: returns the game's current frame as an image together with everything "
+        +"the bridge knows at that instant — the observation with every control, text, picture and action, or, on a screen the "
+        +"bridge has not mapped yet, the raw controls of the top window (id, class, rectangle, state, picture, frame, text) and "
+        +"the reason there is no observation. Works on every screen. Saves the PNG and the JSON on the host and returns their "
+        +"paths; the image itself is returned only when includeImage is true, because images are expensive and have no place "
+        +"in the play loop. Not part of playing: the play loop reads observe.")]
+    public async Task<ModelContextProtocol.Protocol.CallToolResult> DebugSnapshot(
+        [Description("Return the frame as an image in the answer as well. For a developer mapping a screen; default false.")] bool includeImage,
+        CancellationToken cancellationToken)
+    {
+        var snapshot=await endpoint.Snapshot(cancellationToken);
+        string state=System.Text.Json.JsonSerializer.Serialize(snapshot,new System.Text.Json.JsonSerializerOptions{WriteIndented=false});
+        var content=new List<ModelContextProtocol.Protocol.ContentBlock>{new ModelContextProtocol.Protocol.TextContentBlock{Text=state}};
+        if(includeImage)
+            content.Add(ModelContextProtocol.Protocol.ImageContentBlock.FromBytes(
+                await File.ReadAllBytesAsync(snapshot.Capture.Path,cancellationToken),"image/png"));
+        return new(){Content=content};
+    }
 
     [McpServerTool(Title="Diagnostic frame",ReadOnly=false,Destructive=false,Idempotent=false,OpenWorld=false),
      Description("Developer diagnostic: saves the game's current frame as a local PNG without activating the window, moving the "

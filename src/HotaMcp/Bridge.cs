@@ -15,7 +15,14 @@ public sealed record NearbyTargets(string Revision,int HeroId,int Movement,List<
 public sealed record DocsRequest(string Query,int Limit,string? Detail);
 public sealed record ReferenceRequest(string Name,string? Kind,int Limit);
 public sealed record TargetInspection(string Id,string Kind,RouteView Route,string Revision);
-public sealed record DebugSnapshot(Observation Observation,CaptureResult Capture,string ObservationPath);
+/// A frame and what the bridge knows at that instant. On a screen the bridge has not mapped the
+/// observation is null, and the raw controls of the top window plus the reason stand in its place —
+/// that is exactly the material a new screen is mapped from.
+public sealed record DebugSnapshot(Observation? Observation,CaptureResult Capture,string ObservationPath)
+{
+    public object? Probe {get;init;}
+    public string? Unmapped {get;init;}
+}
 public sealed record MoveRequest(string OperationId,string Revision,string TargetId);
 public sealed record TileMoveRequest(string OperationId,string Revision,int X,int Y,int Z);
 public sealed record MapClickRequest(int X,int Y);
@@ -1115,14 +1122,27 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
         await gate.WaitAsync(ct);
         try
         {
-            var before=reader.Observe();
+            Observation? before=null;string? unmapped=null;
+            try{before=reader.Observe();}
+            catch(InvalidOperationException e){unmapped=e.Message;}
             var capture=DebugCapture.Save(game,player,Path.Combine(stateDirectory,"captures"));
-            var after=reader.Observe();
-            if(before.Revision!=after.Revision)
-                throw new InvalidOperationException("State changed during diagnostic capture; snapshot not confirmed");
             string path=Path.ChangeExtension(capture.Path,"json");
-            await File.WriteAllTextAsync(path,JsonSerializer.Serialize(before,new JsonSerializerOptions{WriteIndented=true}),ct);
-            return new(before,capture,path);
+            var options=new JsonSerializerOptions{WriteIndented=true};
+            if(before is not null)
+            {
+                var after=reader.Observe();
+                if(before.Revision!=after.Revision)
+                    throw new InvalidOperationException("State changed during diagnostic capture; snapshot not confirmed");
+                await File.WriteAllTextAsync(path,JsonSerializer.Serialize(before,options),ct);
+                return new(before,capture,path);
+            }
+            // Not mapped yet: keep whatever the top window is made of next to the frame.
+            object probe;
+            try{probe=reader.ProbeScreen();}
+            catch(InvalidOperationException e){probe=new{error=e.Message};}
+            await File.WriteAllTextAsync(path,JsonSerializer.Serialize(new{unmapped,probe},options),ct);
+            Record("snapshot_unmapped",new{unmapped,capture.Path});
+            return new(null,capture,path){Probe=probe,Unmapped=unmapped};
         }
         finally{gate.Release();}
     }
