@@ -534,7 +534,8 @@ internal static class GameCommands
         "combat:auto" => new("combat", Deliveries.Control(2004)),
         // Pressing a stack's cell opens the creature card the player sees, with upgrade and
         // dismiss on it; the cells themselves are addressed by ArmyCell.
-        "army:upgrade" => new("creature_card",Deliveries.Control(300)),
+        // The game asks to confirm the price before it upgrades; that question is the landing.
+        "army:upgrade" => new("creature_card,message",Deliveries.Control(300)),
         "army:dismiss" => new("creature_card",Deliveries.Control(30723)),
         "army:close" => new("creature_card",Deliveries.Control(30722)),
         "split:confirm" => new("town,hero_screen,exchange",Deliveries.Control(30722)),
