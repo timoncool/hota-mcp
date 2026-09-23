@@ -103,6 +103,8 @@ internal static class ScreenBriefing
         }
         if(screen=="waiting")
         {
+            var said=items.Where(i=>!string.IsNullOrWhiteSpace(i.Text)).Select(i=>i.Text!.Trim().Replace('\n',' ')).ToList();
+            if(said.Count>0)lines.Add("На экране сообщение: «"+string.Join(" ",said)+"»");
             lines.Add("Экран сейчас принадлежит игроку, который ходит: его кнопок в наблюдении нет, и ничего нажимать нельзя — "
                 +"мост откажет с NOT_YOUR_TURN. Твои герои, города и ресурсы ниже — твои. Когда ход перейдёт к тебе, observe это покажет.");
             if(side is not null&&side.Participants.Count>0)lines.Add("Участники: "+string.Join("; ",side.Participants)+".");

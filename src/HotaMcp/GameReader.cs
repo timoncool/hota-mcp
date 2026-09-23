@@ -920,7 +920,9 @@ internal sealed class GameReader(WindowsGame game,int player)
             catch(InvalidOperationException)when(waiting){}
         }
         var combat=Remember(fight);
-        if(waiting)items=[];
+        // A message on another player's turn — «Ходит КЛОДИК.» at the hand-over — is read by everyone
+        // at the table; its words stay, its buttons do not.
+        if(waiting)items=screen=="message"?items.Where(i=>!string.IsNullOrWhiteSpace(i.Text)).Select(i=>i with{Interactive=false}).ToList():[];
         // The side list of towns — on the map and in the town screen — draws each town's icon with
         // an odd frame once the town has built today: the cross the player sees over it.
         int iconBase=screen=="adventure"?32:screen=="town"?155:-1;
@@ -935,7 +937,7 @@ internal sealed class GameReader(WindowsGame game,int player)
             }).ToList();
         }
         int openTown=-1;
-        if(!waiting&&screen is "town" or "town_hall" or "town_fort" or "building_confirmation" or "recruitment" or "marketplace")
+        if(!waiting&&screen is "town" or "town_hall" or "town_fort" or "building_confirmation" or "recruitment" or "marketplace" or "tavern")
             try{openTown=game.Read(game.U32(game.U32(0x69954c)+0x38),1)[0];}
             catch(InvalidOperationException){openTown=-1;}
         List<string> foreignArmy=[];
@@ -961,6 +963,16 @@ internal sealed class GameReader(WindowsGame game,int player)
             if(cell is {} picked)selected=$"{(picked.Garrison?"верхний":"нижний")} ряд, слот {picked.Slot}";
         }
         var actions=waiting?[]:ScreenActions.Build(game,player,screen,items,towns,hero,roster,saves,setup,combat,selected);
+        // A hired hero stands in the town as its visitor; with a visitor already there the hire
+        // button is dead, and pressing it only looked like an answer.
+        string? tavernBlocked=null;
+        if(screen=="tavern"&&towns.FirstOrDefault(t=>t.Id==openTown) is {VisitingHero:>=0} host)
+        {
+            actions.RemoveAll(a=>a.Key=="tavern:hire");
+            string guest=roster.FirstOrDefault(h=>h.Id==host.VisitingHero)?.Name??"герой";
+            tavernBlocked=$"Нанять сейчас нельзя: в городе гость {guest}, а нанятый герой встаёт на его место. "
+                +"Закрой таверну (tavern:close), переведи гостя в гарнизон hero:switch (Space) — армии сольются — и возвращайся нанимать.";
+        }
         HeroSheet? sheet=null;
         if(screen=="hero_screen")
         {
@@ -1021,6 +1033,7 @@ internal sealed class GameReader(WindowsGame game,int player)
             side=side with{Allies=allies.ToArray(),Participants=participants,Underground=header[0x10]!=0};
         }
         var result=new Observation("",player,date,resources,hero,screen,width,height,items){Towns=towns,Actions=actions,Setup=setup,Combat=combat,Saves=saves,Sheet=sheet,Build=build,Heroes=roster,Side=side,SelectedStack=selected,OpenTown=openTown,ForeignHero=foreignName,ForeignArmy=foreignArmy,ForeignHeroes=foreignHeroes,Brief=ScreenBriefing.Build(waiting?"waiting":screen,date,resources,towns,roster,hero,side,selected,build,openTown,foreignName,foreignArmy,foreignHeroes,items,combat,screen=="adventure"?SidebarHeroes(game,player):null)};
+        if(tavernBlocked is not null)result=result with{Brief=[tavernBlocked,..result.Brief]};
         return Revise(result);
     }
 }
