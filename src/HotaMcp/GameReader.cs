@@ -728,6 +728,14 @@ internal sealed class GameReader(WindowsGame game,int player)
     }
     /// Screens before a game exists: main menu, game type, scenario choice, multiplayer. Nobody has
     /// a turn there, and whatever player data is in memory is left over from the last game.
+    /// Once a hero arrives, the game leaves his destination record with values off the map;
+    /// that is "no destination", not a cell.
+    private int[] Destination(int x,int y,int z)
+    {
+        int size=game.I32(0x6783c8);
+        return x>=0&&y>=0&&z is 0 or 1&&x<size&&y<size?[x,y,z]:[];
+    }
+
     public static bool IsFrontend(uint vtable)=>vtable is 0x63ff60 or 0x63e6d8 or 0x641cbc or 0x6400b0 or 0x6401e8;
 
     private bool UnderMenu(uint top)
@@ -777,7 +785,7 @@ internal sealed class GameReader(WindowsGame game,int player)
                 h.Skip(0x476).Take(4).Select(v=>(int)v).ToArray(),
                 Enumerable.Range(0,7).Select(i=>BitConverter.ToInt32(h,0x91+i*4)).ToArray(),
                 Enumerable.Range(0,7).Select(i=>BitConverter.ToInt32(h,0xad+i*4)).ToArray())
-                {PlannedDestination=[BitConverter.ToInt32(h,0x35),BitConverter.ToInt32(h,0x39),BitConverter.ToInt16(h,0x3d)]};
+                {PlannedDestination=Destination(BitConverter.ToInt32(h,0x35),BitConverter.ToInt32(h,0x39),BitConverter.ToInt16(h,0x3d))};
         }
         }
         var roster=new List<HeroView>();
