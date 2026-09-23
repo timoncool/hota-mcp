@@ -230,6 +230,14 @@ dead. First `hero:switch` (Space): the visitor moves up to lead the garrison and
 join his army. Then `town:tavern` → `tavern:pick:<side>` → `tavern:hire`. The same move is how the whole
 garrison is taken in one gesture. `hota_docs("найм героя в таверне")` has it in Russian.
 
+## Hotkeys and modifiers first
+
+Many gestures have a key or a modifier, and the game names them in the hint line at the bottom of a
+window: move a stack with Alt to leave one creature, pass artefacts with Ctrl (worn only) or Shift
+(backpack only), Space to swap the garrison hero and the visitor, M to walk the planned route. Read
+the hint (`inspect_element` on the button) before looking for a longer way; the bridge prefers a
+key where the game has one. `hota_docs("горячие клавиши")` lists them.
+
 ## Artefacts and chests
 
 - A chest is a choice by role: the main hero takes **experience**, a collector takes gold.
