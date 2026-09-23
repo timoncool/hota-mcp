@@ -403,6 +403,7 @@ internal static class GameCommands
         _ when action.Key.StartsWith("setup:",StringComparison.Ordinal)
             && action.Key.Count(c=>c==':')>=2
             => new("scenario_selection",PlayerSetup),
+        "town:exchange" => new("exchange", Deliveries.Control(3000,"townhrtd.def")),
         "rmg:underground" => new("scenario_selection", Deliveries.Control(285,"RanUndr.def")),
         "rmg:template" => new("scenario_selection,popup_choice", Deliveries.Control(7001)),
         "rmg:teams" => new("scenario_selection,popup_choice", Deliveries.Control(7005,"gspbut2.def")),
@@ -526,7 +527,12 @@ internal static class GameCommands
         "split:cancel" => new("town,hero_screen,exchange", Deliveries.Key(0x1b, 0x01)),
         // The exchange window closes with the game's ordinary Esc, like the other hero screens.
         // It opens both from a meeting on the map and from the town screen.
-        "exchange:done" => new("adventure,town", Deliveries.Key(0x1b, 0x01)),
+        "exchange:done" => new("adventure,town", Deliveries.Control(30720, "iokay.def")),
+        "exchange:close:left" => new("adventure,town", Deliveries.Control(501, "SwFL.def")),
+        "exchange:close:right" => new("adventure,town", Deliveries.Control(500, "SwFR.def")),
+        "exchange:split:left" => new("exchange", Deliveries.Control(103, "SwSpl.def")),
+        "exchange:split:right" => new("exchange", Deliveries.Control(104, "SwSpl.def")),
+        "exchange:artifacts:swap" => new("exchange",Deliveries.Control(451,"SwXCh.def")),
         "exchange:backpack:слева" => new("backpack", Deliveries.Control(8000, "bckpck.def")),
         "exchange:backpack:справа" => new("backpack", Deliveries.Control(8001, "bckpck.def")),
         // The expansion's backpack window has no button and ignores Esc: a transparent control over
@@ -978,42 +984,26 @@ internal static class GameCommands
     /// Moving a stack between two heroes who met on the map. The gesture is the one every army
     /// row in this game uses — press the stack, press the cell it should land in — and the cells
     /// here are the pictures: 13 plus the slot on the left, 20 plus the slot on the right.
+    /// The arrow under a cell sends that whole stack to the other hero — one press, as a player does
+    /// it; the game merges it with a stack of the same creature or puts it in a free cell. When it
+    /// is the hero's last stack the game keeps one creature with him.
     private static Deliver ExchangeStack(bool give) => async (context, ct) =>
     {
         string wanted = context.Element[(context.Element.IndexOf(':') + 1)..];
         wanted = wanted[(wanted.IndexOf(':') + 1)..];
-        int fromBase = give ? 13 : 20, toBase = give ? 20 : 13;
-        int fromCount = give ? 65 : 72, toCount = give ? 72 : 65;
-        int source = -1, target = -1, sourceType = -1;
-        for (int slot = 0; slot < 7 && source < 0; slot++)
+        int fromBase = give ? 13 : 20, fromCount = give ? 65 : 72, arrowBase = give ? 430 : 440;
+        for (int slot = 0; slot < 7; slot++)
         {
             var image = context.Before.Elements.FirstOrDefault(e => e.Id == fromBase + slot && e.Frame > 0);
             var number = context.Before.Elements.FirstOrDefault(e => e.Id == fromCount + slot && !string.IsNullOrWhiteSpace(e.Text));
             if (image is null || number is null) continue;
             if (!string.Equals(GameReference.Creature(image.Frame - 2), wanted, StringComparison.OrdinalIgnoreCase)) continue;
-            source = slot; sourceType = image.Frame - 2;
+            var box = context.Reader.FindControlById(arrowBase + slot)
+                ?? throw new InvalidOperationException($"Стрелка под отрядом «{wanted}» не найдена");
+            await Deliveries.Press(context, box.X + box.Width / 2, box.Y + box.Height / 2, ct);
+            return;
         }
-        if (source < 0) throw new InvalidOperationException($"Отряда «{wanted}» в этом ряду нет");
-        // A cell holding the same creature merges the two stacks; an empty one asks how to divide.
-        for (int slot = 0; slot < 7 && target < 0; slot++)
-        {
-            var image = context.Before.Elements.FirstOrDefault(e => e.Id == toBase + slot && e.Frame > 0);
-            if (image is not null && image.Frame - 2 == sourceType) target = slot;
-        }
-        if (target < 0)
-            for (int slot = 0; slot < 7 && target < 0; slot++)
-            {
-                var number = context.Before.Elements.FirstOrDefault(e => e.Id == toCount + slot);
-                if (number is null || string.IsNullOrWhiteSpace(number.Text)) target = slot;
-            }
-        if (target < 0) throw new InvalidOperationException("У второго героя нет ни свободной клетки, ни такого же отряда");
-        var from = context.Reader.FindControlById(fromBase + source)
-            ?? throw new InvalidOperationException($"Клетка {source} не найдена");
-        var to = context.Reader.FindControlById(toBase + target)
-            ?? throw new InvalidOperationException($"Клетка назначения {target} не найдена");
-        await Deliveries.Press(context, from.X + from.Width / 2, from.Y + from.Height / 2, ct);
-        await Task.Delay(250, CancellationToken.None);
-        await Deliveries.Press(context, to.X + to.Width / 2, to.Y + to.Height / 2, ct);
+        throw new InvalidOperationException($"Отряда «{wanted}» в этом ряду нет");
     };
 
     /// The save name field takes key presses, not typed characters: the old name is erased with

@@ -215,9 +215,8 @@ internal static class ScreenActions
                         $"Забрать «{theirs}» x{Count(72+slot)} у второго героя (правый ряд → левый). "
                         +"Если у тебя уже есть такой отряд, они сольются."));
             }
-            // The arrow under each cell moves the whole stack to the other hero — the same as
-            // exchange:give/take — not one creature: a press on it sent 149 Raiders across at once.
-            // It is not published; splitting a stack here is a Shift gesture still to be mapped.
+            // exchange:give/take press the arrow under the cell: the whole stack goes across in one
+            // press; a hero's last stack leaves one creature behind.
             // The specialty icon sits beside each portrait — 105 on the left, 106 on the right — and
             // the secondary skills run along the row under it. A left press opens the game's own
             // explanation of what the icon means; it is the only way to read a specialty, and a
@@ -233,6 +232,13 @@ internal static class ScreenActions
             if(items.Any(i=>i.Id==402))actions.Add(new("exchange:army:left","Забрать ВСЁ войско левому герою одной кнопкой"));
             if(items.Any(i=>i.Id==401))actions.Add(new("exchange:army:swap","Обменять армии героев местами целиком"));
             if(items.Any(i=>i.Id==450))actions.Add(new("exchange:artifacts:right","Отдать все артефакты правому герою"));
+            if(items.Any(i=>i.Id==451))actions.Add(new("exchange:artifacts:swap","Обменять артефакты героев местами целиком"));
+            // The corner buttons close the window and select one of the two heroes on the map; the
+            // split buttons at the ends of the army rows divide a stack into two.
+            if(items.Any(i=>i.Id==501))actions.Add(new("exchange:close:left","Закрыть окно и выбрать левого героя"));
+            if(items.Any(i=>i.Id==500))actions.Add(new("exchange:close:right","Закрыть окно и выбрать правого героя"));
+            if(items.Any(i=>i.Id==103&&i.Interactive))actions.Add(new("exchange:split:left","Разделить отряд левого героя на два (кнопка у левого ряда армии)"));
+            if(items.Any(i=>i.Id==104&&i.Interactive))actions.Add(new("exchange:split:right","Разделить отряд правого героя на два (кнопка у правого ряда армии)"));
             if(items.Any(i=>i.Id==452))actions.Add(new("exchange:artifacts:left","Забрать все артефакты левому герою"));
             // An artefact both heroes carry is addressed with the side it leaves from.
             var owned=new[]{("слева","левого героя правому",27,89),("справа","правого героя левому",46,94)}
@@ -512,6 +518,7 @@ internal static class ScreenActions
             if(currentTown is not null)actions.Add(new("town:lead","Соединить армию героя с гарнизоном: портрет, затем знамя"));
             if(currentTown is not null)actions.Add(new("town:banner","Клик по знамени гарнизона (переключить гарнизонного героя)"));
             if(currentTown is not null)actions.Add(new("hero:switch","Переключиться между гарнизонным героем и посетителем города (Space)"));
+if(screen=="town"&&items.Any(i=>i.Id==3000&&i.Interactive))actions.Add(new("town:exchange","Обмен между гарнизонным героем и гостем (кнопка со стрелками между портретами) — экран обмена армиями и артефактами"));
             if(towns.Count>1)
             {
                 // The town list at the right edge of the town screen is the same list as on the
