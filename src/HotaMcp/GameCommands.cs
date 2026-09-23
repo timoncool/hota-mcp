@@ -153,7 +153,9 @@ internal static class Deliveries
             return;
         }
         await context.Game.MouseAsync(x, y, context.Before.Width, context.Before.Height, false, CancellationToken.None);
-        await Task.Delay(120, CancellationToken.None);
+        // 120 ms was not always enough: the OK of a resource message opened by a step (windmill,
+        // wood warehouse) ignored the press twice, while the same point after 200 ms closed it.
+        await Task.Delay(200, CancellationToken.None);
         await context.Game.MouseAsync(x, y, context.Before.Width, context.Before.Height, true, CancellationToken.None);
     }
 
