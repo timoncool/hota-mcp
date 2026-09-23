@@ -53,7 +53,11 @@ internal sealed class MapReader(WindowsGame game,int player)
     {
         var context=Context(observation);
         if(radius<0||radius>12)throw new InvalidOperationException("Radius must be between 0 and 12");
-        _=VisibleTile(observation,x,y,z);
+        // A window may be centred on fog: the player sees the known part of the map around it,
+        // and hidden cells are drawn as '?' below. Only the bounds of the map are checked here.
+        int levels=game.Read(game.U32(0x699538)+0x1fc48,1)[0]+1;
+        if(x<0||y<0||x>=context.Size||y>=context.Size||z<0||z>=levels||levels>2)
+            throw new InvalidOperationException("Map coordinates out of bounds");
         int left=Math.Max(0,x-radius),top=Math.Max(0,y-radius),right=Math.Min(context.Size-1,x+radius),bottom=Math.Min(context.Size-1,y+radius);
         var terrain=new List<string>();var roads=new List<string>();var blocked=new List<string>();var objects=new List<MapObject>();
         for(int yy=top;yy<=bottom;yy++)
