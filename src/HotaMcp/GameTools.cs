@@ -83,6 +83,18 @@ public sealed class GameTools(IGameEndpoint endpoint)
         [Description("Revision from the observation these targets were read on.")] string revision,
         CancellationToken cancellationToken)=>endpoint.InspectTarget(targetId,revision,cancellationToken);
 
+    [McpServerTool(Title="Route to any cell",ReadOnly=true,Destructive=false,Idempotent=true,OpenWorld=false),
+     Description("Makes the game plan the selected hero's route to any explored cell, the way pointing at it does, and reads "
+        +"the game's own answer. Returns movement cost, steps and a state — reachable_today, needs_more_days or not_available "
+        +"with the reason (no path at all, fog on the way). Use it to learn whether an area can be walked to at all and in how "
+        +"many days, before sending a hero there. Does NOT move the hero.")]
+    public Task<RouteView> InspectPath(
+        [Description("Cell x.")] int x,
+        [Description("Cell y.")] int y,
+        [Description("Map level: 0 surface, 1 underground.")] int z,
+        [Description("Revision from the latest observation.")] string revision,
+        CancellationToken cancellationToken)=>endpoint.InspectPath(x,y,z,revision,cancellationToken);
+
     [McpServerTool(Title="Read the map around a cell",ReadOnly=true,Destructive=false,Idempotent=true,OpenWorld=false),
      Description("Reads the uncovered map around a cell: terrain, roads, cells blocked by terrain and the recognised visible "
         +"objects with their coordinates. Returns a grid where cells the player has not uncovered are '?'. "
@@ -324,7 +336,7 @@ public sealed class GameTools(IGameEndpoint endpoint)
     /// what the server actually offers the way a hand-written list does.
     private static readonly (string Prefix,string Group)[] Groups=
     [
-        ("hota_tools","state"),("game_status","state"),("observe","state"),("nearby_targets","state"),("inspect_target","state"),
+        ("hota_tools","state"),("game_status","state"),("observe","state"),("nearby_targets","state"),("inspect_target","state"),("inspect_path","state"),
         ("read_map","state"),("read_journal","state"),("plan","state"),
         ("inspect_cell","look"),("inspect_element","look"),("inspect_tile","look"),
         ("act","act"),("click_ui","act"),("move_to","act"),("move_to_tile","act"),

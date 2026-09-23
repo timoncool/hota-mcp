@@ -326,6 +326,25 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
         finally{gate.Release();}
     }
 
+    /// The game's own route from the selected hero to any explored cell, planned the way pointing
+    /// at the cell plans it. This is how a player sees whether a place can be walked to at all and
+    /// how many days it takes; nothing moves.
+    public async Task<RouteView> InspectPath(int x,int y,int z,string revision,CancellationToken ct)
+    {
+        await gate.WaitAsync(ct);
+        try
+        {
+            var before=reader.Observe();
+            if(before.Revision!=revision)throw new InvalidOperationException("Observation is stale; observe again");
+            if(before.Screen!="adventure"||before.Hero is null)throw new InvalidOperationException("Own hero on the adventure map required");
+            var planned=await PlanRouteTo(before,x,y,z);
+            var route=new RouteReader(game,player).Read(planned,new MapObject(x,y,z,-1,"cell"));
+            Record("path_inspected",new{x,y,z,route.State,route.MovementCost,route.Steps});
+            return route;
+        }
+        finally{gate.Release();}
+    }
+
     public async Task<TileInspection> InspectTile(int x,int y,int z,string revision,CancellationToken ct)
     {
         await gate.WaitAsync(ct);
@@ -1197,6 +1216,7 @@ public interface IGameEndpoint
     Task<DocText> DocsRead(string path,string? heading,int offset,int maxChars,CancellationToken ct);
     Task<ReferenceAnswer> Reference(ReferenceRequest request,CancellationToken ct);
     Task<TargetInspection> InspectTarget(string targetId,string revision,CancellationToken ct);
+    Task<RouteView> InspectPath(int x,int y,int z,string revision,CancellationToken ct);
 }
 
 internal sealed class LocalEndpoint(Bridge bridge) : IGameEndpoint
@@ -1230,6 +1250,7 @@ internal sealed class LocalEndpoint(Bridge bridge) : IGameEndpoint
     public Task<DocText> DocsRead(string path,string? heading,int offset,int maxChars,CancellationToken ct)=>Task.FromResult(docs.Read(path,heading,offset,maxChars));
     public Task<ReferenceAnswer> Reference(ReferenceRequest request,CancellationToken ct)=>Task.FromResult(docs.Reference(request.Name,request.Kind,request.Limit));
     public Task<TargetInspection> InspectTarget(string targetId,string revision,CancellationToken ct)=>bridge.InspectTarget(targetId,revision,ct);
+    public Task<RouteView> InspectPath(int x,int y,int z,string revision,CancellationToken ct)=>bridge.InspectPath(x,y,z,revision,ct);
 }
 
 internal sealed class RemoteEndpoint(HttpClient client) : IGameEndpoint
@@ -1268,4 +1289,5 @@ internal sealed class RemoteEndpoint(HttpClient client) : IGameEndpoint
     public Task<DocText> DocsRead(string path,string? heading,int offset,int maxChars,CancellationToken ct)=>Call<DocText>("bridge/docs-read",new{path,heading,offset,maxChars},ct);
     public Task<ReferenceAnswer> Reference(ReferenceRequest request,CancellationToken ct)=>Call<ReferenceAnswer>("bridge/reference",request,ct);
     public Task<TargetInspection> InspectTarget(string targetId,string revision,CancellationToken ct)=>Call<TargetInspection>("bridge/target",new{targetId,revision},ct);
+    public Task<RouteView> InspectPath(int x,int y,int z,string revision,CancellationToken ct)=>Call<RouteView>("bridge/path",new{x,y,z,revision},ct);
 }

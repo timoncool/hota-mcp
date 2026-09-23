@@ -120,6 +120,7 @@ app.MapPost("/bridge/map",(MapRequest request,CancellationToken ct)=>session.Rea
 app.MapPost("/bridge/inspect",(TileRequest request,CancellationToken ct)=>session.InspectTile(request.X,request.Y,request.Z,request.Revision,ct));
 app.MapPost("/bridge/nearby",(CancellationToken ct)=>session.Nearby(ct));
 app.MapPost("/bridge/target",(TargetRequest request,CancellationToken ct)=>session.InspectTarget(request.TargetId,request.Revision,ct));
+app.MapPost("/bridge/path",(TileRequest request,CancellationToken ct)=>session.InspectPath(request.X,request.Y,request.Z,request.Revision,ct));
 if(int.TryParse(Value("--launcher-pid"),out int launcherPid))
 {
     var launcher=Process.GetProcessById(launcherPid);
