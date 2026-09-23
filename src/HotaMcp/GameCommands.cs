@@ -718,9 +718,17 @@ internal static class GameCommands
     private static readonly Deliver SelectLevelSkill = async (context, ct) =>
     {
         string skill = context.Element["level:choose:".Length..];
-        var icon = context.Before.Elements.FirstOrDefault(e => e.Id is 2010 or 2011 && GameReference.SkillFromFrame(e.Frame) == skill)
+        var icon = context.Before.Elements.FirstOrDefault(e => e.Id is 2010 or 2011 && ScreenActions.LevelSkill(context.Before.Elements, e) == skill)
             ?? throw new InvalidOperationException($"Навыка «{skill}» среди предложенных нет");
-        await Deliveries.Press(context, icon, ct);
+        // A press right after the dialog opens can be lost; the choice counts only once the game
+        // draws its frame over the picture.
+        for (int attempt = 0; attempt < 3; attempt++)
+        {
+            await Deliveries.Press(context, icon, ct);
+            await Task.Delay(250, CancellationToken.None);
+            if (ScreenActions.LevelSkillChosen(context.Reader.Observe().Elements, icon)) return;
+        }
+        throw new InvalidOperationException($"Игра не отметила выбор «{skill}» после трёх нажатий");
     };
 
     /// One press on a hero portrait selects that hero; a press on the hero already selected opens

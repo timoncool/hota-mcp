@@ -78,7 +78,7 @@ internal static class ScreenBriefing
         }
         if(screen=="level_up")
         {
-            var offers=items.Where(i=>i.Id is 2010 or 2011).Select(i=>GameReference.SkillFromFrame(i.Frame)).Where(s=>s is not null).ToList();
+            var offers=items.Where(i=>i.Id is 2010 or 2011).Select(i=>ScreenActions.LevelSkill(items,i)+(ScreenActions.LevelSkillChosen(items,i)?" (выбран)":"")).ToList();
             var said=items.Where(i=>i.Id<2000&&!string.IsNullOrWhiteSpace(i.Text)&&(i.Text.Contains("уровн")||i.Text.Contains('+'))).Select(i=>i.Text!.Trim().Replace('\n',' '));
             lines.Add("Повышение уровня. "+string.Join(" ",said)+(offers.Count>0?$" На выбор: {string.Join(" или ",offers)} — level:choose:<навык>, затем level:accept. Что брать под роль героя — hota_docs(\"повышение уровня что брать\").":" Навыков на выбор нет — level:accept."));
         }

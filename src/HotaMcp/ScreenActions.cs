@@ -4,6 +4,20 @@ namespace HotaMcp;
 /// Every key listed here must have a matching row in GameCommands.
 internal static class ScreenActions
 {
+    /// The name of a skill offered at a level-up. The game prints it under the picture as
+    /// «Базовый\nПомехи»; that caption is the name when the skill table has no entry for the
+    /// picture (the expansion's own skills).
+    public static string LevelSkill(List<UiElement> items,UiElement icon)
+    {
+        if(GameReference.SkillFromFrame(icon.Frame) is string known&&!known.StartsWith("навык №",StringComparison.Ordinal))return known;
+        var lines=items.FirstOrDefault(i=>i.Id==icon.Id-3)?.Text?.Split('\n',StringSplitOptions.TrimEntries|StringSplitOptions.RemoveEmptyEntries);
+        return lines is {Length:2}?$"{lines[1]} ({lines[0].ToLowerInvariant()})":$"навык с картинкой {icon.Frame}";
+    }
+
+    /// The chosen offer is marked by a frame the game draws over its picture: control 2012 over
+    /// the left one, 2013 over the right one, visible only while that offer is chosen.
+    public static bool LevelSkillChosen(List<UiElement> items,UiElement icon)=>items.Any(i=>i.Id==icon.Id+2);
+
     public static List<AvailableAction> Build(WindowsGame game,int player,string screen,
         List<UiElement> items,List<TownView> towns,HeroView? hero,List<HeroView> roster,SaveList? saves,ScenarioSetup? setup,CombatView? combat,string? selected)
     {
@@ -219,9 +233,9 @@ internal static class ScreenActions
             foreach(var icon in items.Where(i=>i.Id is 2010 or 2011))
             {
                 var label=items.FirstOrDefault(i=>i.Id==icon.Id-3);
-                string skill=GameReference.SkillFromFrame(icon.Frame)??$"навык с картинкой {icon.Frame}";
+                string skill=LevelSkill(items,icon);
                 actions.Add(new($"level:choose:{skill}",
-                    "Выбрать навык при повышении уровня: "+(label?.Text?.Replace('\n',' ')??skill)+(icon.Selected?" — выбран сейчас":"")));
+                    "Выбрать навык при повышении уровня: "+(label?.Text?.Replace('\n',' ')??skill)+(LevelSkillChosen(items,icon)?" — выбран сейчас":"")));
             }
             if(items.Any(i=>i.Id==30722))actions.Add(new("level:accept","Подтвердить выбор навыка"));
         }
