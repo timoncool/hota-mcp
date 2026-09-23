@@ -336,10 +336,12 @@ internal static class ScreenBriefing
             return GameReference.Specialty(frame)
                 ??$"картинка специальности №{frame} в таблице игры не найдена";
         }
+        // Morale and luck are pictures beside the experience: frame 3 is zero, each step either side one point.
+        string Mood(int id)=>items.FirstOrDefault(i=>i.Id==id) is {} icon?(icon.Frame-3).ToString("+0;-0;0"):"?";
         lines.Add($"Слева: атака {Text(3)}, защита {Text(4)}, сила магии {Text(5)}, знание {Text(6)}; "
-            +$"опыт {Text(81)}, мана {Text(83)}. Специальность: {Specialty(105)}. Навыки: {Skills(200)}.");
+            +$"опыт {Text(81)}, мана {Text(83)}, мораль {Mood(107)}, удача {Mood(109)}. Специальность: {Specialty(105)}. Навыки: {Skills(200)}.");
         lines.Add($"Справа: атака {Text(8)}, защита {Text(9)}, сила магии {Text(10)}, знание {Text(11)}; "
-            +$"опыт {Text(82)}, мана {Text(84)}. Специальность: {Specialty(106)}. Навыки: {Skills(208)}.");
+            +$"опыт {Text(82)}, мана {Text(84)}, мораль {Mood(108)}, удача {Mood(110)}. Специальность: {Specialty(106)}. Навыки: {Skills(208)}.");
         foreach(var (side,doll,pack) in new[]{("Слева",27,89),("Справа",46,94)})
         {
             var worn=ExchangeArtifacts.Worn(items,doll).Select(a=>$"{a.Slot} — {a.Name}").ToList();
