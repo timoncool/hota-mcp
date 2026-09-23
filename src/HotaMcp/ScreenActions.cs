@@ -451,6 +451,15 @@ internal static class ScreenActions
             if(currentTown is not null)actions.Add(new("hero:switch","Переключиться между гарнизонным героем и посетителем города (Space)"));
             if(towns.Count>1)
             {
+                // The town list at the right edge of the town screen is the same list as on the
+                // map; a press on a town's icon opens that town without leaving the screen.
+                var owned=GameReader.SidebarTowns(game,player);
+                for(int slot=0;slot<owned.Length&&slot<5;slot++)
+                {
+                    var other=towns.FirstOrDefault(t=>t.Id==owned[slot]);
+                    if(other is null||other.Id==currentTown?.Id)continue;
+                    actions.Add(new($"town:switch:{other.Name}",$"Перейти в город {other.Name}, не выходя на карту (значок {slot+1} в списке городов справа)"));
+                }
                 actions.Add(new("town:previous","Предыдущий город (стрелка вверх)"));
                 actions.Add(new("town:next","Следующий город (стрелка вниз)"));
             }

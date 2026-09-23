@@ -258,7 +258,8 @@ candidates, structured content of world view / puzzle / thieves guild, town sieg
 
 ## Verified specifics
 
-- **Town.** `town:open` uses the sidebar portrait. Recruiting is easiest from the Fort screen, where
+- **Town.** `town:open` uses the sidebar portrait. From inside one town, `town:switch:<name>` opens
+  another through the town list at the right edge — no need to go back to the map between towns. Recruiting is easiest from the Fort screen, where
   all tiers appear with dwelling, growth and remaining stock at once: `fort:recruit:<tier>`, then
   `recruit:max` and `recruit:buy`. The town hall marks every building «уже построено», «можно
   построить», «построить нельзя» — the same states the player sees. `town:lead`, `hero:out`,

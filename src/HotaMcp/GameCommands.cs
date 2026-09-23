@@ -449,6 +449,7 @@ internal static class GameCommands
         _ when action.Key.StartsWith("building:inspect:") =>
             new("building_confirmation", Deliveries.Control(c => 600 + Suffix(c.Element, 2))),
         _ when action.Key.StartsWith("town:open:") => new("town", OpenTown),
+        _ when action.Key.StartsWith("town:switch:") => new("town", SwitchTown),
         "town:tavern" => new("tavern", ClickBuilding(5)),
         // A building opens whatever screen it owns; the landing is therefore not fixed.
         _ when action.Key.StartsWith("town:building:") => new(AnyTownScreen,
@@ -652,6 +653,19 @@ internal static class GameCommands
             await Task.Delay(150, CancellationToken.None);
             if (context.Reader.Observe().Screen == "town") break;
         }
+    };
+
+    /// Another own town from inside the town screen: its icon in the town list on the right.
+    private static readonly Deliver SwitchTown = async (context, ct) =>
+    {
+        string name = context.Element["town:switch:".Length..];
+        var owned = GameReader.SidebarTowns(context.Game, context.Player);
+        int slot = Array.FindIndex(owned, id => context.Before.Towns.FirstOrDefault(t => t.Id == id)?.Name == name);
+        if (slot < 0) throw new InvalidOperationException($"Города {name} нет в списке твоих городов");
+        if (slot >= 5) throw new InvalidOperationException($"Город {name} ниже видимой части списка");
+        var box = context.Reader.FindControlById(155 + slot)
+            ?? throw new InvalidOperationException($"Значок города {name} в списке справа не найден");
+        await Deliveries.Press(context, box.X + box.Width / 2, box.Y + box.Height / 2, ct);
     };
 
     /// "H - Selects next hero": the game's own way to move between the player's heroes on the map
