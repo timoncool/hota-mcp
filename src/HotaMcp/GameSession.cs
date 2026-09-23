@@ -89,11 +89,23 @@ internal sealed class GameSession(int? requestedPid,int player,string directory,
         finally{foreach(var candidate in candidates)candidate.Dispose();}
     }
 
-    private async Task<T> WithGame<T>(Func<Bridge,Task<T>> action,CancellationToken ct)
+    private async Task<T> WithGame<T>(Func<Bridge,Task<T>> action,CancellationToken ct,[System.Runtime.CompilerServices.CallerMemberName] string call="")
     {
         await gate.WaitAsync(ct);
-        try{Refresh();return await action(bridge??throw new InvalidOperationException(detail));}
-        catch(ActionRefused refusal){bridge?.RecordRefusal(refusal);throw;}
+        var clock=Stopwatch.StartNew();
+        try
+        {
+            Refresh();
+            var result=await action(bridge??throw new InvalidOperationException(detail));
+            UsageLedger.Record(directory,player,call,bridge?.LastDate??[],System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(result).LongLength,clock.ElapsedMilliseconds,null);
+            return result;
+        }
+        catch(ActionRefused refusal)
+        {
+            bridge?.RecordRefusal(refusal);
+            UsageLedger.Record(directory,player,call,bridge?.LastDate??[],0,clock.ElapsedMilliseconds,refusal.Code);
+            throw;
+        }
         finally{gate.Release();}
     }
     public async Task<object> Status(CancellationToken ct)

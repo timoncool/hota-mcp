@@ -15,6 +15,16 @@ string endpoint=Value("--endpoint")??"http://127.0.0.1:18773";
 var endpointUri=new Uri(endpoint);
 if(!endpointUri.IsLoopback||endpointUri.Scheme!="http")throw new InvalidOperationException("Only local HTTP endpoints supported");
 
+if(args.Contains("--usage"))
+{
+    // A report of what the current game (or --game <id>) has cost: calls per game day and, with
+    // --transcript <harness transcript> given once or more, the tokens spent on those days.
+    var transcripts=args.Select((a,i)=>(a,i)).Where(x=>x.a=="--transcript"&&x.i+1<args.Length).Select(x=>args[x.i+1]).ToList();
+    Console.OutputEncoding=Encoding.UTF8;
+    Console.WriteLine(UsageLedger.Report(directory,Value("--game"),transcripts));
+    return;
+}
+
 if(stdio)
 {
     // A client may connect before anything is running. Bring the player's own launcher up and let

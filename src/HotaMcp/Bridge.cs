@@ -113,6 +113,19 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
         finally{gate.Release();}
     }
 
+    /// A new game starts with a clean memory: the plan and the map notes of the last game are moved
+    /// beside it with the date, so they can be read as a record but no longer steer the new one.
+    private void ArchiveMemory(string? scenario)
+    {
+        UsageLedger.StartGame(Directory.GetParent(stateDirectory)?.Parent?.FullName??stateDirectory,scenario);
+        string stamp=DateTime.Now.ToString("yyyyMMdd-HHmmss");
+        foreach(string file in new[]{PlanFile,MarkersFile})
+            if(File.Exists(file))File.Move(file,Path.Combine(Path.GetDirectoryName(file)!,
+                Path.GetFileNameWithoutExtension(file)+$"-{stamp}"+Path.GetExtension(file)));
+        planCache=null;markersCache=null;planDay=[];
+        Record("memory_archived",new{stamp});
+    }
+
     /// A refusal is a wrong belief about the state caught before it cost anything; counted over a
     /// game it says how well the agent keeps track of the board.
     public void RecordRefusal(ActionRefused refusal)=>Record("refused",new{code=refusal.Code,refusal.Message});
@@ -143,8 +156,12 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
     /// last few results are therefore part of every observation, not something to be asked for:
     /// whoever reads the state also reads what the goal was and what already happened, so nothing
     /// is re-decided from scratch or done twice.
+    /// The game day of the latest reading; the usage ledger files every call under it.
+    public int[] LastDate {get;private set;}=[];
+
     private Observation WithMemory(Observation state)
     {
+        if(state.Date.Length==3)LastDate=state.Date;
         var lines=new List<string>(state.Brief);
         if(state.Screen!="tavern")tavernCards=[];
         foreach(var (side,card) in tavernCards)
@@ -196,6 +213,9 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             lines.Add("Первый день недели — время разбора: сверь по плану, что из задач прошлой недели сделано, "
                 +"что нет и почему, сожми прошлую неделю в одну строку СДЕЛАНО и поставь задачи на новую. "
                 +"Сегодня же приходит прирост существ и обновляются недельные объекты.");
+        if(!string.IsNullOrWhiteSpace(plan)&&state.Date is [1,1,1]&&planDay.Length==3&&!planDay.SequenceEqual(state.Date))
+            lines.Add("Похоже, началась новая партия (день 1, неделя 1, месяц 1), а план записан в другой: "
+                +"прочитай его как запись прошлой игры и перепиши под эту — цель, стороны и города здесь другие.");
         if(!string.IsNullOrWhiteSpace(plan)&&state.Date.Length>0&&!planDay.SequenceEqual(state.Date))
             lines.Add($"План записан {(planDay.Length>2?$"в день {planDay[0]} недели {planDay[1]}":"раньше")}, "
                 +"а сейчас другой день — перечитай его, выполни, и в конце хода перепиши: цель оставь дословно, "
@@ -734,6 +754,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
                 +(command.Confirm.HasFlag(Confirm.GarrisonChanged)?ArmyChange(before,after):""),after);
             operations[request.OperationId]=(request,result);
             Record("operation_completed",new{request.OperationId,after.Revision,after.Screen,BeforeScreen=before.Screen});
+            if(request.Element=="scenario:start"&&after.Screen!="scenario_selection")ArchiveMemory(before.Setup?.Map?.Name);
             if(after.Screen=="tavern"&&before.Screen!="tavern")await ReadTavern(after);
             return result;
         }
