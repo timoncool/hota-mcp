@@ -29,6 +29,9 @@ wrong.
 - **A screen read wrongly or not at all** is looked at with `debug_snapshot`: it works on every
   screen and returns everything the bridge knows at that instant (the image only on request).
   Report the gap; do not work around it.
+- **Before a new game** read the post-mortems of the earlier ones — `hota_docs("разбор партии")`:
+  what cost towns and armies before, each with the sign that shows it coming. The mistakes of the
+  last game are the cheapest lessons you will get.
 
 ## Everything the bridge gives you
 
