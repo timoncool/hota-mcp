@@ -26,7 +26,12 @@ internal static class DebugCapture
         // setup windows before a game belong to nobody.
         uint top=game.U32(game.U32(0x6992d0)+0x54);
         bool inGame=top!=0&&GameReader.NameOf(game.U32(top)) is string name&&GameReader.InGameScreens.Contains(name);
-        if(inGame&&owner!=0&&(game.I32(0x69ccf4)!=player||owner!=game.U32(0x699538)+0x20ad0+(uint)player*0x168))
+        // An ally's screen is shared anyway; only a rival's turn is private.
+        uint teamsAt=game.U32(0x699538)+0x1f86c+0xc;
+        byte[] teams=game.Read(teamsAt,9);
+        int active=game.I32(0x69ccf4);
+        bool ally=teams[0]==1&&active is >=0 and <8&&teams[1+active]<8&&teams[1+active]==teams[1+player];
+        if(inGame&&!ally&&owner!=0&&(game.I32(0x69ccf4)!=player||owner!=game.U32(0x699538)+0x20ad0+(uint)player*0x168))
             throw new InvalidOperationException("Capture denied for another player's context");
         try{return FromSurface(game,owner,directory);}
         catch(InvalidOperationException e)when(e.Data.Contains("fallback"))

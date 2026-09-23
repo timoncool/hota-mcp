@@ -316,6 +316,10 @@ internal static class GameCommands
     /// Where answering a modal question can legitimately land.
     // A dwelling out on the map answers «yes, hire» with its recruitment window, and a level-up
     // can follow a reward, so both are ordinary places for a message to lead to.
+    /// Where «НАЧАТЬ» lands: straight on the map, on the game's first message, or — in a game of
+    /// people — on the window where the house rules are agreed before the first day.
+    private const string AfterStart="adventure,message,popup_choice";
+
     private const string AfterMessage="adventure,message,combat,battle_result,town,hero_screen,exchange,recruitment,level_up,mage_guild,tavern,marketplace,main_menu,system_options,save_game,load_game,scenario_selection,game_type,high_score_name,high_scores";
 
     /// Anything a town building can open.
@@ -392,8 +396,8 @@ internal static class GameCommands
             var toggle=context.Before.Elements.First(e=>e.Width==34&&e.Height==26&&e.Text is null&&e.Asset is null&&Math.Abs(e.Y-label.Y)<6&&e.X<label.X);
             await Deliveries.Press(context,toggle,ct);
         }),
-        "popup:подтвердить" => new("scenario_selection,popup_choice",Deliveries.Key(0x0D,0x1C)),
-        "popup:отменить" => new("scenario_selection,popup_choice",Deliveries.Key(0x1B,0x01)),
+        "popup:подтвердить" => new("scenario_selection,popup_choice,"+AfterStart,Deliveries.Key(0x0D,0x1C)) { TimeoutSeconds = 20 },
+        "popup:отменить" => new("scenario_selection,popup_choice,main_menu",Deliveries.Key(0x1B,0x01)),
         // The random map settings share the «setup:» prefix with the player rows; they are told
         // apart by being one of the known generator controls, and must be matched first.
         _ when ScenarioReader.Controls.Any(x => ScenarioReader.Key(x) == action.Key) => new("scenario_selection",
@@ -428,7 +432,7 @@ internal static class GameCommands
         // The command started the map while the setup panel had never been committed, and the game
         // began with no town and no hero — an instant defeat. The button does what a player's press
         // does: it fixes the chosen map and the player slots first.
-        "scenario:start" => new("adventure", Deliveries.StartScenario) { TimeoutSeconds = 10 },
+        "scenario:start" => new(AfterStart, Deliveries.StartScenario) { TimeoutSeconds = 20 },
 
 
         // Modal questions: ordinary presses on the dialog's own buttons. Answering one can start a

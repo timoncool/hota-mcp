@@ -994,12 +994,14 @@ internal sealed class GameReader(WindowsGame game,int player)
             uint main=game.U32(0x699538),info=main+0x1f86c;
             byte[] header=game.Read(info+0xc,0x14);
             bool teams=header[0]!=0;
-            if(header[0]>1||header.Skip(1).Take(8).Any(t=>t>7))throw new InvalidOperationException("Map team layout unsupported");
+            // A colour absent from the map carries team 255; only colours in play are checked.
+            if(header[0]>1)throw new InvalidOperationException("Map team layout unsupported");
             var allies=new List<int>();var participants=new List<string>();
             for(int colour=0;colour<8;colour++)
             {
                 byte[] record=game.Read(main+0x20ad0+(uint)colour*0x168,0xe2);
                 if(record[1]==0&&record[0x3e]==0)continue;
+                if(teams&&(header[1+colour]>7||header[1+player]>7))throw new InvalidOperationException("Map team layout unsupported");
                 bool ally=colour!=player&&teams&&header[1+colour]==header[1+player];
                 if(ally)allies.Add(colour);
                 string who=record[0xe1]!=0?"человек":"компьютер";
