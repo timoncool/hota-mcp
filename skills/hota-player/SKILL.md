@@ -223,6 +223,13 @@ three things to do tomorrow. Keep it short enough to read in one glance.
 5. **End the day** only when both heroes have spent what they usefully can. The game asks for
    confirmation while movement remains; that question is a reminder, not an error.
 
+## Hiring a hero in the tavern
+
+A hired hero stands in the town as its **visitor**. While a visitor is already there the hire button is
+dead. First `hero:switch` (Space): the visitor moves up to lead the garrison and the garrison's troops
+join his army. Then `town:tavern` → `tavern:pick:<side>` → `tavern:hire`. The same move is how the whole
+garrison is taken in one gesture. `hota_docs("найм героя в таверне")` has it in Russian.
+
 ## Artefacts and chests
 
 - A chest is a choice by role: the main hero takes **experience**, a collector takes gold.
