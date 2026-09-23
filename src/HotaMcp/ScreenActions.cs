@@ -707,7 +707,7 @@ internal static class ScreenActions
             // first. The chosen one is the only one whose state carries the selection bit, and the
             // choice decides starting resources and how hard the opponents play — it was not
             // published at all, so a game could start on the hardest setting unnoticed.
-            string[] names=["самый лёгкий","лёгкий","обычный","трудный","самый трудный"];
+            string[] names=["лёгкий (очки 80%)","нормальный (100%)","сложный (130%)","эксперт (160%)","невозможный (200%)"];
             for(int level=0;level<5;level++)
                 if(items.Any(i=>i.Id==107+level))
                     actions.Add(new($"scenario:difficulty:{level+1}",
