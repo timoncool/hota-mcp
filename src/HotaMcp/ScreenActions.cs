@@ -8,8 +8,8 @@ internal static class ScreenActions
         List<UiElement> items,List<TownView> towns,HeroView? hero,List<HeroView> roster,SaveList? saves,ScenarioSetup? setup,CombatView? combat,string? selected)
     {
         var actions=new List<AvailableAction>();
-        if(screen=="message"&&items.Count(i=>i.Interactive)==1&&items.Any(i=>i.Id==30722&&i.Asset=="iokay.def"&&i.Interactive))actions.Add(new("message:accept","Подтвердить прочитанное сообщение"));
-        if(screen=="message"&&items.Count(i=>i.Interactive)==2&&items.Any(i=>i.Id==30725&&i.Asset=="iokay.def"&&i.Interactive)&&items.Any(i=>i.Id==30726&&i.Asset=="icancel.def"&&i.Interactive))actions.Add(new("message:confirm","Согласиться с вопросом текущего диалога"));
+        if(screen=="message"&&items.Count(i=>i.Interactive)==1&&items.Any(i=>i.Id==30722&&string.Equals(i.Asset,"iokay.def",StringComparison.OrdinalIgnoreCase)&&i.Interactive))actions.Add(new("message:accept","Подтвердить прочитанное сообщение"));
+        if(screen=="message"&&items.Count(i=>i.Interactive)==2&&items.Any(i=>i.Id==30725&&string.Equals(i.Asset,"iokay.def",StringComparison.OrdinalIgnoreCase)&&i.Interactive)&&items.Any(i=>i.Id==30726&&string.Equals(i.Asset,"icancel.def",StringComparison.OrdinalIgnoreCase)&&i.Interactive))actions.Add(new("message:confirm","Согласиться с вопросом текущего диалога"));
         if(actions.Any(a=>a.Key=="message:confirm"))actions.Add(new("message:decline","Отказаться от действия в текущем диалоге"));
         // The game asks one question that must never be answered out of habit: ending a turn while
         // heroes can still walk. Movement does not carry over, so a blind «да» throws away part of
