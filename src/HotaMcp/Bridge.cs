@@ -1053,7 +1053,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
         operations.Add(operationId,(identity,pending));
         Record(journal+"_started",identity);
         if(!before.Hero!.PlannedDestination.SequenceEqual(destination))
-            game.NativeAction(31,player,destination[0]|(destination[1]<<8)|(destination[2]<<16));
+            await ClickToPlan(before,destination[0],destination[1],destination[2]);
         Observation? planned=null;
         for(int attempt=0;attempt<20;attempt++)
         {
@@ -1186,6 +1186,46 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
     /// selection handler, the one a player triggers by pointing at a destination. Asking it for
     /// this destination is therefore what makes the route to it exist; it plans, it does not move.
     /// The hero's own cell is never asked for — selecting it opens the hero screen instead.
+    /// A route is laid the way a player lays it: the camera is brought over the cell by a press on
+    /// the minimap, and one press on the cell makes the game plan the way and draw it. A second
+    /// press on the cell already planned would send the hero, so when the planned cell is the one
+    /// asked for, a free neighbour of the hero is pressed first and the cell after it.
+    private async Task ClickToPlan(Observation observation,int x,int y,int z)
+    {
+        if(observation.Screen!="adventure"||observation.Hero is null)throw new InvalidOperationException("Own hero on the adventure map required to plan a route");
+        if(observation.Heroes.Any(h=>h.Id!=observation.Hero.Id&&h.Position.SequenceEqual(new[]{x,y,z})))
+            throw new ActionRefused(ActionRefused.UnknownControl,"На клетке стоит твой другой герой: щелчок по нему выбирает его, а не прокладывает путь. Выбери его через hero:pick или веди к соседней клетке.");
+        var map=new MapReader(game,player);
+        if(observation.Hero.PlannedDestination.SequenceEqual(new[]{x,y,z}))
+        {
+            int[] at=observation.Hero.Position;
+            var around=map.Read(observation,at[0],at[1],at[2],1);
+            (int X,int Y)? free=null;
+            for(int row=0;row<around.Height&&free is null;row++)
+                for(int col=0;col<around.Width&&free is null;col++)
+                {
+                    int cx=around.X+col,cy=around.Y+row;
+                    if((cx==at[0]&&cy==at[1])||(cx==x&&cy==y))continue;
+                    if(around.Blocked[row][col]=='.'&&!around.Objects.Any(o=>o.X==cx&&o.Y==cy))free=(cx,cy);
+                }
+            if(free is null)throw new InvalidOperationException("No free cell beside the hero to re-plan the route without sending him");
+            await PressCell(observation,free.Value.X,free.Value.Y,at[2]);
+            observation=reader.Observe();
+        }
+        await PressCell(observation,x,y,z);
+    }
+
+    private async Task PressCell(Observation observation,int x,int y,int z)
+    {
+        var shown=await EnsureVisible(observation,x,y,z);
+        var point=new MapReader(game,player).ScreenPoint(shown,x,y,z);
+        await game.MouseAsync(point.X,point.Y,shown.Width,shown.Height,false,CancellationToken.None);
+        await Task.Delay(120,CancellationToken.None);
+        await game.MouseAsync(point.X,point.Y,shown.Width,shown.Height,true,CancellationToken.None);
+        await Task.Delay(150,CancellationToken.None);
+        Record("cell_pressed",new{x,y,z});
+    }
+
     private async Task<Observation> PlanRouteTo(Observation observation,int x,int y,int z)
     {
         var map=new MapReader(game,player);
@@ -1194,7 +1234,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
         if(here[0]==x&&here[1]==y&&here[2]==z)return observation;
         if(!map.RoutesAreStale(observation)&&observation.Hero.PlannedDestination.SequenceEqual(new[]{x,y,z}))
             return observation;
-        game.NativeAction(31,player,x|(y<<8)|(z<<16));
+        await ClickToPlan(observation,x,y,z);
         for(int attempt=0;attempt<20;attempt++)
         {
             await Task.Delay(50,CancellationToken.None);

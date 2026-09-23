@@ -48,16 +48,6 @@ internal sealed record GameCommand(string Expected, Deliver Deliver)
 /// Ways of delivering an action through the game's own handlers.
 internal static class Deliveries
 {
-    /// Closed native command vocabulary running on the game's UI thread.
-    /// Kept only because the screen adapters still reference the type; no command uses it any
-    /// more. Calling a screen's own command with a parameter bypassed the interface and crashed
-    /// the game, so every action presses the button a player presses.
-    public static Deliver Native(int operation, int argument = 0) =>
-        (context, _) => { context.Game.NativeAction(operation, context.Player, argument); return Task.CompletedTask; };
-
-    public static Deliver Native(int operation, Func<CommandContext, int> argument) =>
-        (context, _) => { context.Game.NativeAction(operation, context.Player, argument(context)); return Task.CompletedTask; };
-
     /// Ordinary game hotkey delivered as a window message to the game window only.
     public static Deliver Key(ushort key, ushort scan) => (context, _) => context.Game.KeyAsync(key, scan);
 
