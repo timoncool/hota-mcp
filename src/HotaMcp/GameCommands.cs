@@ -137,11 +137,6 @@ internal static class Deliveries
     /// first and only then presses, the way a hand does.
     public static async Task Press(CommandContext context, int x, int y, CancellationToken ct)
     {
-        if (context.Before.Screen == "popup_choice")
-        {
-            await context.Game.MouseRealAsync(x, y, context.Before.Width, context.Before.Height, ct);
-            return;
-        }
         await context.Game.MouseAsync(x, y, context.Before.Width, context.Before.Height, false, CancellationToken.None);
         // 120 ms was not always enough: the OK of a resource message opened by a step (windmill,
         // wood warehouse) ignored the press twice, while the same point after 200 ms closed it.
@@ -530,6 +525,10 @@ internal static class GameCommands
         "exchange:done" => new("adventure,town", Deliveries.Control(30720, "iokay.def")),
         "exchange:close:left" => new("adventure,town", Deliveries.Control(501, "SwFL.def")),
         "exchange:close:right" => new("adventure,town", Deliveries.Control(500, "SwFR.def")),
+        _ when action.Key.StartsWith("exchange:split-give:",StringComparison.Ordinal)
+            => new("split_army",ExchangeSplit(true)),
+        _ when action.Key.StartsWith("exchange:split-take:",StringComparison.Ordinal)
+            => new("split_army",ExchangeSplit(false)),
         "exchange:split:left" => new("exchange", Deliveries.Control(103, "SwSpl.def")),
         "exchange:split:right" => new("exchange", Deliveries.Control(104, "SwSpl.def")),
         "exchange:pack:left:back" => new("exchange", Deliveries.Control(99, "hsbtns3.def")),
@@ -909,7 +908,7 @@ internal static class GameCommands
         int slot = ResolveStack(wanted, fromTypes, fromCounts,
             toGarrison ? "в армии героя" : "в гарнизоне");
         int moving = slot < fromTypes.Length ? fromTypes[slot] : -1;
-        // A split always goes to a free cell: pressed onto a twin, Shift would only merge.
+        // A split is sent to a free cell, so the new part stands as its own stack.
         int target = moving >= 0 && !split ? Array.FindIndex(toTypes, type => type == moving) : -1;
         if (target < 0 && requireMerge)
             throw new InvalidOperationException(
@@ -935,9 +934,14 @@ internal static class GameCommands
                 $"Нажатие по клетке {slot} не взяло отряд: рамка выделения не появилась там, где ожидалась. "
                 +"Ничего не перенесено, состояние не изменилось.");
         if (split)
-            await context.Game.ShiftClickRealAsync(destination.X, destination.Y, context.Before.Width, context.Before.Height, ct);
-        else
-            await Deliveries.Press(context, destination.X, destination.Y, ct);
+        {
+            // The manual's gesture: the held stack, then «Разделить армии», then the free cell.
+            var button = context.Reader.FindControlById(154)
+                ?? throw new InvalidOperationException("Кнопки «Разделить армии» на экране города нет");
+            await Deliveries.Press(context, button.X + button.Width / 2, button.Y + button.Height / 2, ct);
+            await Task.Delay(200, CancellationToken.None);
+        }
+        await Deliveries.Press(context, destination.X, destination.Y, ct);
     };
 
     /// A stack is named either by creature — the way the agent asks for it — or by slot number for
@@ -1008,6 +1012,41 @@ internal static class GameCommands
             return;
         }
         throw new InvalidOperationException($"Отряда «{wanted}» в этом ряду нет");
+    };
+
+    /// Splitting a stack, as the manual describes it: press the stack, press the split button at
+    /// the end of its row, press a free cell of the other hero. The game then opens the slider
+    /// window (`split_army`), where the number is set and confirmed. No modifier key is involved.
+    private static Deliver ExchangeSplit(bool give) => async (context, ct) =>
+    {
+        string wanted = context.Element[(context.Element.IndexOf(':') + 1)..];
+        wanted = wanted[(wanted.IndexOf(':') + 1)..];
+        int fromBase = give ? 13 : 20, fromCount = give ? 65 : 72;
+        int toBase = give ? 20 : 13, toCount = give ? 72 : 65, button = give ? 103 : 104;
+        int source = -1, target = -1;
+        for (int slot = 0; slot < 7 && source < 0; slot++)
+        {
+            var image = context.Before.Elements.FirstOrDefault(e => e.Id == fromBase + slot && e.Frame > 0);
+            var number = context.Before.Elements.FirstOrDefault(e => e.Id == fromCount + slot && !string.IsNullOrWhiteSpace(e.Text));
+            if (image is not null && number is not null
+                && string.Equals(GameReference.Creature(image.Frame - 2), wanted, StringComparison.OrdinalIgnoreCase))
+                source = slot;
+        }
+        if (source < 0) throw new InvalidOperationException($"Отряда «{wanted}» в этом ряду нет");
+        for (int slot = 0; slot < 7 && target < 0; slot++)
+            if (context.Before.Elements.FirstOrDefault(e => e.Id == toCount + slot) is not { } label
+                || string.IsNullOrWhiteSpace(label.Text)) target = slot;
+        if (target < 0) throw new InvalidOperationException("У второго героя нет свободной клетки для новой части отряда");
+        async Task PressControl(int id)
+        {
+            var box = context.Reader.FindControlById(id)
+                ?? throw new InvalidOperationException($"Контрол {id} окна обмена не найден");
+            await Deliveries.Press(context, box.X + box.Width / 2, box.Y + box.Height / 2, ct);
+            await Task.Delay(200, CancellationToken.None);
+        }
+        await PressControl(fromBase + source);
+        await PressControl(button);
+        await PressControl(toBase + target);
     };
 
     /// The save name field takes key presses, not typed characters: the old name is erased with

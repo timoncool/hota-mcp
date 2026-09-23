@@ -214,6 +214,15 @@ internal static class ScreenActions
                     actions.Add(new($"exchange:take:{theirs}",
                         $"Забрать «{theirs}» x{Count(72+slot)} у второго героя (правый ряд → левый). "
                         +"Если у тебя уже есть такой отряд, они сольются."));
+                // Part of a stack goes across through the split button: it opens the slider window.
+                if(mine.Length>0&&int.TryParse(Count(65+slot),out int left)&&left>1)
+                    actions.Add(new($"exchange:split-give:{mine}",
+                        $"Отдать часть «{mine}» x{left} второму герою в свободную клетку: откроется окно разделения "
+                        +"(split_army), там split:amount:<n> и split:confirm. Так же «всех, кроме одного»."));
+                if(theirs.Length>0&&int.TryParse(Count(72+slot),out int right)&&right>1)
+                    actions.Add(new($"exchange:split-take:{theirs}",
+                        $"Забрать часть «{theirs}» x{right} у второго героя в свободную клетку: откроется окно разделения "
+                        +"(split_army), там split:amount:<n> и split:confirm."));
             }
             // exchange:give/take press the arrow under the cell: the whole stack goes across in one
             // press; a hero's last stack leaves one creature behind.
