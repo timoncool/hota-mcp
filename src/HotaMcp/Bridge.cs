@@ -325,6 +325,18 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             var explainer=new RouteExplainer(game,player);
             var locked=new List<(string By,string What)>();
             var list=new List<TargetView>();
+            // The cache check compares movement points only, so a table built for another hero
+            // with the same points left passes for fresh. A table that finds no way to anything
+            // around the hero is that case: the nearest target is planned once and all is re-read.
+            bool NoWay(RouteView r)=>r.State=="not_available"&&r.Detail?.StartsWith("The game found no path",StringComparison.Ordinal)==true;
+            var others=region.Objects.Where(o=>o.Z==hero.Position[2]&&(o.X!=hero.Position[0]||o.Y!=hero.Position[1])).ToList();
+            if(others.Count>0&&others.All(o=>NoWay(new RouteReader(game,player).Read(observation,o))))
+            {
+                var nearest=others.OrderBy(o=>Math.Max(Math.Abs(o.X-hero.Position[0]),Math.Abs(o.Y-hero.Position[1]))).First();
+                observation=await PlanRouteTo(observation,nearest.X,nearest.Y,nearest.Z);
+                if(observation.Hero is null||observation.Screen!="adventure")throw new InvalidOperationException("State changed while refreshing routes; request targets again");
+                Record("routes_rebuilt",new{nearest.X,nearest.Y,nearest.Z});
+            }
             foreach(var target in region.Objects)
             {
                 if(!targetIds.TryGetValue(target,out var id))

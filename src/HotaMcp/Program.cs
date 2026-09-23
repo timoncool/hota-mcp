@@ -111,7 +111,14 @@ app.Use(async(context,next)=>{
     if(!CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(supplied),Encoding.UTF8.GetBytes("Bearer "+secret)))
     {context.Response.StatusCode=401;return;}
     try{await next();}
-    catch(InvalidOperationException e){context.Response.StatusCode=409;await context.Response.WriteAsJsonAsync(new{error=e.Message,code=(e as ActionRefused)?.Code});}
+    catch(InvalidOperationException e)
+    {
+        // A refusal is an answer; anything else is a fault, and its stack is what finds it.
+        if(e is not ActionRefused)
+            File.AppendAllText(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"HotaMcp","errors.log"),
+                $"{DateTimeOffset.Now:O} {context.Request.Path}{Environment.NewLine}{e}{Environment.NewLine}{Environment.NewLine}");
+        context.Response.StatusCode=409;await context.Response.WriteAsJsonAsync(new{error=e.Message,code=(e as ActionRefused)?.Code});
+    }
 });
 app.MapMcp("/mcp");
 app.MapPost("/bridge/status",(CancellationToken ct)=>session.Status(ct));
