@@ -586,6 +586,20 @@ internal static class GameCommands
         // Spell book: "A - Displays adventure spells", "C - Combat spells".
         "spellbook:adventure" => new("spellbook", Deliveries.Key(0x41, 0x1e)),
         "spellbook:combat" => new("spellbook", Deliveries.Key(0x43, 0x2e)),
+        _ when action.Key.StartsWith("combat:catapult:") => new("combat", async (context, ct) =>
+        {
+            string part = context.Element["combat:catapult:".Length..];
+            int hex = ScreenActions.CatapultTargets.First(t => t.Part == part).Hex;
+            var centre = new CombatReader(context.Game, context.Player).Center(hex);
+            // A player points first: the status line then reads «Атака: <сегмент> (… прочность цели: n/m)».
+            // Without that line the segment is already down and a press would do nothing.
+            await context.Game.MouseAsync(centre.X, centre.Y, context.Before.Width, context.Before.Height, false, ct);
+            await Task.Delay(250, CancellationToken.None);
+            string status = context.Reader.Observe().Elements.FirstOrDefault(e => e.Id == 2005)?.Text?.Trim() ?? "";
+            if (!status.StartsWith("Атака", StringComparison.Ordinal))
+                throw new InvalidOperationException($"По «{part}» катапульте не выстрелить: строка состояния «{status}», а не «Атака: …» — сегмент разрушен или не цель. Выбери другой. Ничего не отправлено.");
+            await Deliveries.Press(context, centre.X, centre.Y, ct);
+        }) { Confirm = Confirm.CombatTurn, TimeoutSeconds = 10, BattleMayEnd = true },
         _ when action.Key.StartsWith("combat:move:") => new("combat",
             Deliveries.CombatHex(c => Suffix(c.Element, 2)))
             { Confirm = Confirm.CombatTurn, TimeoutSeconds = 10, BattleMayEnd = true },

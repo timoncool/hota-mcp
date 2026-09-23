@@ -4,6 +4,10 @@ namespace HotaMcp;
 /// Every key listed here must have a matching row in GameCommands.
 internal static class ScreenActions
 {
+    /// Parts of a town wall a catapult can be aimed at, by the battlefield hex each stands on.
+    public static readonly (string Part,int Hex)[] CatapultTargets=
+        [("ворота",96),("средняя верхняя стена",62),("средняя нижняя стена",130),("верхняя стена",29),("нижняя стена",165)];
+
     /// The name of a skill offered at a level-up. The game prints it under the picture as
     /// «Базовый\nПомехи»; that caption is the name when the skill table has no entry for the
     /// picture (the expansion's own skills).
@@ -678,6 +682,12 @@ internal static class ScreenActions
             }
             else
             {
+            // With Ballistics the player aims the catapult himself: a press on a part of the wall.
+            // The parts stand on fixed hexes of every siege field.
+            var shooter=combat.Stacks.FirstOrDefault(s=>s.Id==combat.ActiveStack);
+            if(shooter is not null&&shooter.Name.StartsWith("Катапульт",StringComparison.Ordinal))
+                foreach(var (part,hex) in CatapultTargets)
+                    actions.Add(new($"combat:catapult:{part}",$"Катапульта: бить по «{part}» (клетка {hex}). Разрушенный сегмент игра не принимает — мост тогда откажет; выстрелы в журнал боя не пишутся, их итог виден по прочности в строке состояния"));
             if(items.Any(i=>i.Id==2008&&i.Interactive))actions.Add(new("combat:spellbook","Открыть книгу заклинаний"));
             if(items.Any(i=>i.Id==2009&&i.Interactive))actions.Add(new("combat:wait","Ждать"));
             if(items.Any(i=>i.Id==2010&&i.Interactive))actions.Add(new("combat:defend","Защищаться"));
