@@ -457,6 +457,15 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             {
                 await Task.Delay(350,CancellationToken.None);
                 card=reader.ReadCard();
+                // The expansion's backpack window draws its artefact card outside the game's list of
+                // windows; the card is the artefact's name and the description from the game's own
+                // artefact table, so that is what is returned.
+                if(before.Screen=="backpack")
+                {
+                    var picture=element??before.Elements.FirstOrDefault(e=>request.Element==$"id:{e.Id}");
+                    if(picture is not null&&picture.Id is >=2000 and <2064&&GameReference.ArtifactText(picture.Frame) is string text)
+                        card=card with{Texts=[text]};
+                }
                 Record("element_inspected",new{request.Element,card.Vtable,card.Texts});
             }
             finally{await game.RightMouseUpAsync();}

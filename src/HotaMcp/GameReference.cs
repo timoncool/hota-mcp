@@ -306,6 +306,13 @@ internal sealed class GameReference
     /// table of the base game does not carry.
     public static void UseLiveArtifactNames(IReadOnlyDictionary<int,string> names)=>liveArtifacts=names;
 
+    private static IReadOnlyDictionary<int,string>? liveArtifactTexts;
+
+    /// What an artefact does, as its own card says it — the description line of the game's
+    /// artefact table.
+    public static void UseLiveArtifactTexts(IReadOnlyDictionary<int,string> texts)=>liveArtifactTexts=texts;
+    public static string? ArtifactText(int frame)=>liveArtifactTexts is not null&&liveArtifactTexts.TryGetValue(frame,out var text)?text:null;
+
     public static string? Artifact(int frame)
     {
         if(liveArtifacts is not null&&liveArtifacts.TryGetValue(frame,out var live))return live;

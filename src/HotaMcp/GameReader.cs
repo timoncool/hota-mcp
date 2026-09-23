@@ -221,15 +221,20 @@ internal sealed class GameReader(WindowsGame game,int player)
         uint table=game.U32(0x660B68);
         if(table<0x10000)return;
         var names=new Dictionary<int,string>();
+        var texts=new Dictionary<int,string>();
         for(int id=0;id<512;id++)
         {
             string? name;
             try{name=game.Text(game.U32(table+(uint)id*0x20));}catch(InvalidOperationException){continue;}
             if(string.IsNullOrWhiteSpace(name)||name.Length>60||!name.Any(char.IsLetter))continue;
             names[id]=name.Trim();
+            // The record is name, price, slot, class, then the description the artefact card prints.
+            try{if(game.Text(game.U32(table+(uint)id*0x20+0x10),2048) is {Length:>0} text)texts[id]=text.Trim();}
+            catch(InvalidOperationException){}
         }
         if(names.Count<100)return;
         GameReference.UseLiveArtifactNames(names);
+        GameReference.UseLiveArtifactTexts(texts);
         artifactsRead=true;
     }
 

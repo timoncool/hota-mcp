@@ -98,6 +98,14 @@ internal static class ScreenActions
         }
         if(screen=="hero_screen")actions.Add(new("hero:close","Закрыть экран героя (Esc)"));
         if(screen=="hero_screen")
+        {
+            // The row under the doll shows five backpack cells; the arrows beside it scroll the
+            // row, and the backpack button opens the whole backpack window.
+            if(items.Any(i=>i.Id==77))actions.Add(new("hero:backpack:влево","Прокрутить видимый ряд рюкзака влево"));
+            if(items.Any(i=>i.Id==78))actions.Add(new("hero:backpack:вправо","Прокрутить видимый ряд рюкзака вправо"));
+            if(items.Any(i=>i.Id==8000))actions.Add(new("hero:backpack","Открыть весь рюкзак героя (в ряду внизу видно только пять клеток)"));
+        }
+        if(screen=="hero_screen")
             foreach(var cell in items.Where(e=>e.Id is >=40 and <=44&&e.Width==44&&e.Frame!=ExchangeArtifacts.Highlight))
                 if(GameReference.Artifact(cell.Frame) is {} carried)
                     actions.Add(new($"hero:wear:{carried}",$"Надеть «{carried}» из рюкзака: снятое с того же слота уйдёт в рюкзак"));

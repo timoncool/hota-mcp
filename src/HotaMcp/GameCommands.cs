@@ -483,6 +483,9 @@ internal static class GameCommands
         // Esc returns to whichever screen opened this one, so both are legitimate landings.
         "hero:close" => new("adventure,town", Deliveries.Key(0x1b, 0x01)) { Confirm = Confirm.ScreenLeft },
         _ when action.Key.StartsWith("hero:wear:") => new("hero_screen", WearArtifact),
+        "hero:backpack:влево" => new("hero_screen", Deliveries.Control(77, "hsbtns3.def")),
+        "hero:backpack:вправо" => new("hero_screen", Deliveries.Control(78, "hsbtns5.def")),
+        "hero:backpack" => new("backpack", Deliveries.Control(8000, "bckpck.def")),
         // The kingdom overview has no Esc: it closes on its own exit button, bottom right.
         "kingdom:close" => new("adventure,town", Deliveries.Dismiss),
         // Every one of these windows closes on its own button; Esc is the fallback when the
@@ -494,7 +497,16 @@ internal static class GameCommands
         "exchange:done" => new("adventure,town", Deliveries.Key(0x1b, 0x01)),
         "exchange:backpack:слева" => new("backpack", Deliveries.Control(8000, "bckpck.def")),
         "exchange:backpack:справа" => new("backpack", Deliveries.Control(8001, "bckpck.def")),
-        "backpack:close" => new("exchange,hero_screen", Deliveries.Key(0x1b, 0x01)),
+        // The expansion's backpack window has no button and ignores Esc: a transparent control over
+        // the whole screen catches a press outside the panel and closes it.
+        "backpack:close" => new("exchange,hero_screen", async (context, ct) =>
+        {
+            var panel = context.Before.Elements.Where(e => e.Id == 0 && e.Width < context.Before.Width)
+                .OrderByDescending(e => e.Width * e.Height).FirstOrDefault()
+                ?? throw new InvalidOperationException("Панель рюкзака на экране не найдена");
+            int x = panel.X > 40 ? panel.X / 2 : panel.X + panel.Width + (context.Before.Width - panel.X - panel.Width) / 2;
+            await Deliveries.Press(context, x, panel.Y + panel.Height / 2, ct);
+        }) { Confirm = Confirm.ScreenLeft },
         _ when action.Key.StartsWith("exchange:artifact:") => new("exchange", GiveArtifact),
         // Reading only: the comparison is printed in the action's own label, so performing it
         // must not touch the screen. Pressing nothing is the honest delivery.
@@ -1203,6 +1215,9 @@ internal static class GameCommands
         // goes into the first free backpack cell, so the hand is empty again.
         await Task.Delay(250, CancellationToken.None);
         var after = context.Reader.Observe().Elements;
+        // While an artefact is on the cursor the game lights the slots it fits; with no slot lit the
+        // hand is empty — the game has already put the removed artefact into the backpack itself.
+        if (after.All(e => e.Frame != ExchangeArtifacts.Highlight)) return;
         int free = Enumerable.Range(40, 5).FirstOrDefault(id => after.All(e => e.Id != id), -1);
         if (free < 0) throw new InvalidOperationException("Надето, но снятый артефакт остался на курсоре: в видимой части рюкзака нет свободной клетки");
         var box = context.Reader.FindControlById(free) ?? throw new InvalidOperationException("Клетка рюкзака не найдена");
