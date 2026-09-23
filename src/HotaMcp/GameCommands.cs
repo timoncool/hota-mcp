@@ -196,10 +196,20 @@ internal static class Deliveries
         // defender's hex that faces a neighbouring hex the attacker can actually reach, the one
         // nearest to him. A shooter's shot goes wherever inside the hex the cursor is.
         var reachable = new HashSet<int>(combat.ReachableHexes);
+        // A melee blow needs a free hex next to the defender that the attacker can step onto, or
+        // the attacker already standing there. Without one the press lands on nothing, so it is
+        // refused before anything is sent.
+        bool touching = active.Hexes.Any(around.Contains);
+        if (!active.Shooter && !touching && !around.Any(reachable.Contains))
+            throw new InvalidOperationException(
+                $"{active.Name} в этот ход не дотягиваются до «{victim.Name}»: рядом с целью нет доступной клетки. "
+                + "Подойди ближе (combat:move:<клетка>), подожди (combat:wait) или встань в защиту (combat:defend). Ничего не отправлено.");
         // Already standing next to the defender: the blow comes from where the attacker is.
         int? chosen = from?.Invoke(context);
         if (chosen is int wanted && !around.Contains(wanted))
             throw new InvalidOperationException($"Клетка {wanted} не соседняя с целью — оттуда не ударить");
+        if (chosen is int side0 && !reachable.Contains(side0) && !active.Hexes.Contains(side0))
+            throw new InvalidOperationException($"На клетку {side0} в этот ход не встать — оттуда не ударить. Ничего не отправлено.");
         int? approach = chosen
             ?? active.Hexes.Where(around.Contains).Cast<int?>().FirstOrDefault()
             ?? around.Where(reachable.Contains)
