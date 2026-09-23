@@ -28,7 +28,8 @@ updated: "2026-09-21"
 | `adventure_options` | `game:adventure_options` (A) | `screen:close` |
 | `scenario_info` | `game:scenario_info` (I) | `screen:close` |
 | `spellbook` | `combat:spellbook` (C) | `spellbook:close` |
-| `system_options` | нажатие кнопки `iam009.def` на панели | возврат кнопкой `soretrn.def` |
+| `system_options` | нажатие кнопки `iam009.def` на панели (`click_ui`) | возврат кнопкой `soretrn.def` |
+| `save_game` | `game:save` из `system_options`; имя файла — поле 160, `save:name:<имя>` вписывает и сверяет | `save:confirm` пишет в имя из поля |
 
 Источник: обход всех клавиш мануала через мост, 21.09.2026.
 

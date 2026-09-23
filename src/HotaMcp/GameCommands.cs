@@ -436,6 +436,7 @@ internal static class GameCommands
         "game:save" => new("save_game", Deliveries.Key(0x53, 0x1f)),
         "game:load" => new("message", Deliveries.Key(0x4c, 0x26)),
         "game:main_menu" => new("main_menu", Deliveries.Control(108, "somain.def")),
+        _ when action.Key.StartsWith("save:name:") => new("save_game", SaveName),
         "save:confirm" => new("message", Deliveries.Control(186, "scnrsav.def")),
         "load:confirm" => new("adventure", Deliveries.Control(186, "scnrlod.def")) { Confirm = Confirm.PartyLoaded },
         "load:back" => new("main_menu", Deliveries.Control(188, "scnrback.def", "gspexit.def")),
@@ -931,6 +932,58 @@ internal static class GameCommands
         await Task.Delay(250, CancellationToken.None);
         await Deliveries.Press(context, to.X + to.Width / 2, to.Y + to.Height / 2, ct);
     };
+
+    /// The save name field takes key presses, not typed characters: the old name is erased with
+    /// Backspace and the digits are pressed one by one, then the field is read back.
+    private static readonly Deliver SaveName = async (context, ct) =>
+    {
+        string name = context.Element["save:name:".Length..];
+        name = name.ToLowerInvariant();
+        if (name.Length is 0 or > 32 || !name.All(c => KeyOf(c).Key != 0))
+            throw new InvalidOperationException("Имя файла — до 32 знаков: буквы, цифры, дефис");
+        var field = context.Before.Elements.FirstOrDefault(e => e.Id == 160)
+            ?? throw new InvalidOperationException("Поля имени файла на экране нет");
+        await Deliveries.Press(context, field, ct);
+        await Task.Delay(150, CancellationToken.None);
+        for (int i = 0; i < (field.Text?.Length ?? 0) + 2; i++)
+        {
+            await context.Game.KeyAsync(0x08, 0x0e);
+            await Task.Delay(40, CancellationToken.None);
+        }
+        foreach (char c in name)
+        {
+            var (key, scan) = KeyOf(c);
+            await context.Game.KeyAsync(key, scan);
+            await Task.Delay(60, CancellationToken.None);
+        }
+        await Task.Delay(150, CancellationToken.None);
+        string? now = context.Reader.Observe().Elements.FirstOrDefault(e => e.Id == 160)?.Text;
+        if (!string.Equals(now, name, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException($"В поле имени «{now}», а не «{name}»: игра набирает буквы по своей раскладке — напиши имя буквами этой раскладки; не сохраняй");
+    };
+
+    /// Virtual key and scan code of the key that carries a letter. The game turns a key into a
+    /// letter through its own keyboard layout, so a latin and a cyrillic letter on the same key
+    /// map to the same press; the field is read back to see which one came out.
+    private static (ushort Key, ushort Scan) KeyOf(char c)
+    {
+        if (c == '-') return (0xbd, 0x0c);
+        if (char.IsAsciiDigit(c)) return (c, (ushort)(c == '0' ? 0x0b : c - '0' + 1));
+        const string latin = "qwertyuiopasdfghjklzxcvbnm";
+        const string cyrillic = "йцукенгшщзфывапролдячсмитьхъжэбюё";
+        (ushort, ushort)[] latinKeys = [('Q',0x10),('W',0x11),('E',0x12),('R',0x13),('T',0x14),('Y',0x15),('U',0x16),('I',0x17),('O',0x18),('P',0x19),
+            ('A',0x1e),('S',0x1f),('D',0x20),('F',0x21),('G',0x22),('H',0x23),('J',0x24),('K',0x25),('L',0x26),
+            ('Z',0x2c),('X',0x2d),('C',0x2e),('V',0x2f),('B',0x30),('N',0x31),('M',0x32)];
+        (ushort, ushort)[] cyrillicKeys = [('Q',0x10),('W',0x11),('E',0x12),('R',0x13),('T',0x14),('Y',0x15),('U',0x16),('I',0x17),('O',0x18),('P',0x19),
+            ('A',0x1e),('S',0x1f),('D',0x20),('F',0x21),('G',0x22),('H',0x23),('J',0x24),('K',0x25),('L',0x26),
+            ('Z',0x2c),('X',0x2d),('C',0x2e),('V',0x2f),('B',0x30),('N',0x31),('M',0x32),
+            (0xdb,0x1a),(0xdd,0x1b),(0xba,0x27),(0xde,0x28),(0xbc,0x33),(0xbe,0x34),(0xc0,0x29)];
+        char lower = char.ToLowerInvariant(c);
+        int i = latin.IndexOf(lower);
+        if (i >= 0) return latinKeys[i];
+        i = cyrillic.IndexOf(lower);
+        return i >= 0 ? cyrillicKeys[i] : ((ushort)0, (ushort)0);
+    }
 
     /// Choosing between the two offers of a reward dialog. The value under a picture is its name
     /// here, because that is what the player reads; the press lands on the picture above it.

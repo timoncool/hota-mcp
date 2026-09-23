@@ -586,6 +586,10 @@ internal static class ScreenActions
             if(items.Any(i=>i.Id==30722&&i.Interactive))actions.Add(new("building:buy","Построить указанное здание за показанную цену"));
             if(items.Any(i=>i.Id==30721&&i.Interactive))actions.Add(new("building:cancel","Отменить покупку"));
         }
+        // The file name is the edit field under the list; saving writes into whatever it holds, so
+        // the name is set and read back before save:confirm instead of trusting the selected row.
+        if(screen=="save_game"&&items.FirstOrDefault(i=>i.Id==160) is {} nameField)
+            actions.Add(new("save:name:<name>",$"Вписать имя файла буквами раскладки игры, цифрами и дефисом, например save:name:партия3-день49; сейчас в поле «{nameField.Text}». save:confirm пишет в имя из поля и перезапишет файл с таким именем"));
         if(screen=="save_game")actions.Add(new("save:confirm","Сохранить игру; может открыться запрос имени"));
         if(screen=="load_game"&&saves is not null)
         {

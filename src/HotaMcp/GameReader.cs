@@ -750,7 +750,9 @@ internal sealed class GameReader(WindowsGame game,int player)
             int iw=BitConverter.ToUInt16(b,0x1c),ih=BitConverter.ToUInt16(b,0x1e);
             if(iw==0||ih==0) continue;
             uint vt=BitConverter.ToUInt32(b);string? text=null,asset=null;
-            if(vt is 0x642dc0 or 0x642df8 or 0x642d50) text=game.Text(game.U32(a+0x34));
+            // 0x641c70 is the edit field (the file name in the save browser): its line lives where a
+            // text label keeps its own.
+            if(vt is 0x642dc0 or 0x642df8 or 0x642d50 or 0x641c70) text=game.Text(game.U32(a+0x34));
             if(vt is 0x63bb54 or 0x63bb88||(screen=="spellbook"||screen=="adventure")&&vt==0x63ec48) asset=game.Text(game.U32(a+0x30)+4,16);
             // A reward in a message is a picture with its amount under it; which file the picture
             // comes from says what kind of reward it is — resource, artifact, creature, skill.
@@ -758,6 +760,7 @@ internal sealed class GameReader(WindowsGame game,int player)
                 try{asset=game.Text(game.U32(a+0x30)+4,16);}catch(InvalidOperationException){}
             if(vt==0x63bb88)text=game.Text(game.U32(a+0x5c));
             bool interactive=(vt is 0x63bb54 or 0x63bb88||(screen is "spellbook" or "adventure" or "popup_choice")&&vt==0x63ec48)&&(state&2)!=0&&(state&0x28)==0;
+            if(vt==0x641c70)interactive=(state&2)!=0;
             // The grids of starting towns and heroes are pictures with no caption and no button
             // graphic, and the game hit-tests them itself; they are the whole content of the popup,
             // so dropping them would leave the screen empty.
@@ -768,7 +771,7 @@ internal sealed class GameReader(WindowsGame game,int player)
             // Some controls carry no text and no button graphic yet still say something: the town
             // hall colours a bare picture next to each row to mark built, buildable or blocked.
             bool bareControlMatters=screen is "town_hall" or "town_fort" or "adventure" or "hero_screen" or "building_confirmation" or "popup_choice" or "tavern" or "battle_result" or "marketplace" or "mage_guild"||(screen is "message" or "exchange" or "level_up")&&(state&2)!=0;
-            if(string.IsNullOrEmpty(text)&&asset==null&&!bareControlMatters) continue;
+            if(string.IsNullOrEmpty(text)&&asset==null&&!bareControlMatters&&vt!=0x641c70) continue;
             items.Add(new UiElement($"ui:{controlIndex}",BitConverter.ToUInt16(b,0x10),text,asset,
                 dx+BitConverter.ToInt16(b,0x18),dy+BitConverter.ToInt16(b,0x1a),iw,ih,interactive)
                 {Frame=BitConverter.ToInt32(b,0x34),Selected=(state&16)!=0});

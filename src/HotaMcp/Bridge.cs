@@ -465,6 +465,11 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             var action=before.Actions.SingleOrDefault(a=>a.Key==request.Element)
                 ??before.Actions.Where(a=>a.Key.EndsWith(":<n>")&&request.Element.StartsWith(a.Key[..^3],StringComparison.Ordinal)
                         &&int.TryParse(request.Element[(a.Key.Length-3)..],out int n)&&n>=0)
+                    .Select(a=>new AvailableAction(request.Element,a.Label)).FirstOrDefault()
+                // «:<name>» takes a short name of letters (latin or cyrillic), digits and dashes.
+                ??before.Actions.Where(a=>a.Key.EndsWith(":<name>")&&request.Element.StartsWith(a.Key[..^6],StringComparison.Ordinal)
+                        &&request.Element.Length>a.Key.Length-6&&request.Element.Length-(a.Key.Length-6)<=32
+                        &&request.Element[(a.Key.Length-6)..].All(c=>char.IsAsciiLetterOrDigit(c)||c=='-'||c is >='а' and <='я'||c is >='А' and <='Я'||c is 'ё' or 'Ё'))
                     .Select(a=>new AvailableAction(request.Element,a.Label)).FirstOrDefault();
             var command=action is not null
                 ?GameCommands.ForAction(action,before)

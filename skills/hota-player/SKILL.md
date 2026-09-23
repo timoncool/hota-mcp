@@ -276,9 +276,12 @@ candidates, structured content of world view / puzzle / thieves guild, town sieg
   is the full count. Indices reset each battle. `combat:spellbook` opens the current book — read the
   actual labels and mana costs; `spellbook:select:<id>` picks an exposed icon; in target mode choose
   `spell:target:<stack>` and let the game check validity. Not every visible stack is a legal target.
-- **Saving.** `game:save` from system options opens the save browser; it remembers its last folder,
-  so read the selected row in `Saves` before `save:confirm` — confirming writes into the selected
-  name and will overwrite it.
+- **Saving.** System options open with `click_ui` on the sidebar button `iam009.def`; there `game:save`
+  opens the save browser. The game writes into the name in the edit field under the list (it shows
+  in the observation as control 160), not into the highlighted row. Set a new name with
+  `save:name:<имя>` — letters of the game's own keyboard layout (here Russian), digits, dashes, e.g.
+  `save:name:партия3-день49`; the bridge erases the old name, presses the keys and reads the field
+  back, refusing if it does not match. Only then `save:confirm`.
 - **Loading.** From the main menu: `menu:load` → `menu:single` → `load:open:<folder>` →
   `load:select:<row>` → `load:confirm`. Verify the loaded party by date, hero and resources — never
   by "the screen changed", because loading the current state looks like nothing happened.
