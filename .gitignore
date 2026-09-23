@@ -23,3 +23,5 @@ obj/
 *.obj
 *.lib
 *.exp
+
+CLAUDE.local.md

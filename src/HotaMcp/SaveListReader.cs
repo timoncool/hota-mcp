@@ -14,7 +14,6 @@ internal sealed class SaveListReader(WindowsGame game)
 {
     private const int EntrySize=0xca4;
     private const int NameOffset=0x33d;
-    private const int MapOffset=0x34a;
     public SaveList Read(uint dialog,string kind)
     {
         uint first=game.U32(dialog+0x1054),last=game.U32(dialog+0x1058),cap=game.U32(dialog+0x105c);
@@ -23,19 +22,22 @@ internal sealed class SaveListReader(WindowsGame game)
         int count=(int)((last-first)/EntrySize);
         int selected=game.I32(dialog+0x374);
         var rows=ReadRows(dialog);
+        // The visible rows show the entries from the list's scroll position on, not from the first.
+        int top=game.I32(dialog+0x370);
+        if(top<0||top>=Math.Max(count,1))throw new InvalidOperationException("Save list scroll position unsupported");
         var entries=new List<SaveEntry>();
         for(int index=0;index<count;index++)
         {
             uint entry=checked(first+(uint)index*EntrySize);
-            string name=game.Text(entry+NameOffset,13)??"";
-            string scenario=game.Text(entry+MapOffset,13)??"";
+            // The file name runs on past the 13-byte DOS field for long names: «партия3-день49.GM1».
+            string name=game.Text(entry+NameOffset,200)??"";
             bool folder=!name.EndsWith(".GM1",StringComparison.OrdinalIgnoreCase);
             string label=folder?FolderLabel(entry):Path.GetFileNameWithoutExtension(name);
-            var row=index<rows.Count?rows[index]:(X:0,Y:0,Width:0,Height:0);
+            var row=index>=top&&index-top<rows.Count?rows[index-top]:(X:0,Y:0,Width:0,Height:0);
             entries.Add(new(index,label,name,folder,index==selected,row.X,row.Y,row.Width,row.Height));
         }
         string coverage=count>rows.Count
-            ?$"{count} entries, {rows.Count} visible rows; scrolling is not implemented yet"
+            ?$"{count} entries, {rows.Count} visible rows; a file row below the view is reached by load:select, which walks the selection with the arrow keys"
             :"Files and folders are read from the browser's own entry list";
         return new(kind,entries,selected,coverage);
     }

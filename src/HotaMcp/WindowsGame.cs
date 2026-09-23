@@ -175,6 +175,16 @@ internal sealed class WindowsGame : IDisposable
         }
         finally { if(!PostMessageW(Window,0x202,0,(nint)(tx|(ty<<16)))) throw new InvalidOperationException("Mouse release failed"); }
     }
+    /// A left click posted to the game window only: no cursor, no focus, no global input.
+    public static bool SkipIntro(Process process)
+    {
+        nint window=process.MainWindowHandle;
+        if(window==0)return false;
+        nint lp=(nint)(300|(300<<16));
+        if(!PostMessageW(window,0x201,1,lp))return false;
+        Thread.Sleep(60);
+        return PostMessageW(window,0x202,0,lp);
+    }
     public void Dispose(){handle.Dispose();Process.Dispose();}
     public bool NativeReady=>GetPropW(Window,"HotAMcp.GameBridge.v1")!=0;
     public void NativeAction(int operation,int player,int argument=0)

@@ -693,9 +693,26 @@ internal static class GameCommands
         var entry = context.Before.Saves?.Entries.SingleOrDefault(e => e.Index == index)
             ?? throw new InvalidOperationException("Unknown save entry; observe the browser again");
         bool folder = context.Element.StartsWith("load:open:");
-        if (entry.Folder != folder || entry.Width < 1 || entry.Height < 1)
-            throw new InvalidOperationException("Save row is not selectable in the visible window");
-        await Deliveries.Press(context, entry.X + entry.Width / 2, entry.Y + entry.Height / 2, ct);
+        if (entry.Folder != folder) throw new InvalidOperationException("Save row is not selectable in the visible window");
+        if (entry.Width > 0 && entry.Height > 0)
+        {
+            await Deliveries.Press(context, entry.X + entry.Width / 2, entry.Y + entry.Height / 2, ct);
+            return;
+        }
+        // A row below the view is reached the way a player reaches it: the arrow keys move the
+        // selection one row at a time and the list scrolls after it. Opening a folder needs a
+        // press on its row, so folders are not walked to.
+        if (folder) throw new InvalidOperationException("Папка ниже видимой части списка; открыть её можно только нажатием по строке");
+        int current = context.Before.Saves!.SelectedIndex;
+        if (current < 0) throw new InvalidOperationException("Не видно, какая строка выделена сейчас");
+        int steps = index - current;
+        for (int i = 0; i < Math.Abs(steps); i++)
+        {
+            await context.Game.KeyAsync(steps > 0 ? (ushort)0x28 : (ushort)0x26, steps > 0 ? (ushort)0x50 : (ushort)0x48);
+            await Task.Delay(40, CancellationToken.None);
+        }
+        var now = context.Reader.Observe().Saves?.SelectedIndex;
+        if (now != index) throw new InvalidOperationException($"Выделение встало на строку {now}, а не на {index}");
     };
 
     private static readonly Deliver SelectLevelSkill = async (context, ct) =>

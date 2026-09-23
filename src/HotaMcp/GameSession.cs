@@ -79,7 +79,13 @@ internal sealed class GameSession(int? requestedPid,int player,string directory,
             state="attached";detail="Game attached; observations remain subject to player and screen checks";
         }
         catch(Exception e) when(e is InvalidOperationException or Win32Exception or IOException or ArgumentException)
-        {game?.Dispose();game=null;bridge=null;state="attachment_error";detail=e.Message;}
+        {
+            game?.Dispose();game=null;bridge=null;state="attachment_error";detail=e.Message;
+            // No dialog at all means an intro video is playing; a click skips it, as a player does.
+            if(candidates.Length==1&&e.Message.Contains("no active dialog",StringComparison.Ordinal)
+               &&WindowsGame.SkipIntro(candidates[0]))
+                detail="Идёт заставка: отправлен щелчок в окно игры для пропуска, спроси статус ещё раз";
+        }
         finally{foreach(var candidate in candidates)candidate.Dispose();}
     }
 
