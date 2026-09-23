@@ -337,16 +337,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             // The camera follows the selected hero, so a cell the player knows about is often off
             // screen. A player brings it into view by pressing the minimap; the bridge does the
             // same instead of refusing to look. The press moves the camera only.
-            if(!map.IsOnScreen(before,x,y,z))
-            {
-                var onMinimap=map.MinimapPoint(before,x,y,z);
-                await game.MouseAsync(onMinimap.X,onMinimap.Y,before.Width,before.Height,true,ct);
-                await Task.Delay(250,ct);
-                before=reader.Observe();
-                if(!map.IsOnScreen(before,x,y,z))
-                    throw new InvalidOperationException(
-                        "Клетка не попала в окно даже после доводки камеры по миникарте");
-            }
+            before=await EnsureVisible(before,x,y,z);
             var point=map.ScreenPoint(before,x,y,z);
             await game.MouseAsync(point.X,point.Y,before.Width,before.Height,false,ct);
             await Task.Delay(150,ct);
@@ -1015,7 +1006,14 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
         if(map.IsOnScreen(observation,x,y,z))return observation;
         var point=map.MinimapPoint(observation,x,y,z);
         await game.MouseAsync(point.X,point.Y,observation.Width,observation.Height,true,CancellationToken.None);
-        await Task.Delay(300,CancellationToken.None);
+        await Task.Delay(200,CancellationToken.None);
+        // After a minimap press the game stays in minimap mode («Карта Мира» in the status line), and
+        // the next pointer move drags the camera. A press on the status line, which does nothing,
+        // ends that mode the way a player's next click elsewhere does.
+        var status=reader.FindControlById(200)
+            ?? throw new InvalidOperationException("Строка состояния карты не найдена");
+        await game.MouseAsync(status.X+status.Width/2,status.Y+status.Height/2,observation.Width,observation.Height,true,CancellationToken.None);
+        await Task.Delay(150,CancellationToken.None);
         var moved=reader.Observe();
         if(!map.IsOnScreen(moved,x,y,z))
             throw new InvalidOperationException($"The camera did not reach ({x},{y},{z}); the cell stays outside the visible map");
