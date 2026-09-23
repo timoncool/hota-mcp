@@ -385,8 +385,15 @@ internal static class GameCommands
         _ when action.Key.StartsWith("split:amount:") => new("split_army", SliderTo("split:amount:", 6, 5)) { TimeoutSeconds = 30 },
         "market:trade" => new("marketplace", Deliveries.Control(5, "TPMrkB.def")) { Confirm = Confirm.None },
         "market:close" => new("town", Deliveries.Control(30722, "iOk6432.def")),
-        "popup:подтвердить" => new("scenario_selection,popup_choice",Deliveries.Control(1,"CAMPCHK.def")),
-        "popup:отменить" => new("scenario_selection,popup_choice",Deliveries.Control(2,"CAMPCAN.def")),
+        _ when action.Key.StartsWith("popup:переключить:",StringComparison.Ordinal) => new("popup_choice",async(context,ct)=>
+        {
+            string caption=context.Element["popup:переключить:".Length..];
+            var label=context.Before.Elements.First(e=>e.Text?.Trim()==caption);
+            var toggle=context.Before.Elements.First(e=>e.Width==34&&e.Height==26&&e.Text is null&&e.Asset is null&&Math.Abs(e.Y-label.Y)<6&&e.X<label.X);
+            await Deliveries.Press(context,toggle,ct);
+        }),
+        "popup:подтвердить" => new("scenario_selection,popup_choice",Deliveries.Key(0x0D,0x1C)),
+        "popup:отменить" => new("scenario_selection,popup_choice",Deliveries.Key(0x1B,0x01)),
         // The random map settings share the «setup:» prefix with the player rows; they are told
         // apart by being one of the known generator controls, and must be matched first.
         _ when ScenarioReader.Controls.Any(x => ScenarioReader.Key(x) == action.Key) => new("scenario_selection",

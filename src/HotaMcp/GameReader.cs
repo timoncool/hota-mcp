@@ -720,13 +720,24 @@ internal sealed class GameReader(WindowsGame game,int player)
     /// a turn there, and whatever player data is in memory is left over from the last game.
     public static bool IsFrontend(uint vtable)=>vtable is 0x63ff60 or 0x63e6d8 or 0x641cbc or 0x6400b0 or 0x6401e8;
 
+    private bool UnderMenu(uint top)
+    {
+        var seen=new HashSet<uint>();
+        foreach(int link in new[]{0x8,0xc})
+            for(uint d=game.U32(top+(uint)link);d!=0&&seen.Add(d)&&seen.Count<32;d=game.U32(d+(uint)link))
+                if(IsFrontend(game.U32(d)))return true;
+        return false;
+    }
+
     private Observation ReadOnce()
     {
         if(player is <0 or >7) throw new InvalidOperationException("Player configuration invalid");
         uint manager=game.U32(0x6992d0),dlg=game.U32(manager+0x54);
         if(dlg==0)throw new InvalidOperationException("UI transition in progress");
         uint vtable=game.U32(dlg);
-        bool frontend=IsFrontend(vtable);
+        // A popup over the scenario screen — a town grid, the options window, the team agreements —
+        // is still before the game: whatever lies under it decides, not the popup's own class.
+        bool frontend=IsFrontend(vtable)||UnderMenu(dlg);
         int[] resources=[],date=[];HeroView? hero=null;
         // Another player's turn in a shared game: the screen is his, so none of its controls are
         // this side's to read or press, but this side's own state is still its own.

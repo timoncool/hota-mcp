@@ -327,7 +327,14 @@ internal static class ScreenActions
                 actions.Add(new($"выбрать:{row.Text!.Trim()}",$"Выбрать в открытом списке: {row.Text!.Trim()}"));
             if(items.Any(i=>i.Id==999&&i.Interactive))
                 actions.Add(new("выбор:город:случайный","Стартовый город — случайный (кубик)"));
-            foreach(var cell in items.Where(i=>i.Id is >=1000 and <=1011&&i.Interactive))
+            // A small square beside a caption is a switch of an options window («Турнирные правила»,
+            // «PvP битвы с нейтралами»); the caption on its row names it, the frame says whether it is on.
+            bool IsSwitch(UiElement i)=>i.Width==34&&i.Height==26&&i.Text is null&&i.Asset is null&&i.Interactive;
+            foreach(var toggle in items.Where(IsSwitch))
+                if(items.FirstOrDefault(t=>t.Text is {Length:>0}&&Math.Abs(t.Y-toggle.Y)<6&&t.X>toggle.X) is {} caption)
+                    actions.Add(new($"popup:переключить:{caption.Text!.Trim()}",
+                        $"Переключить «{caption.Text!.Trim()}» — сейчас {(toggle.Frame!=0?"включено":"выключено")}"));
+            foreach(var cell in items.Where(i=>i.Id is >=1000 and <=1011&&i.Interactive&&!IsSwitch(i)))
                 actions.Add(new($"выбор:город:{GameReference.Faction(cell.Id-1000)}",
                     $"Стартовый город: {GameReference.Faction(cell.Id-1000)}"));
             if(items.Any(i=>i.Id==2999&&i.Interactive))
@@ -428,7 +435,7 @@ internal static class ScreenActions
                 actions.Add(new("rmg:generated","Случайная карта: «Сгенерированные карты» — список уже созданных"));
             }
             actions.Add(new("scenario:more","«Ещё опции…» — таймер хода и прочие настройки партии"));
-            actions.Add(new("scenario:pvp","«PvP-опции» — жребий, случайный город, перевод золота и т.п."));
+            actions.Add(new("scenario:pvp","«PvP-опции» / «Скрыть PvP-опции» — переключает правую панель на инструменты игры людей между собой: кинуть монетку, случайный город, «Случ. vs Случ.», перевод золота; повторное нажатие возвращает описание карты"));
             foreach(var (id,key) in new[]{(128,"scenario:maps"),(129,"scenario:players"),(130,"scenario:random")})
                 if(items.Any(i=>i.Id==id&&i.Interactive))actions.Add(new(key,items.Single(i=>i.Id==id).Text!));
         }
