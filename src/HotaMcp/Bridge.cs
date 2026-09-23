@@ -370,7 +370,17 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             if(before.Revision!=request.Revision)throw new InvalidOperationException("Observation is stale; observe again");
             if(before.Screen!="adventure")throw new InvalidOperationException("Adventure map required");
             var map=new MapReader(game,player);
+            before=await EnsureVisible(before,request.X,request.Y,request.Z);
             var point=map.ScreenPoint(before,request.X,request.Y,request.Z);
+            // Right after the camera moves the game can still hit-test the old view; the card is read
+            // only once the game itself names this cell as the one under the cursor.
+            for(int attempt=0;;attempt++)
+            {
+                await game.MouseAsync(point.X,point.Y,before.Width,before.Height,false,ct);
+                await Task.Delay(200,ct);
+                try{map.VerifyMouse(request.X,request.Y,request.Z);break;}
+                catch(InvalidOperationException)when(attempt<9){}
+            }
             await game.RightMouseDownAsync(point.X,point.Y,before.Width,before.Height,ct);
             GameReader.CardView card;
             try

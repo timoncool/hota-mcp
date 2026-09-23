@@ -81,7 +81,11 @@ internal sealed class MapReader(WindowsGame game,int player)
                     int subtype=BitConverter.ToInt16(game.Read(tile+0x22,2));
                     string name=ObjectName(type,subtype);
                     string kind=KnownObjects.TryGetValue(type,out var known)?known:GameReference.MapObject(type,subtype);
-                    objects.Add(new(xx,yy,z,type,kind){Name=name,Id=BitConverter.ToUInt16(game.Read(tile,2))});
+                    int id=BitConverter.ToUInt16(game.Read(tile,2));
+                    // A town is known by its name and the flag over it, as every player sees it.
+                    if(type==98&&new TownReader(game,player).Describe(id) is {} town&&!string.IsNullOrWhiteSpace(town.Name))
+                        name=$"{town.Name} — "+(town.Owner==player?"твой город":town.Owner>7?"ничей город":$"город игрока {Colours[town.Owner]}");
+                    objects.Add(new(xx,yy,z,type,kind){Name=name,Id=id});
                 }
             }
             terrain.Add(tr);roads.Add(rr);blocked.Add(br);
@@ -90,6 +94,7 @@ internal sealed class MapReader(WindowsGame game,int player)
             "? hidden; terrain d dirt,g sand,s grass,n snow,r swamp,l rough,u subterranean,w lava,v water,h rock,a highlands,x wasteland; roads 0 none,1 dirt,2 gravel,3 cobblestone; # terrain blocked,. not terrain-blocked (not a path guarantee)");
     }
     private static readonly string[] Resources=["дерево","ртуть","руда","сера","кристаллы","самоцветы","золото"];
+    private static readonly string[] Colours=["красный","синий","коричневый","зелёный","оранжевый","фиолетовый","бирюзовый","розовый"];
 
     /// What a player sees standing on the cell. A wandering stack is drawn as its creature and a
     /// pile as its resource, so both are named by what they are — the tile keeps that in its
