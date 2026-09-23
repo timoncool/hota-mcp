@@ -72,7 +72,8 @@ yesterday.
    answers what to hire and what to build next. In the hall, **green is what can be built now**,
    gold is what already stands, red with a cross is refused.
 4. **Main hero.** Spend his movement on the goal of the current state, not on what happens to be
-   near. Before a fight: `inspect_tile` on the target (the game's own hint line says what it is,
+   near. In new territory the order is mines, then towns, and only then banks, warehouses and
+   artefacts: a mine or a town pays every day from the day it is taken, a bank pays once. Before a fight: `inspect_tile` on the target (the game's own hint line says what it is,
    what it gives and whether this hero has been there), then `hota_reference` on both creatures,
    then decide.
 5. **Collector.** Free objects, mines, mills once a week, and the fog. `read_map` sees everything
