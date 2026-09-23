@@ -201,15 +201,15 @@ internal static class Deliveries
         // refused before anything is sent.
         bool touching = active.Hexes.Any(around.Contains);
         if (!active.Shooter && !touching && !around.Any(reachable.Contains))
-            throw new InvalidOperationException(
+            throw new ActionRefused(ActionRefused.MeleeUnreachable,
                 $"{active.Name} в этот ход не дотягиваются до «{victim.Name}»: рядом с целью нет доступной клетки. "
                 + "Подойди ближе (combat:move:<клетка>), подожди (combat:wait) или встань в защиту (combat:defend). Ничего не отправлено.");
         // Already standing next to the defender: the blow comes from where the attacker is.
         int? chosen = from?.Invoke(context);
         if (chosen is int wanted && !around.Contains(wanted))
-            throw new InvalidOperationException($"Клетка {wanted} не соседняя с целью — оттуда не ударить");
+            throw new ActionRefused(ActionRefused.HexNotAdjacent,$"Клетка {wanted} не соседняя с целью — оттуда не ударить");
         if (chosen is int side0 && !reachable.Contains(side0) && !active.Hexes.Contains(side0))
-            throw new InvalidOperationException($"На клетку {side0} в этот ход не встать — оттуда не ударить. Ничего не отправлено.");
+            throw new ActionRefused(ActionRefused.HexUnreachable,$"На клетку {side0} в этот ход не встать — оттуда не ударить. Ничего не отправлено.");
         int? approach = chosen
             ?? active.Hexes.Where(around.Contains).Cast<int?>().FirstOrDefault()
             ?? around.Where(reachable.Contains)
@@ -602,7 +602,7 @@ internal static class GameCommands
             await Task.Delay(250, CancellationToken.None);
             string status = context.Reader.Observe().Elements.FirstOrDefault(e => e.Id == 2005)?.Text?.Trim() ?? "";
             if (!status.StartsWith("Атака", StringComparison.Ordinal))
-                throw new InvalidOperationException($"По «{part}» катапульте не выстрелить: строка состояния «{status}», а не «Атака: …» — сегмент разрушен или не цель. Выбери другой. Ничего не отправлено.");
+                throw new ActionRefused(ActionRefused.SegmentNotTarget,$"По «{part}» катапульте не выстрелить: строка состояния «{status}», а не «Атака: …» — сегмент разрушен или не цель. Выбери другой. Ничего не отправлено.");
             await Deliveries.Press(context, centre.X, centre.Y, ct);
         }) { Confirm = Confirm.CombatTurn, TimeoutSeconds = 10, BattleMayEnd = true },
         _ when action.Key.StartsWith("combat:move:") => new("combat",

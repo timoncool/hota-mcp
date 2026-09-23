@@ -99,6 +99,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             // Whoever opened the tavern — the agent or a person at the keyboard — the first look
             // at it reads both candidates the way a player does, by holding the right button.
             if(state.Screen=="tavern"&&tavernCards.Count==0)await ReadTavern(state);
+            reader.CommitDecision(state.Combat);
             return WithMemory(state);
         }
         finally{gate.Release();}
@@ -342,7 +343,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
         try
         {
             var before=reader.Observe();
-            if(before.Revision!=revision)throw new InvalidOperationException("Observation is stale; observe again");
+            if(before.Revision!=revision)throw new ActionRefused(ActionRefused.StaleRevision,"Observation is stale; observe again");
             if(before.Screen!="adventure"||before.Hero is null)throw new InvalidOperationException("Own hero on the adventure map required");
             var planned=await PlanRouteTo(before,x,y,z);
             var route=new RouteReader(game,player).Read(planned,new MapObject(x,y,z,-1,"cell"));
@@ -358,7 +359,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
         try
         {
             var before=reader.Observe();
-            if(before.Revision!=revision)throw new InvalidOperationException("Observation is stale; observe again");
+            if(before.Revision!=revision)throw new ActionRefused(ActionRefused.StaleRevision,"Observation is stale; observe again");
             var map=new MapReader(game,player);
             // The camera follows the selected hero, so a cell the player knows about is often off
             // screen. A player brings it into view by pressing the minimap; the bridge does the
@@ -388,7 +389,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
         try
         {
             var before=reader.Observe();
-            if(before.Revision!=request.Revision)throw new InvalidOperationException("Observation is stale; observe again");
+            if(before.Revision!=request.Revision)throw new ActionRefused(ActionRefused.StaleRevision,"Observation is stale; observe again");
             if(before.Screen!="adventure")throw new InvalidOperationException("Adventure map required");
             var map=new MapReader(game,player);
             before=await EnsureVisible(before,request.X,request.Y,request.Z);
@@ -438,7 +439,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
         try
         {
             var before=reader.Observe();
-            if(before.Revision!=request.Revision)throw new InvalidOperationException("Observation is stale; observe again");
+            if(before.Revision!=request.Revision)throw new ActionRefused(ActionRefused.StaleRevision,"Observation is stale; observe again");
             // Any cell on screen can be looked at, not only the ones the observation lists: an
             // element key works, and so does "id:<number>" for a control the observation leaves
             // out to stay compact.
@@ -504,11 +505,11 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
         {
             if(operations.TryGetValue(request.OperationId,out var previous))
             {
-                if(previous.Request!=request)throw new InvalidOperationException("Operation ID reused with different arguments");
+                if(previous.Request!=request)throw new ActionRefused(ActionRefused.OperationReused,"Operation ID reused with different arguments");
                 return previous.Result;
             }
             var before=reader.Observe();
-            if(before.Revision!=request.Revision)throw new InvalidOperationException("Observation is stale; observe again before acting");
+            if(before.Revision!=request.Revision)throw new ActionRefused(ActionRefused.StaleRevision,"Observation is stale; observe again before acting");
             // A key ending in «:<n>» is a template: the agent fills in the number, and the
             // command itself checks the number against what the screen allows.
             var action=before.Actions.SingleOrDefault(a=>a.Key==request.Element)
@@ -605,6 +606,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
                     agree=same?agree+1:0;
                     after=again;
                 }
+            reader.CommitDecision(after.Combat);
             // An attack and a step look alike to the game's input: both are a click on the field.
             // Which one happened is read from the fight's own log — a blow writes «<отряд>
             // наносит(ят) урон»; a step writes nothing. The agent is told plainly when a blow it
@@ -810,11 +812,11 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
         {
             if(string.IsNullOrEmpty(request.Text)||request.Text.Length>64
                 ||request.Text.Any(c=>c<32||c=='\\'||c=='/'||c==':'||c=='*'||c=='?'||c=='"'||c=='<'||c=='>'||c=='|'))
-                throw new InvalidOperationException("Text must be 1-64 characters without path separators");
+                throw new ActionRefused(ActionRefused.BadText,"Text must be 1-64 characters without path separators");
             var before=reader.Observe();
-            if(before.Revision!=request.Revision)throw new InvalidOperationException("Observation is stale; observe again before acting");
+            if(before.Revision!=request.Revision)throw new ActionRefused(ActionRefused.StaleRevision,"Observation is stale; observe again before acting");
             var field=before.Elements.SingleOrDefault(e=>e.Key==request.Element)
-                ??throw new InvalidOperationException("Unknown edit control; observe again");
+                ??throw new ActionRefused(ActionRefused.UnknownControl,"Unknown edit control; observe again");
             // Focus the ordinary edit control with a window mouse event, then type characters.
             await game.MouseAsync(field.X+field.Width/2,field.Y+field.Height/2,before.Width,before.Height,true,CancellationToken.None);
             await Task.Delay(200,CancellationToken.None);
@@ -859,7 +861,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             var identity=new OperationRequest(request.OperationId,request.Revision,(attack?"attack:":"move:")+request.TargetId);
             if(operations.TryGetValue(request.OperationId,out var prior))
             {
-                if(prior.Request!=identity)throw new InvalidOperationException("Operation ID reused with different arguments");
+                if(prior.Request!=identity)throw new ActionRefused(ActionRefused.OperationReused,"Operation ID reused with different arguments");
                 return prior.Result;
             }
             if(!targets.TryGetValue(request.TargetId,out var target))throw new InvalidOperationException("Request nearby_targets first");
@@ -908,7 +910,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             var identity=new OperationRequest(request.OperationId,request.Revision,$"move-tile:{request.X},{request.Y},{request.Z}");
             if(operations.TryGetValue(request.OperationId,out var prior))
             {
-                if(prior.Request!=identity)throw new InvalidOperationException("Operation ID reused with different arguments");
+                if(prior.Request!=identity)throw new ActionRefused(ActionRefused.OperationReused,"Operation ID reused with different arguments");
                 return prior.Result;
             }
             var before=RequireOwnHeroOnMap(request.Revision);
@@ -1296,7 +1298,22 @@ internal sealed class RemoteEndpoint(HttpClient client) : IGameEndpoint
     private async Task<T> Call<T>(string route,object body,CancellationToken ct)
     {
         using var response=await client.PostAsJsonAsync(route,body,ct);
-        if(!response.IsSuccessStatusCode)throw new InvalidOperationException(await response.Content.ReadAsStringAsync(ct));
+        if(!response.IsSuccessStatusCode)
+        {
+            string reply=await response.Content.ReadAsStringAsync(ct);
+            string message=reply;string? code=null;
+            try
+            {
+                using var json=JsonDocument.Parse(reply);
+                if(json.RootElement.ValueKind==JsonValueKind.Object&&json.RootElement.TryGetProperty("error",out var error))
+                {
+                    message=error.GetString()??reply;
+                    if(json.RootElement.TryGetProperty("code",out var c)&&c.ValueKind==JsonValueKind.String)code=c.GetString();
+                }
+            }
+            catch(JsonException){}
+            throw code is null?new InvalidOperationException(message):new ActionRefused(code,message);
+        }
         return (await response.Content.ReadFromJsonAsync<T>(cancellationToken:ct))!;
     }
     public Task<OperationResult> Move(MoveRequest request,CancellationToken ct)=>Call<OperationResult>("bridge/move",request,ct);

@@ -167,6 +167,48 @@ internal sealed class GameReader(WindowsGame game,int player)
     };
 
     private readonly string epoch=Guid.NewGuid().ToString("N");
+
+    // Counts at the previous own decision of the current fight, keyed by round and moving stack.
+    // Only a settled reading becomes that point: inside one action the bridge reads the fight many
+    // times, and a frame of a retaliation animation briefly looks like an own move. A fight is told
+    // apart from the next one by its line-up at the start, so a spellbook or a creature card
+    // opened mid-fight leaves the memory as it was.
+    private (string Fight,string Key,Dictionary<string,(string Name,int Count)> Counts)? decision;
+    private string[] decisionChanges=[];
+
+    private static string FightOf(CombatView combat)=>string.Join(",",combat.Stacks.Where(s=>!s.Summoned).Select(s=>$"{s.Id}:{s.StartCount}")
+        .Concat(combat.Losses.Select(l=>$"{l.Id}:{l.Start}")).Distinct().OrderBy(x=>x,StringComparer.Ordinal));
+
+    private static string[] Changes(CombatView combat,Dictionary<string,(string Name,int Count)> before)
+    {
+        var now=combat.Stacks.ToDictionary(s=>s.Id,s=>(s.Name,s.Count));
+        return before.Keys.Union(now.Keys).Select(id=>
+        {
+            var was=before.TryGetValue(id,out var b)?b:(Name:now[id].Name,Count:0);
+            int count=now.TryGetValue(id,out var n)?n.Count:0;
+            string whose=id.StartsWith($"stack:{combat.OwnSide}:",StringComparison.Ordinal)?"твои":"враг";
+            return count==was.Count?null:$"{was.Name} ({whose}) {was.Count} → {count}"+(count==0?" (отряд уничтожен)":"");
+        }).OfType<string>().ToArray();
+    }
+
+    private CombatView? Remember(CombatView? combat)
+    {
+        if(combat is null)return null;
+        if(decision is not null&&decision.Value.Fight!=FightOf(combat)){decision=null;decisionChanges=[];}
+        if(decision is null)return combat;
+        if(!combat.OwnTurn||decision.Value.Key==$"{combat.Round}:{combat.ActiveStack}")return combat with{SinceLastMove=decisionChanges};
+        return combat with{SinceLastMove=Changes(combat,decision.Value.Counts)};
+    }
+
+    /// Marks a settled own move as the point the next «since your last move» is counted from.
+    public void CommitDecision(CombatView? combat)
+    {
+        if(combat is null||!combat.OwnTurn)return;
+        string fight=FightOf(combat),key=$"{combat.Round}:{combat.ActiveStack}";
+        if(decision is {} d&&d.Fight==fight&&d.Key==key)return;
+        decisionChanges=decision is {} last&&last.Fight==fight?Changes(combat,last.Counts):[];
+        decision=(fight,key,combat.Stacks.ToDictionary(s=>s.Id,s=>(s.Name,s.Count)));
+    }
     private bool creaturesRead;
 
     /// Every creature the running game knows, by type: the table the game consults to print a
@@ -826,7 +868,7 @@ internal sealed class GameReader(WindowsGame game,int player)
         }
         var towns=frontend?new List<TownView>():new TownReader(game,player).Read();
         var setup=screen=="scenario_selection"?new ScenarioReader(game).Read(dlg,items):null;
-        var combat=screen=="combat"?new CombatReader(game,player).Read():null;
+        var combat=Remember(screen=="combat"?new CombatReader(game,player).Read():null);
         // The side list of towns — on the map and in the town screen — draws each town's icon with
         // an odd frame once the town has built today: the cross the player sees over it.
         int iconBase=screen=="adventure"?32:screen=="town"?155:-1;

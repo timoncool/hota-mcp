@@ -697,7 +697,13 @@ internal static class ScreenActions
             var shooter=combat.Stacks.FirstOrDefault(s=>s.Id==combat.ActiveStack);
             if(shooter is not null&&shooter.Name.StartsWith("Катапульт",StringComparison.Ordinal))
                 foreach(var (part,hex) in CatapultTargets)
-                    actions.Add(new($"combat:catapult:{part}",$"Катапульта: бить по «{part}» (клетка {hex}). Разрушенный сегмент игра не принимает — мост тогда откажет; выстрелы в журнал боя не пишутся, их итог виден по прочности в строке состояния"));
+                {
+                    // A destroyed part takes no more shots, so only standing ones are offered.
+                    var piece=combat.Field?.Walls.FirstOrDefault(w=>w.Name==part);
+                    if(piece is {HitPoints:<=0})continue;
+                    actions.Add(new($"combat:catapult:{part}",$"Катапульта: бить по «{part}» (клетка {hex}"
+                        +(piece is null?"":$", прочность {piece.HitPoints}")+"); выстрелы в журнал боя не пишутся, их итог виден по прочности"));
+                }
             if(items.Any(i=>i.Id==2008&&i.Interactive))actions.Add(new("combat:spellbook","Открыть книгу заклинаний"));
             if(items.Any(i=>i.Id==2009&&i.Interactive))actions.Add(new("combat:wait","Ждать"));
             if(items.Any(i=>i.Id==2010&&i.Interactive))actions.Add(new("combat:defend","Защищаться"));

@@ -149,13 +149,41 @@ internal static class ScreenBriefing
     {
         string Where(CombatStack s)=>s.Hexes.Length>1?$"клетки {string.Join("-",s.Hexes)}":$"клетка {s.Hex}";
         string Traits(CombatStack s)=>string.Join("",new[]{s.Flying?", летает":"",s.Shooter?", стреляет":"",s.Wide?", занимает две клетки":""});
-        string Line(IEnumerable<CombatStack> list)=>string.Join("; ",list.Select(s=>$"{s.Name} {s.Count} [{s.Id}] ({Where(s)}, скорость {s.Speed}{Traits(s)})"));
+        var enemiesAround=new HashSet<int>(combat.Stacks.Where(s=>s.Side!=combat.OwnSide).SelectMany(s=>s.Hexes));
+        // The creature card as a player reads it on a right click, plus the stack's state this round.
+        string Card(CombatStack s)
+        {
+            var parts=new List<string>{Where(s),$"атака {s.Attack}, защита {s.Defence}",$"урон {s.DamageMin}–{s.DamageMax}",
+                $"здоровье {s.TopHealth}/{s.HealthEach} у верхнего",$"скорость {s.Speed}"};
+            if(s.Shots is int shots)parts.Add($"выстрелов {shots}");
+            if(!s.WarMachine)parts.Add($"ответных ударов {s.Retaliations}");
+            if(s.Morale!=0)parts.Add($"мораль {s.Morale:+0;-0}");
+            if(s.Luck!=0)parts.Add($"удача {s.Luck:+0;-0}");
+            string traits=Traits(s).TrimStart(',',' ');
+            if(traits.Length>0)parts.Add(traits);
+            parts.AddRange(s.Abilities);
+            if(s.WarMachine)parts.Add("военная машина");
+            if(s.Summoned)parts.Add("призван в бою");
+            if(s.Acted)parts.Add("в этом раунде уже ходил");
+            else if(s.Waited)parts.Add("ждёт");
+            if(s.Defending)parts.Add("в защите");
+            if(s.Shooter&&!s.WarMachine&&s.Around().Any(enemiesAround.Contains))parts.Add("враг вплотную — выстрела не будет, только ближний бой");
+            if(s.Effects.Length>0)parts.Add("действует: "+string.Join(", ",s.Effects));
+            return $"{s.Name} {s.Count} [{s.Id}] ({string.Join(", ",parts)})";
+        }
+        string Line(IEnumerable<CombatStack> list)=>string.Join("; ",list.Select(Card));
         var active=combat.Stacks.FirstOrDefault(s=>s.Id==combat.ActiveStack);
         lines.Add($"Бой, раунд {combat.Round+1}. "+(combat.OwnTurn&&active is not null
             ?$"Ходит твой отряд: {active.Name} {active.Count} ({Where(active)}, скорость {active.Speed}{Traits(active)})."
             :"Сейчас ходит противник: действий нет, наблюдай, пока ход не вернётся."));
+        if(combat.SinceLastMove.Length>0)lines.Add("С твоего прошлого хода: "+string.Join("; ",combat.SinceLastMove)+".");
         lines.Add("Твои отряды: "+Line(combat.Stacks.Where(s=>s.Side==combat.OwnSide))+".");
         lines.Add("Враги: "+Line(combat.Stacks.Where(s=>s.Side!=combat.OwnSide))+".");
+        LossesBrief(lines,combat);
+        if(combat.Field is {Siege:true} field)
+            lines.Add("Осада"+(field.Moat?", перед стеной ров":"")+". Стена: "
+                +string.Join(", ",field.Walls.Select(w=>w.HitPoints>0?$"{w.Name} — прочность {w.HitPoints}":$"{w.Name} — разрушена"))+".");
+        lines.AddRange(FieldMap(combat));
         if(!combat.OwnTurn||active is null)return;
         if(active.Speed==0)
         {
@@ -174,6 +202,41 @@ internal static class ScreenBriefing
         lines.Add((near.Count>0?"Ближним боем в этот ход достаёшь: "+string.Join(", ",near)+". ":"Ближним боем в этот ход не достать никого. ")
             +(far.Count>0?"Не достаёшь: "+string.Join(", ",far)+". ":"")
             +(active.Shooter?"Отряд стреляет — выстрел бьёт любую цель: combat:attack:<отряд>.":"Удар — combat:attack:<отряд> или с выбранной клетки combat:attack:<отряд>:from:<клетка>."));
+    }
+
+    /// What each side has lost since the fight began, priced by the game's AI Value — the same
+    /// measure the game's own AI weighs armies with.
+    private static void LossesBrief(List<string> lines,CombatView combat)
+    {
+        if(combat.Losses.Length==0)return;
+        string Side(bool own)
+        {
+            var list=combat.Losses.Where(l=>(l.Side==combat.OwnSide)==own).ToList();
+            return list.Count==0?"нет":string.Join(", ",list.Select(l=>$"{l.Name} {l.Lost}"))+$" (ценность {list.Sum(l=>l.ValueLost)})";
+        }
+        lines.Add($"Потери с начала боя — твои: {Side(true)}; врага: {Side(false)}.");
+    }
+
+    /// The battlefield drawn in text, the way a player takes it in at a glance: eleven rows of
+    /// fifteen hexes, every other row shifted half a hex to the right, as on screen.
+    private static IEnumerable<string> FieldMap(CombatView combat)
+    {
+        var symbol=new Dictionary<string,char>();
+        const string own="123456789abcdefghijkl",enemy="ABCDEFGHIJKLMNOPQRSTU";
+        int o=0,e=0;
+        foreach(var s in combat.Stacks)symbol[s.Id]=s.Side==combat.OwnSide?own[Math.Min(o++,own.Length-1)]:enemy[Math.Min(e++,enemy.Length-1)];
+        var at=new Dictionary<int,char>();
+        foreach(var s in combat.Stacks)foreach(int h in s.Hexes)at[h]=symbol[s.Id];
+        var field=combat.Field;
+        void Mark(IEnumerable<int>? hexes,char c){if(hexes is null)return;foreach(int h in hexes)at.TryAdd(h,c);}
+        Mark(field?.Obstacles,'#');Mark(field?.ForceFields,'#');Mark(field?.FireWalls,'!');Mark(field?.Quicksand,'~');Mark(field?.LandMines,'*');
+        Mark(combat.ReachableHexes,'o');
+        yield return "Карта поля: клетка = строка×17 + столбец; цифры — твои отряды, буквы — враги; "
+            +(combat.OwnTurn?"o — куда ходящий отряд встанет в этот ход, ":"")+"# — препятствие, ! — огонь, ~ — твой зыбучий песок, * — твоя мина, . — свободно.";
+        yield return "     "+string.Join(" ",Enumerable.Range(1,15).Select(c=>(c%10).ToString()));
+        for(int row=0;row<11;row++)
+            yield return $"{row,2} "+(row%2==0?"  ":" ")+string.Join(" ",Enumerable.Range(1,15).Select(c=>at.TryGetValue(row*17+c,out char ch)?ch:'.'));
+        yield return "Обозначения: "+string.Join("; ",combat.Stacks.Select(s=>$"{symbol[s.Id]} — {s.Name} {s.Count} [{s.Id}]"+(s.Id==combat.ActiveStack?", ходит":"")))+".";
     }
 
     /// Fort, citadel and castle are one building rebuilt in place; the key is whichever stands.

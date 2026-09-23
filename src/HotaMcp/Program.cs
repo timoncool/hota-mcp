@@ -26,7 +26,8 @@ if(stdio)
     var host=Host.CreateApplicationBuilder();
     host.Logging.ClearProviders();host.Logging.AddConsole(o=>o.LogToStandardErrorThreshold=LogLevel.Trace);
     host.Services.AddSingleton<IGameEndpoint>(new RemoteEndpoint(http));
-    host.Services.AddMcpServer(o=>o.ServerInstructions=ServerInstructions.Text).WithStdioServerTransport().WithTools<GameTools>();
+    host.Services.AddMcpServer(o=>o.ServerInstructions=ServerInstructions.Text).WithStdioServerTransport().WithTools<GameTools>()
+        .WithRequestFilters(f=>f.AddCallToolFilter(ToolErrors.Filter));
     await host.Build().RunAsync();return;
 }
 
@@ -92,14 +93,15 @@ var builder=WebApplication.CreateBuilder();
 builder.Configuration["AllowedHosts"]="127.0.0.1;localhost;[::1]";
 builder.Logging.ClearProviders();builder.Logging.AddConsole(o=>o.LogToStandardErrorThreshold=LogLevel.Trace);
 builder.Services.AddSingleton<IGameEndpoint>(session);
-builder.Services.AddMcpServer(o=>o.ServerInstructions=ServerInstructions.Text).WithHttpTransport(o=>o.SessionMode=HttpServerSessionMode.StatefulForInitializeClients).WithTools<GameTools>().WithResources<GameResources>();
+builder.Services.AddMcpServer(o=>o.ServerInstructions=ServerInstructions.Text).WithHttpTransport(o=>o.SessionMode=HttpServerSessionMode.StatefulForInitializeClients).WithTools<GameTools>().WithResources<GameResources>()
+    .WithRequestFilters(f=>f.AddCallToolFilter(ToolErrors.Filter));
 var app=builder.Build();
 app.Use(async(context,next)=>{
     string supplied=context.Request.Headers.Authorization.ToString();
     if(!CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(supplied),Encoding.UTF8.GetBytes("Bearer "+secret)))
     {context.Response.StatusCode=401;return;}
     try{await next();}
-    catch(InvalidOperationException e){context.Response.StatusCode=409;await context.Response.WriteAsJsonAsync(new{error=e.Message});}
+    catch(InvalidOperationException e){context.Response.StatusCode=409;await context.Response.WriteAsJsonAsync(new{error=e.Message,code=(e as ActionRefused)?.Code});}
 });
 app.MapMcp("/mcp");
 app.MapPost("/bridge/status",(CancellationToken ct)=>session.Status(ct));
