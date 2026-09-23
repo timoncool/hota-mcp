@@ -146,6 +146,11 @@ If the reference has no answer, say so. Do not invent a number.
    result must never be retried under a new ID — observe first and decide again.
 4. `plan` holds your goals, `read_journal` your prior results.
 
+Movement points are checked the way a player checks them: the right button on the hero's movement
+bar in the sidebar shows the game's own card «Единиц перемещения: N / M» — the briefing names the
+`inspect_element id:<n>` for each hero. After a fight, a bank or a dialog the number in the
+observation can lag; the card is the answer, so read it before deciding a hero is idle or spent.
+
 Confirmation is by evidence, not by the picture changing: movement by position and movement points
 spent, a stack transfer by the garrison composition, end of turn by the date, a combat action by the
 battle log growing, a spell by mana spent.

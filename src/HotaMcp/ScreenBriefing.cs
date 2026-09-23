@@ -27,7 +27,7 @@ internal static class ExchangeArtifacts
 internal static class ScreenBriefing
 {
     public static List<string> Build(string screen,int[] date,int[] resources,List<TownView> towns,
-        List<HeroView> roster,HeroView? selected,SideView? side,string? selectedStack,BuildOffer? offer,int openTown,string? foreignHero,List<string> foreignArmy,List<ForeignHero> foreignHeroes,List<UiElement> items,CombatView? combat=null)
+        List<HeroView> roster,HeroView? selected,SideView? side,string? selectedStack,BuildOffer? offer,int openTown,string? foreignHero,List<string> foreignArmy,List<ForeignHero> foreignHeroes,List<UiElement> items,CombatView? combat=null,int[]? sidebar=null)
     {
         var lines=new List<string>();
         if(side is not null)
@@ -96,7 +96,7 @@ internal static class ScreenBriefing
         if(screen=="combat"&&combat is not null)CombatBrief(lines,combat);
         if(screen=="town")TownBrief(lines,resources,towns,roster,selectedStack,openTown);
         if(screen=="exchange")ExchangeBrief(lines,items,roster);
-        if(screen=="adventure")AdventureBrief(lines,resources,towns,roster,selected);
+        if(screen=="adventure")AdventureBrief(lines,resources,towns,roster,selected,sidebar);
         if(screen=="building_confirmation"&&offer is not null)
         {
             lines.Add($"{offer.Title}. {offer.Effect}");
@@ -300,13 +300,15 @@ internal static class ScreenBriefing
     private static string Res(int[] resources,int index)=>index<resources.Length?resources[index].ToString():"?";
 
     private static void AdventureBrief(List<string> lines,int[] resources,List<TownView> towns,
-        List<HeroView> roster,HeroView? selected)
+        List<HeroView> roster,HeroView? selected,int[]? sidebar)
     {
         lines.Add($"Карта. Золото {(resources.Length>6?resources[6]:0)}. Героев {roster.Count}, городов {towns.Count}.");
         foreach(var hero in roster)
             lines.Add($"Герой {hero.Name}: клетка {(hero.Position.Length>1?$"{hero.Position[0]},{hero.Position[1]}":"?")}, "
                 +$"ходов {hero.Movement} из {hero.MaxMovement}, мана {hero.Mana}, войско: {Stacks(hero.ArmyTypes,hero.ArmyCounts)}"
-                +(selected is not null&&selected.Id==hero.Id?" — выбран сейчас.":"."));
+                +(selected is not null&&selected.Id==hero.Id?" — выбран сейчас.":".")
+                +(sidebar is not null&&Array.IndexOf(sidebar,hero.Id) is int slot and >=0 and <5
+                    ?$" Ход по карточке игры (правый щелчок по полосе хода): inspect_element id:{20+slot}.":""));
         foreach(var town in towns)
         {
             // A hero leading the garrison holds the town's troops as his own army; saying
