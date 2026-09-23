@@ -281,6 +281,37 @@ internal sealed class GameReference
             :hotaObjects.TryGetValue((type,-1),out var any)?any:null;
     }
 
+    /// Every entry of HotA.dat's hint table as a card: type, subtype, then the quoted text whose
+    /// first line is the name. Type 5 is an artefact (subtype = artefact number, the text carries
+    /// «Класс: …» and the effect); everything else is a map object.
+    private static List<ReferenceCard> HotaDatCards(string data)
+    {
+        var result=new List<ReferenceCard>();
+        string file=Path.Combine(Path.GetDirectoryName(data)!,"HotA.dat");
+        if(!File.Exists(file))return result;
+        string text=Encoding.GetEncoding(1251).GetString(File.ReadAllBytes(file));
+        var seen=new HashSet<(string,string)>();
+        foreach(Match m in Regex.Matches(text,"(?:^|\n)(\\d+)\r\n(-?\\d+)\r\n\"([^\"]*)\""))
+        {
+            int type=int.Parse(m.Groups[1].Value),subtype=int.Parse(m.Groups[2].Value);
+            var lines=m.Groups[3].Value.Replace("\r","").Split('\n',StringSplitOptions.TrimEntries|StringSplitOptions.RemoveEmptyEntries);
+            if(lines.Length==0||lines[0].Length<2)continue;
+            string name=lines[0],body=string.Join("\n",lines.Skip(1));
+            string kind=type==5?"артефакт":"объект карты";
+            if(!seen.Add((kind,name+"\n"+body)))continue;
+            var fields=new Dictionary<string,string>{["Тип объекта"]=type.ToString(),["Подтип"]=subtype.ToString()};
+            if(type==5)
+            {
+                fields["Номер артефакта"]=subtype.ToString();
+                if(lines.Skip(1).FirstOrDefault(l=>l.StartsWith("Класс:",StringComparison.Ordinal)) is string cls)
+                    fields["Класс"]=cls["Класс:".Length..].Trim().TrimEnd('.');
+            }
+            if(body.Length>0)fields["Описание"]=body;
+            result.Add(new(kind,name,fields,body.Length>0?$"{name}\n{body}":name));
+        }
+        return result;
+    }
+
     /// The loss condition, numbered the same way.
     public static string Loss(int type)=>Line("LCDESC.TXT",type==0xFF?0:type+1)??$"особое условие поражения №{type}";
 
@@ -468,6 +499,22 @@ internal sealed class GameReference
             .Where(file=>!used.Any(entry=>entry.StartsWith(file,StringComparison.OrdinalIgnoreCase)))
             .ToArray();
         if(missing.Length>0)used.Add("не найдены в архивах: "+string.Join(", ",missing));
+        // The expansion's hint table: every artefact with its class and effect — its own artefacts
+        // included, which artraits.txt does not carry — and every map object with what it gives.
+        var hint=HotaDatCards(data);
+        int added=0;
+        foreach(var card in hint)
+        {
+            bool known=result.Any(c=>c.Kind==card.Kind&&string.Equals(c.Name,card.Name,StringComparison.OrdinalIgnoreCase));
+            // A base artefact already has its table card; an object's table card is only a name,
+            // so the hint's description is added beside it.
+            if(known&&card.Kind=="артефакт")continue;
+            if(known&&card.Fields.ContainsKey("Описание"))
+                result.RemoveAll(c=>c.Kind==card.Kind&&string.Equals(c.Name,card.Name,StringComparison.OrdinalIgnoreCase)
+                    &&(string.IsNullOrWhiteSpace(c.Text)||c.Text.Trim()==c.Name));
+            result.Add(card);added++;
+        }
+        if(added>0)used.Add($"HotA.dat (подсказки редактора: {added} карточек артефактов и объектов)");
         source=used.Count==0?"":string.Join(", ",used);
         return result;
     }
