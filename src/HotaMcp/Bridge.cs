@@ -25,7 +25,7 @@ public sealed record CellRequest(string Revision,int X,int Y,int Z);
 public sealed record KeyRequest(int Key,int Scan,bool Control);
 public sealed record PressRequest(int X,int Y,bool Shift=false);
 public sealed record CellCard(int X,int Y,int Z,string[] Card,Observation Observation);
-public sealed record ElementCard(string Element,string[] Card,Observation Observation);
+public sealed record ElementCard(string Element,string? Hint,string[] Card,Observation Observation);
 
 internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) : IDisposable
 {
@@ -412,6 +412,21 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
                 (centreX,centreY)=(box.X+box.Width/2,box.Y+box.Height/2);
             }
             else throw new InvalidOperationException("Unknown control; observe again, or address it as id:<number>");
+            // A player first rests the pointer on a control: the hint line of the window then
+            // says what it does and, for a purchase, what it costs («Улучшить (Золото: 7500…)»).
+            // The hint is whatever text line changed under the resting pointer.
+            // The pointer may already rest on this control, so the hint line is first cleared by
+            // moving it to the corner of the screen.
+            await game.MouseAsync(0,0,before.Width,before.Height,false,ct);
+            await Task.Delay(150,CancellationToken.None);
+            var resting=reader.Observe();
+            await game.MouseAsync(centreX,centreY,before.Width,before.Height,false,ct);
+            await Task.Delay(200,CancellationToken.None);
+            var hovered=reader.Observe();
+            var was=resting.Elements.GroupBy(e=>e.Key).ToDictionary(g=>g.Key,g=>g.First().Text);
+            string? hint=hovered.Elements
+                .Where(e=>!string.IsNullOrWhiteSpace(e.Text)&&(!was.TryGetValue(e.Key,out var old)||old!=e.Text))
+                .Select(e=>e.Text!.Trim()).FirstOrDefault();
             await game.RightMouseDownAsync(centreX,centreY,before.Width,before.Height,ct);
             GameReader.CardView card;
             try
@@ -425,7 +440,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             var after=reader.Observe();
             if(after.Screen!=before.Screen)
                 throw new InvalidOperationException("The control reacted instead of showing a card; observe again");
-            return new(request.Element,card.Texts,after);
+            return new(request.Element,hint,card.Texts,after);
         }
         finally{gate.Release();}
     }

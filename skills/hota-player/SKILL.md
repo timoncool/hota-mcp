@@ -166,6 +166,8 @@ cannot be understood without a frame, that is a missing tool, not a reason to lo
   "fight or walk around". It goes stale — wandering stacks move every day.
 - `inspect_element(element)` — the same for a control on the current screen: creature stats, a skill
   or spell description, artefact text. The control is not activated; nothing is bought or spent.
+  It first rests the pointer on the control and returns the window's hint line as `hint` — that is
+  where the game writes a price: the upgrade arrows on a stack's card say «Улучшить (Золото: 3900)».
 - Left click on a skill, spell or stack opens a popup that stays and is read by an ordinary
   `observe`. Careful: left click on an army slot or an exchange arrow **performs the action**. For
   information, prefer the right button.
