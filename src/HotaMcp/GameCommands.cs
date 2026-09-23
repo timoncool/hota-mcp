@@ -316,7 +316,7 @@ internal static class GameCommands
     /// Where answering a modal question can legitimately land.
     // A dwelling out on the map answers «yes, hire» with its recruitment window, and a level-up
     // can follow a reward, so both are ordinary places for a message to lead to.
-    private const string AfterMessage="adventure,message,combat,battle_result,town,hero_screen,exchange,recruitment,level_up,mage_guild,tavern,marketplace";
+    private const string AfterMessage="adventure,message,combat,battle_result,town,hero_screen,exchange,recruitment,level_up,mage_guild,tavern,marketplace,main_menu,system_options,save_game,load_game,scenario_selection,game_type,high_score_name,high_scores";
 
     /// Anything a town building can open.
     private const string AnyTownScreen="town,town_hall,building_confirmation,recruitment,tavern,"
@@ -445,7 +445,7 @@ internal static class GameCommands
         // System options, save and load.
         "game:save" => new("save_game", Deliveries.Key(0x53, 0x1f)),
         "game:load" => new("message", Deliveries.Key(0x4c, 0x26)),
-        "game:main_menu" => new("main_menu", Deliveries.Control(108, "somain.def")),
+        "game:main_menu" => new("main_menu,message", Deliveries.Control(108, "somain.def")),
         _ when action.Key.StartsWith("save:name:") => new("save_game", SaveName),
         "save:confirm" => new("message", Deliveries.Control(186, "scnrsav.def")),
         "load:confirm" => new("adventure", Deliveries.Control(186, "scnrlod.def")) { Confirm = Confirm.PartyLoaded },
