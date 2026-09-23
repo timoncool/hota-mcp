@@ -8,6 +8,8 @@ public sealed record TownView(int Id,string? Name,int Type,bool BuiltToday,int[]
         .Select(s=>$"{GameReference.Creature(s.First)} x{s.Second}").ToList();
     /// What is built, in the names the player reads on the construction screen.
     public List<string> Built=>Buildings.Select(b=>GameReference.Building(b,Type)).ToList();
+    /// Where the town stands on the map, as its flag is seen.
+    public int[] Position {get;init;}=[];
     public int GarrisonHero {get;init;}
     public int VisitingHero {get;init;}
     public int[] GarrisonTypes {get;init;}=[];
@@ -84,6 +86,7 @@ internal sealed class TownReader(WindowsGame game,int player)
             result.Add(new(id,game.Text(BitConverter.ToUInt32(town,0xc8)),town[4],town[2]!=0,
                 Enumerable.Range(0,44).Where(b=>(mask&(1UL<<b))!=0).ToArray())
             {
+                Position=[town[5],town[6],town[7]],
                 GarrisonHero=BitConverter.ToInt32(town,0xc),VisitingHero=BitConverter.ToInt32(town,0x10),
                 GarrisonTypes=Enumerable.Range(0,7).Select(s=>BitConverter.ToInt32(town,0xe0+s*4)).ToArray(),
                 GarrisonCounts=Enumerable.Range(0,7).Select(s=>BitConverter.ToInt32(town,0xfc+s*4)).ToArray(),

@@ -36,7 +36,7 @@ internal static class ScreenBriefing
                 :$"Сейчас ходит {side.ActiveColour}, а ты играешь за {side.Colour} — не действуй за чужой цвет.");
         foreach(var enemy in foreignHeroes)
             lines.Add($"ТРЕВОГА: чужой герой {enemy.Name} ({Colour(enemy.Owner)}) виден на клетке "
-                +$"{enemy.Position[0]},{enemy.Position[1]}. Посмотреть его войско — наведи на него inspect_tile "
+                +$"{enemy.Position[0]},{enemy.Position[1]}{NearestTown(enemy.Position,towns," — от твоего города ")}. Посмотреть его войско — наведи на него inspect_tile "
                 +"или открой карточку правым щелчком; при угрозе городу переходи в состояние обороны.");
         if(date.Length>2&&screen!="combat")
         {
@@ -395,13 +395,30 @@ internal static class ScreenBriefing
 
     private static string Res(int[] resources,int index)=>index<resources.Length?resources[index].ToString():"?";
 
+    /// Where a cell lies from the nearest own town, in cells and by the compass, the way a player
+    /// reads the map at a glance. Straight-line distance, not a route: the route is the game's.
+    private static string NearestTown(int[] at,List<TownView> towns,string prefix,bool toward=false)
+    {
+        if(at.Length<3)return "";
+        var near=towns.Where(t=>t.Position.Length==3&&t.Position[2]==at[2])
+            .Select(t=>(Town:t,Cells:Math.Max(Math.Abs(t.Position[0]-at[0]),Math.Abs(t.Position[1]-at[1]))))
+            .OrderBy(t=>t.Cells).FirstOrDefault();
+        if(near.Town is null)return "";
+        if(near.Cells<=2)return $"{prefix}{near.Town.Name}: рядом";
+        int dx=(at[0]-near.Town.Position[0])*(toward?-1:1),dy=(at[1]-near.Town.Position[1])*(toward?-1:1);
+        string[] compass=["восток","северо-восток","север","северо-запад","запад","юго-запад","юг","юго-восток"];
+        int sector=(int)Math.Round(Math.Atan2(-dy,dx)/(Math.PI/4));
+        string side=compass[(sector%8+8)%8];
+        return $"{prefix}{near.Town.Name}: {near.Cells} кл. на {side}";
+    }
+
     private static void AdventureBrief(List<string> lines,int[] resources,List<TownView> towns,
         List<HeroView> roster,HeroView? selected,int[]? sidebar)
     {
         lines.Add($"Карта. Золото {(resources.Length>6?resources[6]:0)}. Героев {roster.Count}, городов {towns.Count}.");
         foreach(var hero in roster)
             lines.Add($"Герой {hero.Name}: клетка {(hero.Position.Length>1?$"{hero.Position[0]},{hero.Position[1]}":"?")}, "
-                +$"ходов {hero.Movement} из {hero.MaxMovement}, мана {hero.Mana}, войско: {Stacks(hero.ArmyTypes,hero.ArmyCounts)}"
+                +$"ходов {hero.Movement} из {hero.MaxMovement}, мана {hero.Mana}{NearestTown(hero.Position,towns,", до своего города ",true)}, войско: {Stacks(hero.ArmyTypes,hero.ArmyCounts)}"
                 +(selected is not null&&selected.Id==hero.Id?" — выбран сейчас.":".")
                 +(sidebar is not null&&Array.IndexOf(sidebar,hero.Id) is int slot and >=0 and <5
                     ?$" Ход по карточке игры (правый щелчок по полосе хода): inspect_element id:{20+slot}.":""));
