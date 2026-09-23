@@ -48,7 +48,7 @@ MCP-сервер, который подключается к **установл�
 
 ## Инструменты MCP
 
-`observe`, `look`, `state`, `read_map`, `read_journal`, `nearby_targets`, `inspect_tile`, `inspect_target`, `inspect_element`, `move_to`, `move_to_tile`, `map_click`, `click_ui`, `attack_target`, `plan`, `start_game`, `game_status`, `hota_docs`, `hota_reference`, `debug_snapshot`, `diagnostic`.
+`observe`, `look`, `state`, `read_map`, `read_journal`, `nearby_targets`, `inspect_tile`, `inspect_target`, `inspect_element`, `move_to`, `move_to_tile`, `map_click`, `click_ui`, `attack_target`, `plan`, `mark`, `inspect_path`, `start_game`, `game_status`, `hota_docs`, `hota_reference`, `debug_snapshot`, `diagnostic`.
 
 Навык для агента — [skills/hota-player/SKILL.md](skills/hota-player/SKILL.md).
 

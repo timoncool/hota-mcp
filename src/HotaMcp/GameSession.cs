@@ -93,6 +93,7 @@ internal sealed class GameSession(int? requestedPid,int player,string directory,
     {
         await gate.WaitAsync(ct);
         try{Refresh();return await action(bridge??throw new InvalidOperationException(detail));}
+        catch(ActionRefused refusal){bridge?.RecordRefusal(refusal);throw;}
         finally{gate.Release();}
     }
     public async Task<object> Status(CancellationToken ct)
@@ -131,6 +132,7 @@ internal sealed class GameSession(int? requestedPid,int player,string directory,
     public Task<object> PressRight(PressRequest request,CancellationToken ct)=>WithGame(b=>b.PressRight(request,ct),ct);
     public Task<object> Journal(int limit,CancellationToken ct)=>WithGame(b=>b.GetJournal(limit,ct),ct);
     public Task<object> Plan(string? value,CancellationToken ct)=>WithGame(b=>b.Plan(value,ct),ct);
+    public Task<object> Mark(int x,int y,int z,string? note,CancellationToken ct)=>WithGame(b=>b.Mark(x,y,z,note,ct),ct);
     public Task<MapView> ReadMap(int x,int y,int z,int radius,CancellationToken ct)=>WithGame(b=>b.ReadMap(x,y,z,radius,ct),ct);
     public Task<TileInspection> InspectTile(int x,int y,int z,string revision,CancellationToken ct)=>WithGame(b=>b.InspectTile(x,y,z,revision,ct),ct);
     public Task<NearbyTargets> Nearby(CancellationToken ct)=>WithGame(b=>b.Nearby(ct),ct);

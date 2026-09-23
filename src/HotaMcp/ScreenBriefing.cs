@@ -167,6 +167,12 @@ internal static class ScreenBriefing
             if(s.Acted)parts.Add("в этом раунде уже ходил");
             else if(s.Waited)parts.Add("ждёт");
             if(s.Defending)parts.Add("в защите");
+            // Who stands next to whom, said outright: models read a stated neighbour far more
+            // reliably than they work it out from a drawn grid.
+            var around=s.Around().ToHashSet();
+            var touching=combat.Stacks.Where(o=>o.Id!=s.Id&&o.Hexes.Any(around.Contains))
+                .Select(o=>$"{o.Name} [{o.Id}]"+(o.Side==combat.OwnSide?" (свой)":"")).ToList();
+            if(touching.Count>0)parts.Add("вплотную: "+string.Join(", ",touching));
             if(s.Shooter&&!s.WarMachine&&s.Around().Any(enemiesAround.Contains))parts.Add("враг вплотную — выстрела не будет, только ближний бой");
             if(s.Effects.Length>0)parts.Add("действует: "+string.Join(", ",s.Effects));
             return $"{s.Name} {s.Count} [{s.Id}] ({string.Join(", ",parts)})";

@@ -88,6 +88,35 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
     /// The plan is the controller's memory across turns, and a turn outlives the process: the
     /// service is restarted on every install. Keeping it only in memory silently threw the goal
     /// away mid-game, so it lives in the session directory and is read back on start.
+    /// Notes the agent pins to map cells — a stack too strong for now, a passage, where the enemy
+    /// was last seen. Its own memory of the map, kept beside the plan and shown where the cell is.
+    private Dictionary<string,string>? markersCache;
+    private Dictionary<string,string> markers=>markersCache??=File.Exists(MarkersFile)
+        ?JsonSerializer.Deserialize<Dictionary<string,string>>(File.ReadAllText(MarkersFile))??new()
+        :new();
+    private string MarkersFile=>Path.Combine(
+        Directory.GetParent(stateDirectory)?.Parent?.FullName??stateDirectory,$"markers-player{player}.json");
+    private static string CellKey(int x,int y,int z)=>$"{x},{y},{z}";
+
+    public async Task<object> Mark(int x,int y,int z,string? note,CancellationToken ct)
+    {
+        await gate.WaitAsync(ct);
+        try
+        {
+            if(note is {Length:>300})throw new ActionRefused(ActionRefused.BadText,"A marker note is at most 300 characters");
+            if(string.IsNullOrWhiteSpace(note))markers.Remove(CellKey(x,y,z));
+            else markers[CellKey(x,y,z)]=note.Trim();
+            File.WriteAllText(MarkersFile,JsonSerializer.Serialize(markers));
+            Record("marker",new{x,y,z,note});
+            return new{markers=markers.Select(m=>new{cell=m.Key,note=m.Value}).ToArray()};
+        }
+        finally{gate.Release();}
+    }
+
+    /// A refusal is a wrong belief about the state caught before it cost anything; counted over a
+    /// game it says how well the agent keeps track of the board.
+    public void RecordRefusal(ActionRefused refusal)=>Record("refused",new{code=refusal.Code,refusal.Message});
+
     private string PlanFile=>Path.Combine(
         Directory.GetParent(stateDirectory)?.Parent?.FullName??stateDirectory,$"plan-player{player}.txt");
 
@@ -169,8 +198,11 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             lines.Add($"План записан {(planDay.Length>2?$"в день {planDay[0]} недели {planDay[1]}":"раньше")}, "
                 +"а сейчас другой день — перечитай его, выполни, и в конце хода перепиши: цель оставь дословно, "
                 +"прошедший день сожми в одну строку СДЕЛАНО.");
+        if(markers.Count>0&&state.Screen=="adventure")
+            lines.Add("Твои метки на карте (tool mark): "+string.Join("; ",markers.Take(20).Select(m=>$"({m.Key}) {m.Value}"))
+                +(markers.Count>20?$"; ещё {markers.Count-20}":"")+".");
         var recent=journal.Where(e=>e.Kind is "operation_completed" or "move_completed" or "battle_result"
-                or "plan_updated" or "cell_inspected")
+                or "plan_updated" or "cell_inspected" or "refused")
             .TakeLast(4)
             .Select(e=>$"   {e.Kind}: {Summarise(e)}").ToList();
         if(recent.Count>0)
@@ -302,6 +334,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
                     34 => observation.Heroes.FirstOrDefault(h=>h.Id==target.Id)?.Name??target.Name,
                     _ => target.Name,
                 };
+                if(markers.TryGetValue(CellKey(target.X,target.Y,target.Z),out var mark))name=$"{name??kind} — твоя метка: {mark}";
                 list.Add(new(id,kind,Explain(explainer,observation,new RouteReader(game,player).Read(observation,target),target.X,target.Y,target.Z),target.X,target.Y,target.Z){Name=name});
                 if(explainer.LastBlocker is string lockedBy)locked.Add((lockedBy,name??kind));
             }
@@ -1277,6 +1310,7 @@ public interface IGameEndpoint
     Task<object> PressRight(PressRequest request,CancellationToken ct);
     Task<object> Journal(int limit,CancellationToken ct);
     Task<object> Plan(string? value,CancellationToken ct);
+    Task<object> Mark(int x,int y,int z,string? note,CancellationToken ct);
     Task<MapView> ReadMap(int x,int y,int z,int radius,CancellationToken ct);
     Task<TileInspection> InspectTile(int x,int y,int z,string revision,CancellationToken ct);
     Task<NearbyTargets> Nearby(CancellationToken ct);
@@ -1311,6 +1345,7 @@ internal sealed class LocalEndpoint(Bridge bridge) : IGameEndpoint
     public Task<object> PressRight(PressRequest request,CancellationToken ct)=>bridge.PressRight(request,ct);
     public Task<object> Journal(int limit,CancellationToken ct)=>bridge.GetJournal(limit,ct);
     public Task<object> Plan(string? value,CancellationToken ct)=>bridge.Plan(value,ct);
+    public Task<object> Mark(int x,int y,int z,string? note,CancellationToken ct)=>bridge.Mark(x,y,z,note,ct);
     public Task<MapView> ReadMap(int x,int y,int z,int radius,CancellationToken ct)=>bridge.ReadMap(x,y,z,radius,ct);
     public Task<TileInspection> InspectTile(int x,int y,int z,string revision,CancellationToken ct)=>bridge.InspectTile(x,y,z,revision,ct);
     public Task<NearbyTargets> Nearby(CancellationToken ct)=>bridge.Nearby(ct);
@@ -1365,6 +1400,7 @@ internal sealed class RemoteEndpoint(HttpClient client) : IGameEndpoint
     public Task<object> PressRight(PressRequest request,CancellationToken ct)=>Call<object>("bridge/press-right",request,ct);
     public Task<object> Journal(int limit,CancellationToken ct)=>Call<object>("bridge/journal",new{limit},ct);
     public Task<object> Plan(string? value,CancellationToken ct)=>Call<object>("bridge/plan",new{value},ct);
+    public Task<object> Mark(int x,int y,int z,string? note,CancellationToken ct)=>Call<object>("bridge/mark",new{x,y,z,note},ct);
     public Task<MapView> ReadMap(int x,int y,int z,int radius,CancellationToken ct)=>Call<MapView>("bridge/map",new{x,y,z,radius},ct);
     public Task<TileInspection> InspectTile(int x,int y,int z,string revision,CancellationToken ct)=>Call<TileInspection>("bridge/inspect",new{x,y,z,revision},ct);
     public Task<NearbyTargets> Nearby(CancellationToken ct)=>Call<NearbyTargets>("bridge/nearby",new{},ct);

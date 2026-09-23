@@ -130,6 +130,7 @@ app.MapPost("/bridge/reference",(ReferenceRequest request,CancellationToken ct)=
 app.MapPost("/bridge/docs-read",(DocsReadRequest request,CancellationToken ct)=>session.DocsRead(request.Path,request.Heading,request.Offset,request.MaxChars,ct));
 app.MapPost("/bridge/journal",(JournalRequest request,CancellationToken ct)=>session.Journal(request.Limit,ct));
 app.MapPost("/bridge/plan",(PlanRequest request,CancellationToken ct)=>session.Plan(request.Value,ct));
+app.MapPost("/bridge/mark",(MarkRequest request,CancellationToken ct)=>session.Mark(request.X,request.Y,request.Z,request.Note,ct));
 app.MapPost("/bridge/map",(MapRequest request,CancellationToken ct)=>session.ReadMap(request.X,request.Y,request.Z,request.Radius,ct));
 app.MapPost("/bridge/inspect",(TileRequest request,CancellationToken ct)=>session.InspectTile(request.X,request.Y,request.Z,request.Revision,ct));
 app.MapPost("/bridge/nearby",(CancellationToken ct)=>session.Nearby(ct));
@@ -164,7 +165,7 @@ if(launch&&hostLauncherPid is int openedLauncher)
     catch(InvalidOperationException e){File.WriteAllText(launchLog,"[ERROR] "+e.Message);}
 }
 await app.WaitForShutdownAsync();
-record JournalRequest(int Limit);record PlanRequest(string? Value);
+record JournalRequest(int Limit);record PlanRequest(string? Value);record MarkRequest(int X,int Y,int Z,string? Note);
 record TargetRequest(string TargetId,string Revision);record MemRequest(uint Address,int Length);
 record GraphicsRequest(string? Renderer);
 record DocsReadRequest(string Path,string? Heading,int Offset,int MaxChars);

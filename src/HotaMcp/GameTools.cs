@@ -114,6 +114,18 @@ public sealed class GameTools(IGameEndpoint endpoint)
         [Description("How many recent entries to return; 0 or less means the default window.")] int limit=0,
         CancellationToken cancellationToken=default)=>endpoint.Journal(limit,cancellationToken);
 
+    [McpServerTool(Title="Pin a note to a map cell",ReadOnly=false,Destructive=false,Idempotent=true,OpenWorld=false),
+     Description("Pins your own note to a map cell, or removes it when the note is empty. Use it for what the map does not "
+        +"remember for you: a stack too strong for now, a passage, a guarded pocket worth coming back to, where an enemy "
+        +"hero was last seen. Notes are handed back in every adventure observation and beside the target in nearby_targets. "
+        +"Returns all notes. Does NOT change the game.")]
+    public Task<object> Mark(
+        [Description("Cell x.")] int x,
+        [Description("Cell y.")] int y,
+        [Description("Map level: 0 surface, 1 underground.")] int z,
+        [Description("The note, up to 300 characters; empty or null removes the note from the cell.")] string? note=null,
+        CancellationToken cancellationToken=default)=>endpoint.Mark(x,y,z,note,cancellationToken);
+
     [McpServerTool(Title="Read or write your plan",ReadOnly=false,Destructive=false,Idempotent=true,OpenWorld=false),
      Description("Reads your stored plan, or replaces it when a value is given. This is the controller's memory between "
         +"turns and it is handed back inside every observation, so it is read whether or not it is asked for. "
@@ -348,7 +360,7 @@ public sealed class GameTools(IGameEndpoint endpoint)
     private static readonly (string Prefix,string Group)[] Groups=
     [
         ("hota_tools","state"),("game_status","state"),("observe","state"),("nearby_targets","state"),("inspect_target","state"),("inspect_path","state"),
-        ("read_map","state"),("read_journal","state"),("plan","state"),
+        ("read_map","state"),("read_journal","state"),("plan","state"),("mark","state"),
         ("inspect_cell","look"),("inspect_element","look"),("inspect_tile","look"),
         ("act","act"),("click_ui","act"),("move_to","act"),("move_to_tile","act"),
         ("attack_target","act"),("map_click","act"),("start_game","act"),("launcher_graphics","act"),

@@ -44,7 +44,8 @@ the full text of every description; this is the map.
 - `inspect_target` — makes the game compute the route to one destination and returns cost, steps and
   a state with a reason. Route data in `nearby_targets` is a stale cache; this is the live answer.
 - `read_map` — terrain, roads, blocked cells and visible objects around a cell, radius up to 12.
-- `read_journal` — what this controller did recently. `plan` — read or write your own goals.
+- `read_journal` — what this controller did recently, refusals with their codes included. `plan` — read or write your own goals.
+- `mark` — pin your own note to a map cell (a stack too strong for now, a guarded pocket, where the enemy was last seen); notes come back in every adventure observation and beside the target in `nearby_targets`.
 
 **Looking the way a player looks**
 - `inspect_cell` — right-button card for a map cell: which creature stands there and roughly how many.
