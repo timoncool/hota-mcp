@@ -400,6 +400,15 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
                 list.Add(new(id,kind,Explain(explainer,observation,new RouteReader(game,player).Read(observation,target),target.X,target.Y,target.Z),target.X,target.Y,target.Z){Name=name});
                 if(explainer.LastBlocker is string lockedBy)locked.Add((lockedBy,name??kind));
             }
+            // Whose a mine is, a player reads from its right-button card; mines on screen are read
+            // the same way, so a flagged mine of an ally is not taken for a free one.
+            for(int i=0;i<list.Count;i++)
+            {
+                var target=targets[list[i].Id];
+                if(target.Type!=53)continue;
+                string? owner=await MineOwner(target.X,target.Y,target.Z);
+                if(owner is not null)list[i]=list[i] with{Kind=$"{list[i].Kind} — {owner}"};
+            }
             var settled=reader.Observe();
             if(settled.Hero is null||settled.Screen!="adventure")
                 throw new InvalidOperationException("State changed; request targets again");
@@ -412,6 +421,49 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
         }
         finally{gate.Release();}
     }
+
+    private readonly Dictionary<string,(int[] Day,string Owner)> mineOwners=new();
+
+    /// The owner line of a mine's card («Принадлежит синему игроку»), for a mine the camera already
+    /// shows; a mine off screen is left unread rather than moving the camera for it. Read once a day.
+    private async Task<string?> MineOwner(int x,int y,int z)
+    {
+        string key=CellKey(x,y,z);
+        var now=reader.Observe();
+        if(mineOwners.TryGetValue(key,out var known)&&known.Day.SequenceEqual(now.Date))return known.Owner;
+        var map=new MapReader(game,player);
+        if(!map.IsOnScreen(now,x,y,z))return null;
+        var point=map.ScreenPoint(now,x,y,z);
+        bool confirmed=false;
+        for(int attempt=0;attempt<5&&!confirmed;attempt++)
+        {
+            await game.MouseAsync(point.X,point.Y,now.Width,now.Height,false,CancellationToken.None);
+            await Task.Delay(150,CancellationToken.None);
+            try{map.VerifyMouse(x,y,z);confirmed=true;}catch(InvalidOperationException){}
+        }
+        if(!confirmed)return null;
+        string[] texts;
+        await game.RightMouseDownAsync(point.X,point.Y,now.Width,now.Height,CancellationToken.None);
+        try{await Task.Delay(300,CancellationToken.None);texts=reader.ReadCard().Texts.ToArray();}
+        finally{await game.RightMouseUpAsync();}
+        await Task.Delay(150,CancellationToken.None);
+        string line=string.Join("\n",texts);
+        string owner=line.Contains("Принадлежит",StringComparison.Ordinal)
+            ?System.Text.RegularExpressions.Regex.Match(line,@"Принадлежит[^\n]*").Value switch
+            {
+                var o when o.Contains(Colours(player),StringComparison.OrdinalIgnoreCase)=>"твоя",
+                var o=>o.Trim()+(now.Side?.Allies.Any(a=>o.Contains(Colours(a),StringComparison.OrdinalIgnoreCase))==true?" (союзник — не трогать)":" (противник — захватить)"),
+            }
+            :"ничья — захватить";
+        mineOwners[key]=(now.Date,owner);
+        return owner;
+    }
+
+    /// The colour as it stands in the game's own «Принадлежит <цвет> игроку».
+    private static string Colours(int owner)=>owner switch
+    {
+        0=>"красному",1=>"синему",2=>"коричневому",3=>"зелёному",4=>"оранжевому",5=>"фиолетовому",6=>"бирюзовому",7=>"розовому",_=>"игроку"
+    };
 
     private static string ColourName(int owner)=>owner switch
     {
