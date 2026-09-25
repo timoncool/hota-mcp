@@ -232,7 +232,9 @@ internal sealed class AllyWatch(WindowsGame game,int player,string root)
             foreach(var hero in state.Heroes)
                 if(committed?.Heroes.FirstOrDefault(h=>h.Id==hero.Id) is {} old&&(old.X!=hero.X||old.Y!=hero.Y||old.Z!=hero.Z)
                    &&seen.TryGetValue((hero.X,hero.Y,hero.Z),out var at))
-                    Append(active,state.Date,"event",$"{hero.Name} на объекте «{at}» ({hero.X},{hero.Y},{hero.Z})");
+                    Append(active,state.Date,"event",at.Contains("(бродячий отряд)",StringComparison.Ordinal)
+                        ?$"{hero.Name}: бой с «{at.Replace(" (бродячий отряд)","")}» на ({hero.X},{hero.Y},{hero.Z})"
+                        :$"{hero.Name} на объекте «{at}» ({hero.X},{hero.Y},{hero.Z})");
         }
         foreach(var cell in looked)seen.Remove(cell);
         foreach(var (cell,name) in current)seen[cell]=name;
