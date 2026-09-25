@@ -715,6 +715,12 @@ if(screen=="town"&&items.Any(i=>i.Id==3000&&i.Interactive))actions.Add(new("town
         {
             if(items.Any(i=>i.Id==532&&i.Interactive))actions.Add(new("recruit:max","Выбрать максимум доступных для найма существ"));
             if(items.Any(i=>i.Id==30722&&i.Interactive))actions.Add(new("recruit:buy","Нанять выбранное количество за указанную цену"));
+            if(items.Any(i=>i.Id==532&&i.Interactive))
+            {
+                actions.Add(new("recruit:all","Нанять всех, на кого хватает денег: кнопка максимума, затем найм"));
+                actions.Add(new("recruit:half","Нанять половину доступных: ползунок на половину, затем найм"));
+                actions.Add(new("recruit:amount:<n>","Поставить ползунок ровно на n существ (без найма), например recruit:amount:10; потом recruit:buy"));
+            }
             actions.Add(new("recruit:cancel","Отменить найм"));
         }
         if(screen=="system_options"&&items.Any(i=>i.Id==106&&i.Interactive))actions.Add(new("game:save","Открыть сохранение игры"));

@@ -38,12 +38,12 @@ internal static class ScreenBriefing
         {
             if(side?.Allies.Contains(enemy.Owner)==true)
             {
-                lines.Add($"Союзник: герой {enemy.Name} ({Colour(enemy.Owner)}) на клетке {enemy.Position[0]},{enemy.Position[1]}"
+                lines.Add($"Союзник: герой {enemy.Name} ({Colour(enemy.Owner)}) на клетке {enemy.Position[0]},{enemy.Position[1]} ({Level(enemy.Position)})"
                     +$"{NearestTown(enemy.Position,towns," — от твоего города ")}. Его герои и города не цель и не угроза.");
                 continue;
             }
             lines.Add($"ТРЕВОГА: чужой герой {enemy.Name} ({Colour(enemy.Owner)}) виден на клетке "
-                +$"{enemy.Position[0]},{enemy.Position[1]}{NearestTown(enemy.Position,towns," — от твоего города ")}. Посмотреть его войско — наведи на него inspect_tile "
+                +$"{enemy.Position[0]},{enemy.Position[1]} ({Level(enemy.Position)}){NearestTown(enemy.Position,towns," — от твоего города ")}. Посмотреть его войско — наведи на него inspect_tile "
                 +"или открой карточку правым щелчком; при угрозе городу переходи в состояние обороны.");
         }
         if(date.Length>2&&screen!="combat")
@@ -195,6 +195,7 @@ internal static class ScreenBriefing
         4=>"оранжевый",5=>"фиолетовый",6=>"бирюзовый",7=>"розовый",_=>"игрок "+index
     };
 
+    private static string Level(int[] at)=>at.Length>2&&at[2]==1?"подземелье":"поверхность";
     private static string Part(int[] date,int index)=>index<date.Length?date[index].ToString():"?";
 
     /// The battlefield as a player reads it at a glance: whose move it is, where every stack

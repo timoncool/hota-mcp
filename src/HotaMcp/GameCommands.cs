@@ -371,8 +371,8 @@ internal static class GameCommands
         "market:max" => new("marketplace", Deliveries.Control(7, "Ircbtns.def")),
         // The amount is what is received — the number under the right picture, control 12 — because
         // the side given moves in steps of the rate (7 sulphur per crystal).
-        _ when action.Key.StartsWith("market:amount:") => new("marketplace", SliderTo("market:amount:", 6, 12)) { TimeoutSeconds = 30 },
-        _ when action.Key.StartsWith("split:amount:") => new("split_army", SliderTo("split:amount:", 6, 5)) { TimeoutSeconds = 30 },
+        _ when action.Key.StartsWith("market:amount:") => new("marketplace", SliderTo(6, 12, c => int.Parse(c.Element["market:amount:".Length..]))) { TimeoutSeconds = 30 },
+        _ when action.Key.StartsWith("split:amount:") => new("split_army", SliderTo(6, 5, c => int.Parse(c.Element["split:amount:".Length..]))) { TimeoutSeconds = 30 },
         "market:trade" => new("marketplace", Deliveries.Control(5, "TPMrkB.def")) { Confirm = Confirm.None },
         "market:close" => new("town", Deliveries.Control(30722, "iOk6432.def")),
         _ when action.Key.StartsWith("popup:переключить:",StringComparison.Ordinal) => new("popup_choice",async(context,ct)=>
@@ -574,6 +574,20 @@ internal static class GameCommands
         // fort when every tier was hired from there — so the proof is the gold, not the screen.
         "recruit:buy" => new("town,town_fort,adventure", Deliveries.Key(0x0d, 0x1c)) { Confirm = Confirm.GoldSpent },
         "recruit:cancel" => new("town,town_fort", Deliveries.Key(0x1b, 0x01)),
+        // Buying everyone is the two buttons a player presses: maximum, then hire.
+        "recruit:all" => new("town,town_fort,adventure", async (context, ct) =>
+        {
+            await context.Game.KeyAsync(0x4d, 0x32);
+            await Task.Delay(300, CancellationToken.None);
+            await context.Game.KeyAsync(0x0d, 0x1c);
+        }) { Confirm = Confirm.GoldSpent },
+        // Half of what the dwelling holds: the slider moved to that number, then hire.
+        "recruit:half" => new("town,town_fort,adventure", async (context, ct) =>
+        {
+            await SliderTo(559, 526, c => Math.Max(1, RecruitTotal(c) / 2))(context, ct);
+            await context.Game.KeyAsync(0x0d, 0x1c);
+        }) { Confirm = Confirm.GoldSpent },
+        _ when action.Key.StartsWith("recruit:amount:") => new("recruitment", SliderTo(559, 526, c => int.Parse(c.Element["recruit:amount:".Length..]))) { TimeoutSeconds = 30 },
 
         // Combat.
         "combat:spellbook" => new("spellbook", Deliveries.Key(0x43, 0x2e)),
@@ -1196,12 +1210,20 @@ internal static class GameCommands
         return i;
     }
 
+    /// How many creatures the open recruitment window holds in all: «Доступно» shows what is left
+    /// after the number already chosen, so the two together are the dwelling's stock.
+    private static int RecruitTotal(CommandContext context)
+    {
+        int Number(int id) => int.TryParse(context.Before.Elements.FirstOrDefault(e => e.Id == id)?.Text?.Trim(), out int v) ? v : 0;
+        return Number(521) + Number(526);
+    }
+
     /// Sets an amount the way a player does: the arrows at the two ends of a slider move it one
     /// unit at a time, and a number on the screen says where it stands. The market and the split
     /// window both work this way; they differ only in which number follows the slider.
-    private static Deliver SliderTo(string prefix, int slider, int count) => async (context, ct) =>
+    private static Deliver SliderTo(int slider, int count, Func<CommandContext, int> target) => async (context, ct) =>
     {
-        int wanted = int.Parse(context.Element[prefix.Length..]);
+        int wanted = target(context);
         var bar = context.Reader.FindControlById(slider)
             ?? throw new InvalidOperationException("Ползунка количества на экране нет");
         // The screen is redrawn while the slider moves; a read that lands mid-redraw is repeated.
