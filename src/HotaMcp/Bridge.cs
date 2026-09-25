@@ -143,7 +143,9 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
     public void AllyTick()
     {
         if(!gate.Wait(0))return;
-        try{allies.Tick();}
+        // Names of artefacts and creatures come from the game's tables; read before the first look,
+        // or one artefact is logged under a number and then under its name as if it changed hands.
+        try{reader.LoadTables();allies.Tick();}
         finally{gate.Release();}
     }
 
