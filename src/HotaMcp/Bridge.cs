@@ -137,6 +137,8 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
 
     public void Dispose(){game.Dispose();gate.Dispose();}
 
+    public void LoadTables()=>reader.LoadTables();
+
     /// One look at the ally's side, taken between two agent calls, never during one.
     public void AllyTick()
     {

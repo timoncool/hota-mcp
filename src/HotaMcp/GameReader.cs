@@ -296,6 +296,9 @@ internal sealed class GameReader(WindowsGame game,int player)
         artifactsRead=true;
     }
 
+    /// The game's own creature and artefact tables, read once; the reference needs them too.
+    public void LoadTables(){ReadCreatureNames();ReadArtifactNames();}
+
     public Observation Observe()
     {
         ReadCreatureNames();

@@ -174,7 +174,14 @@ internal sealed class GameSession(int? requestedPid,int player,string directory,
     public Task<DocsAnswer> Docs(DocsRequest request,CancellationToken ct)=>Task.FromResult(docsIndex.Search(request.Query,request.Limit,request.Detail));
     public Task<DocsCatalog> DocsCatalog(string? path,CancellationToken ct)=>Task.FromResult(docsIndex.Catalog(path));
     public Task<DocText> DocsRead(string path,string? heading,int offset,int maxChars,CancellationToken ct)=>Task.FromResult(docsIndex.Read(path,heading,offset,maxChars));
-    public Task<ReferenceAnswer> Reference(ReferenceRequest request,CancellationToken ct)=>Task.FromResult(docsIndex.Reference(request.Name,request.Kind,request.Limit));
+    public async Task<ReferenceAnswer> Reference(ReferenceRequest request,CancellationToken ct)
+    {
+        // The running game's tables are the reference's source; they are read on first need.
+        await gate.WaitAsync(ct);
+        try{Refresh();bridge?.LoadTables();}
+        finally{gate.Release();}
+        return docsIndex.Reference(request.Name,request.Kind,request.Limit);
+    }
     public Task<TargetInspection> InspectTarget(string targetId,string revision,CancellationToken ct)=>WithGame(b=>b.InspectTarget(targetId,revision,ct),ct);
     public Task<RouteView> InspectPath(int x,int y,int z,string revision,CancellationToken ct)=>WithGame(async b=>{await EnsureAdapter(ct);return await b.InspectPath(x,y,z,revision,ct);},ct);
     public void Dispose(){bridge?.Dispose();adapter?.Dispose();gate.Dispose();}
