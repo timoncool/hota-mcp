@@ -1264,9 +1264,24 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
     private async Task PressCell(Observation observation,int x,int y,int z)
     {
         var shown=await EnsureVisible(observation,x,y,z);
-        var point=new MapReader(game,player).ScreenPoint(shown,x,y,z);
-        await game.MouseAsync(point.X,point.Y,shown.Width,shown.Height,false,CancellationToken.None);
-        await Task.Delay(120,CancellationToken.None);
+        var map=new MapReader(game,player);
+        var point=map.ScreenPoint(shown,x,y,z);
+        // A press lands on whatever cell the game has under the pointer, and a press on the cell a
+        // route already leads to sends the hero. After a camera jump the game may still resolve
+        // the pointer against the old view, so the press is sent only once the game itself names
+        // the intended cell as the one under the pointer.
+        for(int attempt=0;;attempt++)
+        {
+            await game.MouseAsync(point.X,point.Y,shown.Width,shown.Height,false,CancellationToken.None);
+            await Task.Delay(120,CancellationToken.None);
+            try{map.VerifyMouse(x,y,z);break;}
+            catch(InvalidOperationException)when(attempt<9){}
+            catch(InvalidOperationException)
+            {
+                throw new ActionRefused(ActionRefused.UnknownControl,$"Игра не подтвердила клетку ({x},{y}) под курсором после сдвига камеры — щелчок не отправлен, герой не двигался. "
+                    +"Выбери героя (hero:pick) и повтори команду.");
+            }
+        }
         await game.MouseAsync(point.X,point.Y,shown.Width,shown.Height,true,CancellationToken.None);
         await Task.Delay(150,CancellationToken.None);
         Record("cell_pressed",new{x,y,z});
