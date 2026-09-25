@@ -356,7 +356,12 @@ internal sealed class GameReader(WindowsGame game,int player)
     private Observation Revise(Observation result)
     {
         bool same=result.Screen==animatedScreen;
-        var steady=result with {Revision="",Elements=result.Elements.Select(e=>same&&animatedKeys.Contains(e.Key)?e with {Frame=0}:e).ToList()};
+        // The adventure status line follows the pointer — anyone's pointer over the window — and says
+        // nothing about the state; left in, it made a fresh revision stale between two calls.
+        bool map=result.Screen=="adventure";
+        var steady=result with {Revision="",Elements=result.Elements
+            .Select(e=>same&&animatedKeys.Contains(e.Key)?e with {Frame=0}:e)
+            .Select(e=>map&&e.Id==200?e with {Text=null}:e).ToList()};
         string revision=Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(epoch+JsonSerializer.Serialize(steady))))[..24];
         return result with {Revision=revision};
     }
