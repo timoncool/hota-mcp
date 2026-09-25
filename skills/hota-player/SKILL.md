@@ -231,6 +231,13 @@ dead. First `hero:switch` (Space): the visitor moves up to lead the garrison and
 join his army. Then `town:tavern` → `tavern:pick:<side>` → `tavern:hire`. The same move is how the whole
 garrison is taken in one gesture. `hota_docs("найм героя в таверне")` has it in Russian.
 
+## Taking the whole garrison in one gesture
+
+To give the visiting hero everything the town has hired: `hero:switch` raises him into the garrison
+and every garrison stack merges into his army at once; `hero:out` brings him back out. That is one
+action instead of an `army:take` per stack. Whatever should stay as the town's defence goes back with
+`army:give:<creature>`.
+
 ## Hotkeys and modifiers first
 
 Many gestures have a key or a modifier, and the game names them in the hint line at the bottom of a

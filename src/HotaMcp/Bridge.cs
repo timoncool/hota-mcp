@@ -1270,21 +1270,53 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
         // route already leads to sends the hero. After a camera jump the game may still resolve
         // the pointer against the old view, so the press is sent only once the game itself names
         // the intended cell as the one under the pointer.
+        bool reset=false;
         for(int attempt=0;;attempt++)
         {
             await game.MouseAsync(point.X,point.Y,shown.Width,shown.Height,false,CancellationToken.None);
             await Task.Delay(120,CancellationToken.None);
-            try{map.VerifyMouse(x,y,z);break;}
-            catch(InvalidOperationException)when(attempt<9){}
-            catch(InvalidOperationException)
+            bool confirmed;
+            try{map.VerifyMouse(x,y,z);confirmed=true;}
+            catch(InvalidOperationException){confirmed=false;}
+            if(confirmed)break;
+            if(attempt<9)continue;
+            // A press on a real control of the sidebar brings the pointer back to life; the hero
+            // picked for it is picked back, so the selection ends where it began.
+            if(!reset&&await ResetPointer(shown))
             {
-                throw new ActionRefused(ActionRefused.UnknownControl,$"Игра не подтвердила клетку ({x},{y}) под курсором после сдвига камеры — щелчок не отправлен, герой не двигался. "
-                    +"Выбери героя (hero:pick) и повтори команду.");
+                reset=true;attempt=-1;
+                // Picking the hero centres the camera on him, so the cell is brought back into view.
+                shown=await EnsureVisible(reader.Observe(),x,y,z);
+                point=map.ScreenPoint(shown,x,y,z);
+                continue;
             }
+            throw new ActionRefused(ActionRefused.UnknownControl,$"Игра не подтвердила клетку ({x},{y}) под курсором даже после сброса курсора — щелчок не отправлен, герой не двигался.");
         }
         await game.MouseAsync(point.X,point.Y,shown.Width,shown.Height,true,CancellationToken.None);
         await Task.Delay(150,CancellationToken.None);
         Record("cell_pressed",new{x,y,z});
+    }
+
+    /// After a minimap jump the game can stop resolving the pointer over the map until a real
+    /// control is pressed. Picking another hero in the sidebar and then the selected one again is
+    /// such a press and leaves the selection as it was. With a single hero there is no such pair.
+    private async Task<bool> ResetPointer(Observation observation)
+    {
+        if(observation.Hero is null)return false;
+        var list=GameReader.SidebarHeroes(game,player);
+        int own=Array.IndexOf(list,observation.Hero.Id),other=Array.FindIndex(list,h=>h>=0&&h!=observation.Hero.Id);
+        if(own<0||other<0)return false;
+        UiElement? Portrait(int slot)=>observation.Elements.FirstOrDefault(e=>e.Id==15+slot&&e.Interactive);
+        if(Portrait(own) is not {} mine||Portrait(other) is not {} theirs)return false;
+        foreach(var press in new[]{theirs,mine})
+        {
+            await game.MouseAsync(press.X+press.Width/2,press.Y+press.Height/2,observation.Width,observation.Height,false,CancellationToken.None);
+            await Task.Delay(150,CancellationToken.None);
+            await game.MouseAsync(press.X+press.Width/2,press.Y+press.Height/2,observation.Width,observation.Height,true,CancellationToken.None);
+            await Task.Delay(300,CancellationToken.None);
+        }
+        Record("pointer_reset",new{hero=observation.Hero.Id});
+        return reader.Observe().Hero?.Id==observation.Hero.Id;
     }
 
     private async Task<Observation> PlanRouteTo(Observation observation,int x,int y,int z)
