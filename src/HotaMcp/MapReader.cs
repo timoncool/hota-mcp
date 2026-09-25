@@ -85,6 +85,11 @@ internal sealed class MapReader(WindowsGame game,int player)
                     // A town is known by its name and the flag over it, as every player sees it.
                     if(type==98&&new TownReader(game,player).Describe(id) is {} town&&!string.IsNullOrWhiteSpace(town.Name))
                         name=$"{town.Name} — "+(town.Owner==player?"твой город":town.Owner>7?"ничей город":$"город игрока {Colours[town.Owner]}");
+                    if(type==53)
+                    {
+                        int owner=MineOwner(id,xx,yy,z);
+                        name+=owner==player?" — твоя":owner>7?" — ничья":$" — флаг {Colours[owner]}";
+                    }
                     objects.Add(new(xx,yy,z,type,kind){Name=name,Id=id});
                 }
             }
@@ -92,6 +97,19 @@ internal sealed class MapReader(WindowsGame game,int player)
         }
         return new(observation.Revision,left,top,z,right-left+1,bottom-top+1,terrain.ToArray(),roads.ToArray(),blocked.ToArray(),objects,
             "? hidden; terrain d dirt,g sand,s grass,n snow,r swamp,l rough,u subterranean,w lava,v water,h rock,a highlands,x wasteland; roads 0 none,1 dirt,2 gravel,3 cobblestone; # terrain blocked,. not terrain-blocked (not a path guarantee)");
+    }
+    /// The colour of the flag over a mine, as every player sees it on the map: 0-7 a player, 255
+    /// nobody. The tile's index points into the game's mine list (H3Main+0x4E388, records of 0x40:
+    /// +0 owner, +0x3C x, +0x3D y, +0x3E z); a record whose cell is not this one is refused.
+    public int MineOwner(int id,int x,int y,int z)
+    {
+        uint main=game.U32(0x699538);
+        uint start=game.U32(main+0x4e38c),end=game.U32(main+0x4e390);
+        if(id<0||start==0||start+(uint)(id+1)*0x40>end)throw new InvalidOperationException($"Mine index {id} is outside the game's mine list");
+        var record=game.Read(start+(uint)id*0x40,0x40);
+        if(record[0x3c]!=x||record[0x3d]!=y||record[0x3e]!=z)
+            throw new InvalidOperationException($"Mine record {id} describes ({record[0x3c]},{record[0x3d]},{record[0x3e]}), not ({x},{y},{z})");
+        return record[0];
     }
     private static readonly string[] Resources=["дерево","ртуть","руда","сера","кристаллы","самоцветы","золото"];
     private static readonly string[] Colours=["красный","синий","коричневый","зелёный","оранжевый","фиолетовый","бирюзовый","розовый"];

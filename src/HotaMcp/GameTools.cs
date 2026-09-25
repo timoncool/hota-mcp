@@ -66,9 +66,11 @@ public sealed class GameTools(IGameEndpoint endpoint)
     [McpServerTool(Title="Visible destinations near the hero",ReadOnly=true,Destructive=false,Idempotent=true,OpenWorld=false),
      Description("Lists the recognised objects the selected hero can see, each with a stable target id. "
         +"Returns ids, object names and coordinates, and the game's own route to each: reachable_today, needs_more_days or "
-        +"not_available. The game's route table is rebuilt first when a step or a fight has made it stale. Where the game "
+        +"not_available. Read only, it presses nothing: when the game's route table is stale the routes say so, and "
+        +"pointing at a cell with inspect_path rebuilds it. Where the game "
         +"lays no path, the reason names what shuts the way — a wandering stack with its cell, a garrison, a border gate, "
         +"another hero — or says there is no explored land way; LockedBehind groups the targets one fight opens. "
+        +"A mine carries the colour of its flag (yours, an ally's — leave it, an enemy's or nobody's — take it). "
         +"Does NOT choose targets or move the hero. Object coverage is not exhaustive and hidden objects are never reported, "
         +"so an absent target is not proof of an empty map.")]
     public Task<NearbyTargets> NearbyTargets(CancellationToken cancellationToken)=>endpoint.Nearby(cancellationToken);

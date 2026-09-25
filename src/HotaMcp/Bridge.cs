@@ -339,35 +339,11 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             var observation=initial;
             var hero=observation.Hero??throw new InvalidOperationException("Hero selection lost while refreshing routes");
             var region=new MapReader(game,player).Read(observation,hero.Position[0],hero.Position[1],hero.Position[2],12);
-            // The game keeps one route table for the selected hero and rebuilds it only when a
-            // destination is planned; after a step or a fight every target read as unreachable.
-            // Planning again — to the hero's own destination when he has one — rebuilds it.
-            if(new MapReader(game,player).RoutesAreStale(observation))
-            {
-                int[] planned=hero.PlannedDestination;
-                var anchor=planned.Length==3&&!planned.SequenceEqual(hero.Position)?(planned[0],planned[1],planned[2])
-                    :region.Objects.OrderBy(o=>Math.Max(Math.Abs(o.X-hero.Position[0]),Math.Abs(o.Y-hero.Position[1])))
-                        .Where(o=>o.Z==hero.Position[2]&&o.Type!=34&&(o.X!=hero.Position[0]||o.Y!=hero.Position[1])).Select(o=>(o.X,o.Y,o.Z)).FirstOrDefault(hero.Position is var p?(p[0],p[1],p[2]):default);
-                observation=await PlanRouteTo(observation,anchor.Item1,anchor.Item2,anchor.Item3);
-                if(observation.Hero is null||observation.Screen!="adventure")throw new InvalidOperationException("State changed while refreshing routes; request targets again");
-            }
+            // Read only: the route table is the one the game holds now. When it is stale the routes
+            // say so, and the player points at a cell himself (inspect_path) to have it rebuilt.
             var explainer=new RouteExplainer(game,player);
             var locked=new List<(string By,string What)>();
             var list=new List<TargetView>();
-            // The cache check compares movement points only, so a table built for another hero
-            // with the same points left passes for fresh. A table that finds no way to anything
-            // around the hero is that case: the nearest target is planned once and all is re-read.
-            bool NoWay(RouteView r)=>r.State=="not_available"&&r.Detail?.StartsWith("The game found no path",StringComparison.Ordinal)==true;
-            var others=region.Objects.Where(o=>o.Z==hero.Position[2]&&(o.X!=hero.Position[0]||o.Y!=hero.Position[1])).ToList();
-            if(others.Count>0&&others.All(o=>NoWay(new RouteReader(game,player).Read(observation,o))))
-            {
-                // A hero is not an anchor: pressing him is a meeting, not a route.
-                var nearest=others.Where(o=>o.Type!=34).OrderBy(o=>Math.Max(Math.Abs(o.X-hero.Position[0]),Math.Abs(o.Y-hero.Position[1]))).FirstOrDefault()
-                    ??throw new InvalidOperationException("Nothing but heroes around to rebuild the route table from; move the hero a step");
-                observation=await PlanRouteTo(observation,nearest.X,nearest.Y,nearest.Z);
-                if(observation.Hero is null||observation.Screen!="adventure")throw new InvalidOperationException("State changed while refreshing routes; request targets again");
-                Record("routes_rebuilt",new{nearest.X,nearest.Y,nearest.Z});
-            }
             foreach(var target in region.Objects)
             {
                 if(!targetIds.TryGetValue(target,out var id))
@@ -407,15 +383,18 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
                 list.Add(new(id,kind,Explain(explainer,observation,new RouteReader(game,player).Read(observation,target),target.X,target.Y,target.Z),target.X,target.Y,target.Z){Name=name});
                 if(explainer.LastBlocker is string lockedBy)locked.Add((lockedBy,name??kind));
             }
-            // Whose a mine is, a player reads from its right-button card; mines on screen are read
-            // the same way, so a flagged mine of an ally is not taken for a free one.
+            // The flag over a mine is seen on the map wherever the land is explored, so every mine
+            // says whose it is — an ally's mine is not taken for a free one.
             for(int i=0;i<list.Count;i++)
             {
                 var target=targets[list[i].Id];
                 if(target.Type==53)
                 {
-                    string? owner=await MineOwner(target.X,target.Y,target.Z);
-                    if(owner is not null)list[i]=list[i] with{Kind=$"{list[i].Kind} — {owner}"};
+                    int owner=new MapReader(game,player).MineOwner(target.Id,target.X,target.Y,target.Z);
+                    string flag=owner==player?"твоя":owner>7?"ничья — захватить"
+                        :observation.Side?.Allies.Contains(owner)==true?$"флаг {ColourName(owner)} (союзник — не трогать)"
+                        :$"флаг {ColourName(owner)} (противник — захватить)";
+                    list[i]=list[i] with{Kind=$"{list[i].Kind} — {flag}"};
                     continue;
                 }
                 // Stacks, piles, heroes and towns carry no visited mark; everything else says it
@@ -435,43 +414,6 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             {LockedBehind=locked.GroupBy(l=>l.By).Select(g=>$"за охраной {g.Key}: {string.Join(", ",g.Select(l=>l.What))}").ToList()};
         }
         finally{gate.Release();}
-    }
-
-    private readonly Dictionary<string,(int[] Day,string Owner)> mineOwners=new();
-
-    /// The owner line of a mine's card («Принадлежит синему игроку»), for a mine the camera already
-    /// shows; a mine off screen is left unread rather than moving the camera for it. Read once a day.
-    private async Task<string?> MineOwner(int x,int y,int z)
-    {
-        string key=CellKey(x,y,z);
-        var now=reader.Observe();
-        if(mineOwners.TryGetValue(key,out var known)&&known.Day.SequenceEqual(now.Date))return known.Owner;
-        var map=new MapReader(game,player);
-        if(!map.IsOnScreen(now,x,y,z))return null;
-        var point=map.ScreenPoint(now,x,y,z);
-        bool confirmed=false;
-        for(int attempt=0;attempt<5&&!confirmed;attempt++)
-        {
-            await game.MouseAsync(point.X,point.Y,now.Width,now.Height,false,CancellationToken.None);
-            await Task.Delay(150,CancellationToken.None);
-            try{map.VerifyMouse(x,y,z);confirmed=true;}catch(InvalidOperationException){}
-        }
-        if(!confirmed)return null;
-        string[] texts;
-        await game.RightMouseDownAsync(point.X,point.Y,now.Width,now.Height,CancellationToken.None);
-        try{await Task.Delay(300,CancellationToken.None);texts=reader.ReadCard().Texts.ToArray();}
-        finally{await game.RightMouseUpAsync();}
-        await Task.Delay(150,CancellationToken.None);
-        string line=string.Join("\n",texts);
-        string owner=line.Contains("Принадлежит",StringComparison.Ordinal)
-            ?System.Text.RegularExpressions.Regex.Match(line,@"Принадлежит[^\n]*").Value switch
-            {
-                var o when o.Contains(Colours(player),StringComparison.OrdinalIgnoreCase)=>"твоя",
-                var o=>o.Trim()+(now.Side?.Allies.Any(a=>o.Contains(Colours(a),StringComparison.OrdinalIgnoreCase))==true?" (союзник — не трогать)":" (противник — захватить)"),
-            }
-            :"ничья — захватить";
-        mineOwners[key]=(now.Date,owner);
-        return owner;
     }
 
     /// «Посещено» / «Не посещено» from the status line while the pointer rests on an object the
