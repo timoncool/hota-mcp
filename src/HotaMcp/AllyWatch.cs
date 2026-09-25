@@ -45,11 +45,13 @@ internal sealed class AllyWatch(WindowsGame game,int player,string root)
         if(active!=lastActive)
         {
             if(lastActive>=0)TurnEnded(main,lastActive,allies);
-            if(allies.Contains(active))
+            // A restart of the service in the middle of the ally's turn must not open it twice.
+            if(allies.Contains(active)&&!(lastActive<0&&LastTurnMark()==$"— ход {Of[active]} начался"))
             {
                 Append(active,Date(main),"turn",$"— ход {Of[active]} начался");
                 turnResources=Resources(main,active);
             }
+            if(allies.Contains(active))turnResources??=Resources(main,active);
             lastActive=active;pendingKey=committedKey=null;committed=null;seen.Clear();
         }
         if(!allies.Contains(active))return;
@@ -233,6 +235,8 @@ internal sealed class AllyWatch(WindowsGame game,int player,string root)
     }
 
     private sealed record Entry(string Colour,int[] Day,string Kind,string Text);
+
+    private string? LastTurnMark()=>Entries().LastOrDefault(e=>e.Kind is "turn" or "own_end")?.Text;
 
     private List<Entry> Entries()
     {

@@ -31,7 +31,8 @@ internal sealed class SaveListReader(WindowsGame game)
             uint entry=checked(first+(uint)index*EntrySize);
             // The file name runs on past the 13-byte DOS field for long names: «партия3-день49.GM1».
             string name=game.Text(entry+NameOffset,200)??"";
-            bool folder=!name.EndsWith(".GM1",StringComparison.OrdinalIgnoreCase);
+            // A save is .GM1 for a single game and .GM2 for a hotseat or network one.
+            bool folder=!System.Text.RegularExpressions.Regex.IsMatch(name,@"\.GM\d$",System.Text.RegularExpressions.RegexOptions.IgnoreCase);
             string label=folder?FolderLabel(entry):Path.GetFileNameWithoutExtension(name);
             var row=index>=top&&index-top<rows.Count?rows[index-top]:(X:0,Y:0,Width:0,Height:0);
             entries.Add(new(index,label,name,folder,index==selected,row.X,row.Y,row.Width,row.Height));

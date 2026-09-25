@@ -329,7 +329,8 @@ internal static class GameCommands
         "menu:multiplayer" => new("game_type,scenario_selection,multiplayer", Deliveries.Control(102,"gtmulti.def")),
         "multiplayer:hotseat" => new("hotseat_names,popup_choice,scenario_selection,message,multiplayer", Deliveries.Control(102,"muBhot.def")),
         "multiplayer:cancel" => new("game_type", Deliveries.Control(124,"muBcanc.def")),
-        "hotseat:accept" => new("scenario_selection,message,popup_choice", Deliveries.Control(519,"mubchck.def")),
+        // The same window opens before a new hotseat game and before loading one.
+        "hotseat:accept" => new("scenario_selection,load_game,message,popup_choice", Deliveries.Control(519,"mubchck.def")),
         "hotseat:cancel" => new("multiplayer", Deliveries.Control(520,"muBcanc.def")),
         "menu:campaign" => new("game_type,scenario_selection", Deliveries.Control(101,"gtcampn.def")),
         "menu:tutorial" => new("game_type,scenario_selection", Deliveries.Control(103,"gttutor.def")),
