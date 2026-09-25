@@ -268,6 +268,11 @@ internal static class ScreenActions
             if(items.Any(i=>i.Id==8001))actions.Add(new("exchange:backpack:справа","Открыть весь рюкзак правого героя (в ряду внизу видно только пять клеток)"));
             actions.Add(new("exchange:done","Закрыть окно обмена (ОК)"));
         }
+        if(screen=="garrison")
+        {
+            // A map garrison: the same two rows as a town — the garrison above, the hero below.
+            if(items.Any(i=>i.Id==30722&&i.Interactive))actions.Add(new("garrison:close","Закрыть окно гарнизона (ОК) и вернуться на карту"));
+        }
         if(screen=="level_up")
         {
             // The level-up screen offers its skills as two picture buttons with a label under each.

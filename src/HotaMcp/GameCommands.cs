@@ -448,6 +448,7 @@ internal static class GameCommands
         "hero:wake" => new("adventure", Deliveries.Key(0x57, 0x11)),
         "game:kingdom" => new("kingdom_overview", Deliveries.Key(0x4b, 0x25)),
         "view:level" => new("adventure", Deliveries.Control(4)),
+        "garrison:close" => new("adventure", Deliveries.Control(30722, "iOK6432.def")),
         // Screens the manual reaches with a single letter; all of them read-only except the market.
         "game:world_view" => new("world_view", Deliveries.Key(0x56, 0x2f)),
         "game:puzzle" => new("puzzle_map", Deliveries.Key(0x50, 0x19)),

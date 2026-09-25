@@ -84,6 +84,18 @@ internal static class ScreenBriefing
             lines.Add("Рюкзак героя целиком: "+(carried.Count>0?string.Join(", ",carried):"пусто")
                 +". Описание — inspect_element по картинке артефакта; закрыть — backpack:close.");
         }
+        if(screen=="garrison")
+        {
+            // The creature pictures of this window are not controls the reader sees, only the counts;
+            // the hero's row is named from his own army, whose slots it shows in order.
+            string Counts(int count)=>string.Join(", ",Enumerable.Range(0,7)
+                .Select(s=>items.FirstOrDefault(i=>i.Id==count+s)?.Text?.Trim()).Where(n=>!string.IsNullOrEmpty(n)));
+            string top=Counts(108);
+            string bottom=selected is null?Counts(133):Stacks(selected.ArmyTypes,selected.ArmyCounts);
+            if(top.Length>0)top="отряды по числам "+top;
+            lines.Add($"Гарнизон на карте. Верхний ряд — войска гарнизона: {(top.Length>0?top:"пусто")}. Нижний ряд — армия героя: {(bottom.Length>0?bottom:"пусто")}. "
+                +"Оставить отряд охранять — перенести вверх; закрыть окно — garrison:close.");
+        }
         if(screen=="level_up")
         {
             var offers=items.Where(i=>i.Id is 2010 or 2011).Select(i=>ScreenActions.LevelSkill(items,i)+(ScreenActions.LevelSkillChosen(items,i)?" (выбран)":"")).ToList();

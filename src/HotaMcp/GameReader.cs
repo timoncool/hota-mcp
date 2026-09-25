@@ -165,7 +165,7 @@ internal sealed class GameReader(WindowsGame game,int player)
         [0x6406b8]="enemy_hero_card",
         // The real split dialog: a slider between two halves of one stack, with its own confirm.
         [0x63b8f8]="split_army",
-        [0x63eae8]="hero_screen",[0x642438]="exchange",[0x63fe74]="level_up",
+        [0x63eae8]="hero_screen",[0x642438]="exchange",[0x63fe74]="level_up",[0x6438a0]="garrison",
         [0x63d528]="combat",[0x63d46c]="battle_result",[0x641ddc]="spellbook",
         [0x640330]="kingdom_overview",[0x63a610]="adventure_options",[0x643c64]="world_view",
         [0x640610]="puzzle_map",[0x641720]="scenario_info",[0x643774]="thieves_guild",
@@ -543,7 +543,7 @@ internal sealed class GameReader(WindowsGame game,int player)
     public static readonly HashSet<string> InGameScreens=["adventure","town","town_hall","town_fort","building_confirmation",
         "recruitment","tavern","marketplace","mage_guild","thieves_guild","hero_screen","exchange","kingdom_overview",
         "world_view","puzzle_map","spellbook","combat","battle_result","enemy_hero_card","creature_card","split_army",
-        "level_up","backpack","adventure_options","system_options","message"];
+        "level_up","backpack","adventure_options","system_options","message","garrison"];
 
     public record CardView(uint Vtable,string[] Texts);
     /// Reads the plain text of whatever dialog is on top right now, without classifying it as a
@@ -869,7 +869,7 @@ internal sealed class GameReader(WindowsGame game,int player)
         if(start>end||end>cap||(end-start)%4!=0||end-start>8192) throw new InvalidOperationException("Invalid UI list");
         var items=new List<UiElement>();
         var controls=new List<uint>();
-        if(screen is "message" or "combat" or "spellbook" or "battle_result" or "tavern" or "recruitment" or "creature_card" or "split_army" or "hero_screen" or "exchange" or "level_up" or "kingdom_overview" or "adventure_options" or "world_view" or "puzzle_map" or "scenario_info" or "thieves_guild" or "marketplace" or "mage_guild" or "town_fort" or "popup_choice")
+        if(screen is "garrison" or "message" or "combat" or "spellbook" or "battle_result" or "tavern" or "recruitment" or "creature_card" or "split_army" or "hero_screen" or "exchange" or "level_up" or "kingdom_overview" or "adventure_options" or "world_view" or "puzzle_map" or "scenario_info" or "thieves_guild" or "marketplace" or "mage_guild" or "town_fort" or "popup_choice")
         {
             var seen=new HashSet<uint>();
             for(uint item=game.U32(dlg+0x2c);item!=0;item=game.U32(item+8))
