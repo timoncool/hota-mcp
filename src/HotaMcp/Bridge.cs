@@ -1175,6 +1175,12 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
         {
             return $"Игра не проложила путь к {where}: клетка скрыта туманом. Герой не двигался.";
         }
+        var explainer=new RouteExplainer(game,player);
+        string? why=explainer.WhyNoPath(before,cell[0],cell[1],cell[2]);
+        if(explainer.OpenWay)
+            return $"Игра не проложила путь к {where}: по разведанной суше дорога туда есть, но она длиннее, чем игра прокладывает от этой клетки. "
+                +"Веди героя к промежуточной клетке по пути (read_map) — дальше путь проложится. Герой не двигался.";
+        if(why is not null)return $"Игра не проложила путь к {where}: {why}. Герой не двигался.";
         return $"Игра не проложила путь к {where}: пути нет — клетка отрезана препятствиями. Посмотри read_map вокруг неё. Герой не двигался.";
     }
 
@@ -1294,7 +1300,9 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
     {
         explainer.LastBlocker=null;
         if(route.State!="not_available"||route.Detail?.StartsWith("The game found no path",StringComparison.Ordinal)!=true)return route;
-        return explainer.WhyNoPath(observation,x,y,z) is string why?route with{Detail=$"{why} ({route.Detail})"}:route;
+        if(explainer.WhyNoPath(observation,x,y,z) is string why)return route with{Detail=$"{why} ({route.Detail})"};
+        // The game's table reaches only so far; a way open over explored land is not "no path".
+        return explainer.OpenWay?route with{State="needs_more_days",Detail="путь по разведанной суше есть, но дальше, чем игра считает отсюда; точную цену даст inspect_target"}:route;
     }
 
     private async Task HoverAndSettle(Observation observation,int x,int y)

@@ -46,9 +46,13 @@ internal sealed class RouteExplainer(WindowsGame game,int player)
     /// can be grouped the way a player reads a guarded pocket of the map.
     public string? LastBlocker{get;internal set;}
 
+    /// Set when the explored land does connect the hero to the cell with nothing standing in
+    /// the way: the game then refused only because the way is longer than it plans from here.
+    public bool OpenWay {get;private set;}
+
     public string? WhyNoPath(Observation observation,int tx,int ty,int tz)
     {
-        LastBlocker=null;
+        LastBlocker=null;OpenWay=false;
         var hero=observation.Hero;
         if(hero is null||hero.Position[2]!=tz||Snapshot(tz) is not {} map)return null;
         var (size,_,tiles,vision,guard)=map;
@@ -114,7 +118,7 @@ internal sealed class RouteExplainer(WindowsGame game,int player)
         var crossed=new List<int>();
         for(int at=goal;from.TryGetValue(at,out int prev);at=prev)
             if(blocker.TryGetValue(at,out int b)&&!crossed.Contains(b))crossed.Insert(0,b);
-        if(crossed.Count==0)return null;
+        if(crossed.Count==0){OpenWay=true;return null;}
         LastBlocker=Name(crossed[0]);
         return "путь запирает "+string.Join(", затем ",crossed.Select(Name))+" — игра не прокладывает маршрут сквозь охрану";
     }
