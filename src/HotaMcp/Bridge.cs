@@ -405,9 +405,17 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             for(int i=0;i<list.Count;i++)
             {
                 var target=targets[list[i].Id];
-                if(target.Type!=53)continue;
-                string? owner=await MineOwner(target.X,target.Y,target.Z);
-                if(owner is not null)list[i]=list[i] with{Kind=$"{list[i].Kind} — {owner}"};
+                if(target.Type==53)
+                {
+                    string? owner=await MineOwner(target.X,target.Y,target.Z);
+                    if(owner is not null)list[i]=list[i] with{Kind=$"{list[i].Kind} — {owner}"};
+                    continue;
+                }
+                // Stacks, piles, heroes and towns carry no visited mark; everything else says it
+                // in the status line when pointed at, and that is what a player reads.
+                if(target.Type is 34 or 54 or 79 or 98 or 5)continue;
+                if(await VisitedMark(target.X,target.Y,target.Z) is string mark)
+                    list[i]=list[i] with{Kind=$"{list[i].Kind} ({mark})"};
             }
             var settled=reader.Observe();
             if(settled.Hero is null||settled.Screen!="adventure")
@@ -457,6 +465,28 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             :"ничья — захватить";
         mineOwners[key]=(now.Date,owner);
         return owner;
+    }
+
+    /// «Посещено» / «Не посещено» from the status line while the pointer rests on an object the
+    /// camera already shows, as the game writes it for the selected hero.
+    private async Task<string?> VisitedMark(int x,int y,int z)
+    {
+        var now=reader.Observe();
+        var map=new MapReader(game,player);
+        if(!map.IsOnScreen(now,x,y,z))return null;
+        var point=map.ScreenPoint(now,x,y,z);
+        for(int attempt=0;attempt<5;attempt++)
+        {
+            await game.MouseAsync(point.X,point.Y,now.Width,now.Height,false,CancellationToken.None);
+            await Task.Delay(120,CancellationToken.None);
+            try{map.VerifyMouse(x,y,z);}catch(InvalidOperationException){continue;}
+            string? line=reader.Observe().Elements.FirstOrDefault(e=>e.Id==200)?.Text;
+            if(line is null)return null;
+            if(line.Contains("Не посещено",StringComparison.OrdinalIgnoreCase))return "не посещено";
+            if(line.Contains("Посещено",StringComparison.OrdinalIgnoreCase))return "посещено";
+            return null;
+        }
+        return null;
     }
 
     /// The colour as it stands in the game's own «Принадлежит <цвет> игроку».
