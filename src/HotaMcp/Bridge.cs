@@ -338,7 +338,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
                 int[] planned=hero.PlannedDestination;
                 var anchor=planned.Length==3&&!planned.SequenceEqual(hero.Position)?(planned[0],planned[1],planned[2])
                     :region.Objects.OrderBy(o=>Math.Max(Math.Abs(o.X-hero.Position[0]),Math.Abs(o.Y-hero.Position[1])))
-                        .Where(o=>o.Z==hero.Position[2]&&(o.X!=hero.Position[0]||o.Y!=hero.Position[1])).Select(o=>(o.X,o.Y,o.Z)).FirstOrDefault(hero.Position is var p?(p[0],p[1],p[2]):default);
+                        .Where(o=>o.Z==hero.Position[2]&&o.Type!=34&&(o.X!=hero.Position[0]||o.Y!=hero.Position[1])).Select(o=>(o.X,o.Y,o.Z)).FirstOrDefault(hero.Position is var p?(p[0],p[1],p[2]):default);
                 observation=await PlanRouteTo(observation,anchor.Item1,anchor.Item2,anchor.Item3);
                 if(observation.Hero is null||observation.Screen!="adventure")throw new InvalidOperationException("State changed while refreshing routes; request targets again");
             }
@@ -352,7 +352,9 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             var others=region.Objects.Where(o=>o.Z==hero.Position[2]&&(o.X!=hero.Position[0]||o.Y!=hero.Position[1])).ToList();
             if(others.Count>0&&others.All(o=>NoWay(new RouteReader(game,player).Read(observation,o))))
             {
-                var nearest=others.OrderBy(o=>Math.Max(Math.Abs(o.X-hero.Position[0]),Math.Abs(o.Y-hero.Position[1]))).First();
+                // A hero is not an anchor: pressing him is a meeting, not a route.
+                var nearest=others.Where(o=>o.Type!=34).OrderBy(o=>Math.Max(Math.Abs(o.X-hero.Position[0]),Math.Abs(o.Y-hero.Position[1]))).FirstOrDefault()
+                    ??throw new InvalidOperationException("Nothing but heroes around to rebuild the route table from; move the hero a step");
                 observation=await PlanRouteTo(observation,nearest.X,nearest.Y,nearest.Z);
                 if(observation.Hero is null||observation.Screen!="adventure")throw new InvalidOperationException("State changed while refreshing routes; request targets again");
                 Record("routes_rebuilt",new{nearest.X,nearest.Y,nearest.Z});
@@ -1224,8 +1226,11 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
     private async Task ClickToPlan(Observation observation,int x,int y,int z)
     {
         if(observation.Screen!="adventure"||observation.Hero is null)throw new InvalidOperationException("Own hero on the adventure map required to plan a route");
-        if(observation.Heroes.Any(h=>h.Id!=observation.Hero.Id&&h.Position.SequenceEqual(new[]{x,y,z})))
-            throw new ActionRefused(ActionRefused.UnknownControl,"На клетке стоит твой другой герой: щелчок по нему выбирает его, а не прокладывает путь. Выбери его через hero:pick или веди к соседней клетке.");
+        // Pointing at another own hero shows the meeting cursor: the press lays the way to him,
+        // and arriving opens the exchange. Should the game take the press as choosing him
+        // instead, the selection changes, and that is caught after the press below.
+        bool meeting=observation.Heroes.Any(h=>h.Id!=observation.Hero.Id&&h.Position.SequenceEqual(new[]{x,y,z}));
+        int selected=observation.Hero.Id;
         var map=new MapReader(game,player);
         if(observation.Hero.PlannedDestination.SequenceEqual(new[]{x,y,z}))
         {
@@ -1244,6 +1249,8 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             observation=reader.Observe();
         }
         await PressCell(observation,x,y,z);
+        if(meeting&&reader.Observe().Hero?.Id is int now&&now!=selected)
+            throw new ActionRefused(ActionRefused.UnknownControl,"Щелчок по своему герою выбрал его, а не проложил путь к встрече: выбранный герой сменился. Ничего не пройдено.");
     }
 
     private async Task PressCell(Observation observation,int x,int y,int z)
