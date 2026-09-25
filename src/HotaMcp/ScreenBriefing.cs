@@ -437,8 +437,13 @@ internal static class ScreenBriefing
         if(side is not null&&side.Participants.Count>0)
             lines.Add("Участники: "+string.Join("; ",side.Participants)+"."+(side.Underground?" На карте есть подземный уровень.":" Подземного уровня нет."));
         foreach(var hero in roster)
-            lines.Add($"Герой {hero.Name}: клетка {(hero.Position.Length>1?$"{hero.Position[0]},{hero.Position[1]}":"?")}, "
-                +$"ходов {hero.Movement} из {hero.MaxMovement}, мана {hero.Mana}{NearestTown(hero.Position,towns,", до своего города ",true)}, войско: {Stacks(hero.ArmyTypes,hero.ArmyCounts)}"
+            lines.Add($"Герой {hero.Name}: клетка {(hero.Position.Length>1?$"{hero.Position[0]},{hero.Position[1]}":"?")}"
+                +(hero.Position.Length>2&&hero.Position[2]==1?" (подземелье)":"")+", "
+                +$"ходов {hero.Movement} из {hero.MaxMovement}, мана {hero.Mana}"
+                +(hero.Position.Length>2&&towns.All(t=>t.Position.Length>2&&t.Position[2]!=hero.Position[2])
+                    ?", свои города на другом уровне — путь через Врата Подземного Мира"
+                    :NearestTown(hero.Position,towns,", до своего города ",true))
+                +$", войско: {Stacks(hero.ArmyTypes,hero.ArmyCounts)}"
                 +(selected is not null&&selected.Id==hero.Id?" — выбран сейчас.":".")
                 +(sidebar is not null&&Array.IndexOf(sidebar,hero.Id) is int slot and >=0 and <5
                     ?$" Ход по карточке игры (правый щелчок по полосе хода): inspect_element id:{20+slot}.":""));

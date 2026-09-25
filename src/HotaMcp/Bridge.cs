@@ -182,6 +182,11 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
     {
         if(state.Date.Length==3)LastDate=state.Date;
         var lines=new List<string>(state.Brief);
+        if(state.Screen=="adventure"&&state.Side is {Underground:true})
+            try{lines.Insert(Math.Min(1,lines.Count),new MapReader(game,player).View().Z==1
+                ?"На экране подземелье (кнопка-переключатель на панели — view:level)."
+                :"На экране поверхность (подземелье — view:level).");}
+            catch(InvalidOperationException){}
         // On this side's turn the brief opens with what the ally did while it waited.
         if(state.Side is {Yours:true,Allies.Length:>0}&&allies.SinceLastTurn(12) is {Count:>0} ally)
             lines.InsertRange(Math.Min(1,lines.Count),ally);
@@ -1288,6 +1293,20 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
     {
         var map=new MapReader(game,player);
         if(map.IsOnScreen(observation,x,y,z))return observation;
+        // The minimap shows one level at a time; the sidebar's elevation toggle switches it, as a
+        // player does before looking at the other level.
+        if(map.View().Z!=z)
+        {
+            var toggle=reader.FindControlById(4)??throw new InvalidOperationException("The elevation toggle is not on the sidebar");
+            await game.MouseAsync(toggle.X+toggle.Width/2,toggle.Y+toggle.Height/2,observation.Width,observation.Height,false,CancellationToken.None);
+            await Task.Delay(150,CancellationToken.None);
+            await game.MouseAsync(toggle.X+toggle.Width/2,toggle.Y+toggle.Height/2,observation.Width,observation.Height,true,CancellationToken.None);
+            await Task.Delay(300,CancellationToken.None);
+            if(map.View().Z!=z)throw new InvalidOperationException($"The elevation toggle did not bring level {z} into view");
+            observation=reader.Observe();
+            Record("level_switched",new{z});
+            if(map.IsOnScreen(observation,x,y,z))return observation;
+        }
         // Ctrl+arrow cannot be used here: the game reads Ctrl from the real keyboard, so a posted
         // Ctrl+arrow arrives as a bare arrow — a step of the selected hero.
         var point=map.MinimapPoint(observation,x,y,z);

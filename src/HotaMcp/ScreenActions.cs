@@ -508,6 +508,12 @@ internal static class ScreenActions
             // No Ctrl+arrow scrolling: the game reads Ctrl from the real keyboard, so a posted
             // Ctrl+arrow is a bare arrow and walks the selected hero one step.
             actions.Add(new("game:kingdom","Обзор королевства: все герои, города, шахты и доход (K)"));
+            // The elevation toggle of the sidebar has no hotkey; its picture tells the level on
+            // screen: iam003 while the underground is shown, iam010 while the surface is.
+            if(items.FirstOrDefault(i=>i.Id==4&&i.Interactive&&i.Asset is "iam003.def" or "iam010.def") is {} level)
+                actions.Add(new("view:level",level.Asset=="iam003.def"
+                    ?"Сейчас на экране подземелье — переключить вид на поверхность (кнопка на панели; героя не двигает)"
+                    :"Сейчас на экране поверхность — переключить вид на подземелье (кнопка на панели; героя не двигает)"));
             actions.Add(new("game:world_view","Просмотр мира: вся известная карта с фильтрами (V)"));
             actions.Add(new("game:marketplace","Рынок королевства: обмен ресурсов (B)"));
             actions.Add(new("game:thieves_guild","Гильдия воров: сведения о соперниках (G)"));
