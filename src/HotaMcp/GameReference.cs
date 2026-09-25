@@ -96,6 +96,8 @@ internal sealed class GameReference
     /// silo and blacksmith. The row order of BLDGNEUT is that numbering, so nothing is guessed.
     /// Town-specific buildings above that row are numbered per faction and are not in this table;
     /// their names are on the town's own construction screen.
+    public const string Decoration="украшение города";
+
     public static string Building(int id,int faction=-1)
     {
         if(buildingNames is null)
@@ -120,6 +122,9 @@ internal sealed class GameReference
         if(faction>=0&&id is >=17 and <=27&&PlainRow("BldgSpec.txt",faction*11+id-17) is {Length:>1} special)return special;
         if(faction>=0&&id is >=30 and <=36&&PlainRow("Dwelling.txt",faction*14+id-30) is {Length:>1} dwelling)return dwelling;
         if(faction>=0&&id is >=37 and <=43&&PlainRow("Dwelling.txt",faction*14+7+id-37) is {Length:>1} upgraded)return upgraded;
+        // 28-29 are the decorations the game raises by itself beside a real building; the hall
+        // does not list them and a player never orders them.
+        if(id is 28 or 29)return Decoration;
         if(id is >=30 and <=36)return $"жилище {id-29} уровня";
         if(id is >=37 and <=43)return $"улучшенное жилище {id-36} уровня";
         return $"постройка №{id}";

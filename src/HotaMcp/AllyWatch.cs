@@ -148,7 +148,7 @@ internal sealed class AllyWatch(WindowsGame game,int player,string root)
         var towns=new List<TownState>();
         foreach(int colour in allies)
             foreach(var town in new TownReader(game,colour).Read())
-                towns.Add(new(town.Id,town.Name??$"город №{town.Id}",colour,town.Built.ToArray(),town.Garrison.ToArray()));
+                towns.Add(new(town.Id,town.Name??$"город №{town.Id}",colour,town.Built.Where(b=>b!=GameReference.Decoration).ToArray(),town.Garrison.ToArray()));
         return new(Date(main),combat,heroes,towns);
     }
 
