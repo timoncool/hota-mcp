@@ -27,7 +27,7 @@ internal static class ExchangeArtifacts
 internal static class ScreenBriefing
 {
     public static List<string> Build(string screen,int[] date,int[] resources,List<TownView> towns,
-        List<HeroView> roster,HeroView? selected,SideView? side,string? selectedStack,BuildOffer? offer,int openTown,string? foreignHero,List<string> foreignArmy,List<ForeignHero> foreignHeroes,List<UiElement> items,CombatView? combat=null,int[]? sidebar=null)
+        List<HeroView> roster,HeroView? selected,SideView? side,string? selectedStack,BuildOffer? offer,int openTown,string? foreignHero,List<string> foreignArmy,List<ForeignHero> foreignHeroes,List<UiElement> items,CombatView? combat=null,int[]? sidebar=null,Func<string,int[]?>? costOf=null)
     {
         var lines=new List<string>();
         if(side is not null)
@@ -95,6 +95,32 @@ internal static class ScreenBriefing
             if(top.Length>0)top="отряды по числам "+top;
             lines.Add($"Гарнизон на карте. Верхний ряд — войска гарнизона: {(top.Length>0?top:"пусто")}. Нижний ряд — армия героя: {(bottom.Length>0?bottom:"пусто")}. "
                 +"Оставить отряд охранять — перенести вверх; закрыть окно — garrison:close.");
+        }
+        if(screen=="town_fort")
+        {
+            // Seven cards in tier order: creature 25+i, dwelling 9+i, «Доступно: N» 33+i, growth 129+i.
+            string Txt(int id)=>items.FirstOrDefault(i=>i.Id==id)?.Text?.Trim()??"";
+            var rows=Enumerable.Range(0,7).Where(t=>Txt(25+t).Length>0)
+                .Select(t=>$"{Txt(25+t)} ({Txt(9+t)}) — {Txt(33+t).Replace("  "," ").ToLowerInvariant()}, прирост {Txt(129+t)} в неделю").ToList();
+            lines.Add("Форт города — что можно нанять сейчас: "+string.Join("; ",rows)
+                +". Нанять — fort:recruit:<уровень 0-6>; закрыть — screen:close.");
+        }
+        if(screen=="recruitment")
+        {
+            // 550 title, 520/521 «Доступно» and the count, 525/526 «Нанять» and the chosen count,
+            // 530 the total gold. The price per creature is the game's own creature table.
+            string Txt(int id)=>items.FirstOrDefault(i=>i.Id==id)?.Text?.Trim()??"";
+            string title=Txt(550).Replace("Нанять:","").Trim();
+            int[]? cost=costOf?.Invoke(title);
+            string price=cost is null?$"{Txt(512)} золота (прочие ресурсы не прочитаны)"
+                :string.Join(" + ",Enumerable.Range(0,7).Where(r=>cost[r]>0).OrderByDescending(r=>r==6).Select(r=>$"{ResourceNames[r]} {cost[r]}"));
+            // «Доступно» counts down as the slider moves: what is left after the chosen number.
+            int.TryParse(Txt(521),out int left);int.TryParse(Txt(526),out int chosen);
+            int available=left+chosen;
+            lines.Add($"Найм: {title}. Доступно всего {available}. Цена за одного: {price}. Выбрано к найму {chosen}, итого {Txt(530)} золота. "
+                +(available==0?"Нанимать некого: прирост придёт в первый день новой недели. Закрыть — recruit:cancel."
+                    :chosen==0?"recruit:max выбирает сколько хватает денег, recruit:buy нанимает; recruit:cancel — закрыть."
+                    :"recruit:buy нанимает выбранных; recruit:cancel — закрыть."));
         }
         if(screen=="level_up")
         {

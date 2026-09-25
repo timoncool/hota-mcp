@@ -573,7 +573,7 @@ internal static class GameCommands
         // A purchase lands on whichever screen opened the recruitment window — the town, or the
         // fort when every tier was hired from there — so the proof is the gold, not the screen.
         "recruit:buy" => new("town,town_fort,adventure", Deliveries.Key(0x0d, 0x1c)) { Confirm = Confirm.GoldSpent },
-        "recruit:cancel" => new("town", Deliveries.Key(0x1b, 0x01)),
+        "recruit:cancel" => new("town,town_fort", Deliveries.Key(0x1b, 0x01)),
 
         // Combat.
         "combat:spellbook" => new("spellbook", Deliveries.Key(0x43, 0x2e)),

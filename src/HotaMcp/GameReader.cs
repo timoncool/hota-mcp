@@ -254,6 +254,7 @@ internal sealed class GameReader(WindowsGame game,int player)
             try{r=game.Read(table+(uint)type*0x74,0x74);}catch(InvalidOperationException){continue;}
             int I(int o)=>BitConverter.ToInt32(r,o);
             string plural=game.Text(BitConverter.ToUInt32(r,0x18))?.Trim()??name;
+            costs[plural]=Enumerable.Range(0,7).Select(k=>I(0x20+k*4)).ToArray();
             var fields=new Dictionary<string,string>
             {
                 ["Plural"]=plural,["Gold"]=I(0x38).ToString(),["AI Value"]=I(0x40).ToString(),["Growth"]=I(0x44).ToString(),
@@ -269,6 +270,10 @@ internal sealed class GameReader(WindowsGame game,int player)
         creaturesRead=true;
     }
 
+    private readonly Dictionary<string,int[]> costs=new(StringComparer.OrdinalIgnoreCase);
+    /// Price of one creature in the game's resource order (wood, mercury, ore, sulfur, crystal,
+    /// gems, gold), by the plural name the recruitment window prints; null for an unknown name.
+    private int[]? CreatureCost(string plural){ReadCreatureNames();return costs.TryGetValue(plural,out var c)?c:null;}
     private bool artifactsRead;
 
     /// Artefact names from the game's own artefact table: a record of 0x20 bytes per artefact
@@ -1048,7 +1053,7 @@ internal sealed class GameReader(WindowsGame game,int player)
             }
             side=side with{Allies=allies.ToArray(),Participants=participants,Underground=header[0x10]!=0};
         }
-        var result=new Observation("",player,date,resources,hero,screen,width,height,items){Towns=towns,Actions=actions,Setup=setup,Combat=combat,Saves=saves,Sheet=sheet,Build=build,Heroes=roster,Side=side,SelectedStack=selected,OpenTown=openTown,ForeignHero=foreignName,ForeignArmy=foreignArmy,ForeignHeroes=foreignHeroes,Brief=ScreenBriefing.Build(waiting?"waiting":screen,date,resources,towns,roster,hero,side,selected,build,openTown,foreignName,foreignArmy,foreignHeroes,items,combat,screen=="adventure"?SidebarHeroes(game,player):null)};
+        var result=new Observation("",player,date,resources,hero,screen,width,height,items){Towns=towns,Actions=actions,Setup=setup,Combat=combat,Saves=saves,Sheet=sheet,Build=build,Heroes=roster,Side=side,SelectedStack=selected,OpenTown=openTown,ForeignHero=foreignName,ForeignArmy=foreignArmy,ForeignHeroes=foreignHeroes,Brief=ScreenBriefing.Build(waiting?"waiting":screen,date,resources,towns,roster,hero,side,selected,build,openTown,foreignName,foreignArmy,foreignHeroes,items,combat,screen=="adventure"?SidebarHeroes(game,player):null,screen=="recruitment"?CreatureCost:null)};
         if(tavernBlocked is not null)result=result with{Brief=[tavernBlocked,..result.Brief]};
         return Revise(result);
     }

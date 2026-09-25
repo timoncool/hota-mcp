@@ -1173,7 +1173,12 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
                 try{settled=reader.Observe();}
                 catch(InvalidOperationException){continue;}
                 if(settled.Screen!="adventure"){after=settled;message+=$"; the game then opened {settled.Screen} — read it";}
+                else if(settled.Hero is not null)after=settled;
             }
+            // A monolith, a portal or gates move the hero on a moment after he steps on them.
+            if(after.Hero is {} moved&&!moved.Position.SequenceEqual(destination)&&message.StartsWith("Hero reached",StringComparison.Ordinal))
+                message=$"Hero stepped onto ({string.Join(",",destination)}) and the object there carried him to ({string.Join(",",moved.Position)})"
+                    +(moved.Position[2]!=destination[2]?(moved.Position[2]==0?" — now on the surface":" — now underground"):"");
             var result=new OperationResult("completed",message,after);
             operations[operationId]=(identity,result);
             Record(journal+"_completed",new{operationId,result});
