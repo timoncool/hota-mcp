@@ -101,7 +101,8 @@ internal static class ScreenBriefing
             // Seven cards in tier order: creature 25+i, dwelling 9+i, «Доступно: N» 33+i, growth 129+i.
             string Txt(int id)=>items.FirstOrDefault(i=>i.Id==id)?.Text?.Trim()??"";
             var rows=Enumerable.Range(0,7).Where(t=>Txt(25+t).Length>0)
-                .Select(t=>$"{Txt(25+t)} ({Txt(9+t)}) — {Txt(33+t).Replace("  "," ").ToLowerInvariant()}, прирост {Txt(129+t)} в неделю").ToList();
+                .Select(t=>Txt(33+t).Length==0?$"{Txt(25+t)} ({Txt(9+t)}) — жилище не построено"
+                    :$"{Txt(25+t)} ({Txt(9+t)}) — {Txt(33+t).Replace("  "," ").ToLowerInvariant()}, прирост {Txt(129+t)} в неделю").ToList();
             lines.Add("Форт города — что можно нанять сейчас: "+string.Join("; ",rows)
                 +". Нанять — fort:recruit:<уровень 0-6>; закрыть — screen:close.");
         }
