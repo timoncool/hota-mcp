@@ -50,6 +50,15 @@ public record CombatLogEntry(int Index,string Text);
 
 internal sealed class CombatReader(WindowsGame game,int player)
 {
+    /// Whether this side is one of the two in the battle the game holds — still true while the
+    /// result window of that battle is open.
+    public bool Participant()
+    {
+        uint manager=game.U32(0x699420);
+        if(manager==0||game.U32(manager)!=0x63d3e8)return false;
+        return game.I32(manager+0x54a8)==player||game.I32(manager+0x54ac)==player;
+    }
+
     public CombatView Read()
     {
         uint manager=game.U32(0x699420);

@@ -1415,6 +1415,9 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
     private static void RequireOwnTurn(Observation before)
     {
         if(before.Side is null||before.Side.Yours||before.Combat is not null)return;
+        // A window addressed to this side on another's turn — its own flag on a hand-over, the result
+        // of a fight it took part in — is the reader's call: it offers actions only for those.
+        if(before.Screen is "message" or "battle_result"&&before.Actions.Count>0)return;
         throw new ActionRefused(ActionRefused.NotYourTurn,
             $"Сейчас ходит {before.Side.ActiveColour}, а ты играешь за {before.Side.Colour}: ничего не нажато. "
             +"Жди своего хода — observe покажет, когда он начнётся.");

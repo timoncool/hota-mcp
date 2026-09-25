@@ -940,9 +940,15 @@ internal sealed class GameReader(WindowsGame game,int player)
             try{fight=new CombatReader(game,player).Read();waiting=false;}
             catch(InvalidOperationException)when(waiting){}
         }
+        // The result of a fight this side took part in is its own to accept, whoever's turn it is.
+        if(waiting&&screen=="battle_result"&&new CombatReader(game,player).Participant())waiting=false;
         var combat=Remember(fight);
         // A message on another player's turn — «Ходит КЛОДИК.» at the hand-over — is read by everyone
         // at the table; its words stay, its buttons do not.
+        // A hand-over drawn with this side's own flag and colour — «КЛОДИК: Город под атакой!» when a
+        // computer storms its town — is addressed to this side: it answers it, whoever's turn it is.
+        if(waiting&&screen=="message"&&items.Any(i=>i.Text?.Trim()==Colour(player)))
+            waiting=false;
         if(waiting)items=screen=="message"?items.Where(i=>!string.IsNullOrWhiteSpace(i.Text)).Select(i=>i with{Interactive=false}).ToList():[];
         // The side list of towns — on the map and in the town screen — draws each town's icon with
         // an odd frame once the town has built today: the cross the player sees over it.
