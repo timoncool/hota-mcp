@@ -453,7 +453,9 @@ internal sealed class GameReference
             .Where(c=>kind is null||c.Kind.Contains(kind,StringComparison.OrdinalIgnoreCase))
             .Select(c=>(Card:c,Rank:Rank(c.Name,needle)))
             .Where(x=>x.Rank>0)
-            .OrderByDescending(x=>x.Rank).ThenBy(x=>x.Card.Name.Length)
+            // A wandering stack is named like its creature; the creature card carries the numbers
+            // a fight is decided on, so it comes before the map object of the same name.
+            .OrderByDescending(x=>x.Rank).ThenBy(x=>x.Card.Kind=="объект карты"?1:0).ThenBy(x=>x.Card.Name.Length)
             .Take(Math.Clamp(limit,1,20)).Select(x=>x.Card).ToList();
         if(matches.Count>0)return new(true,null,source,matches);
         // A name dictated by voice or typed from memory arrives with a slip or in another case form;
