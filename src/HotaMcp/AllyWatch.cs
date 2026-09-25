@@ -25,6 +25,7 @@ internal sealed class AllyWatch(WindowsGame game,int player,string root)
     private State? committed;
     private int lastActive=-1;
     private int[]? turnResources;
+    private int[] turnDate=[];
     /// Objects seen around the ally's heroes, by cell, so a hero arriving on a cell can be said to
     /// have reached what stood there, and an object gone from the map can be named.
     private readonly Dictionary<(int X,int Y,int Z),string> seen=new();
@@ -44,14 +45,15 @@ internal sealed class AllyWatch(WindowsGame game,int player,string root)
         var allies=Allies(main);
         if(active!=lastActive)
         {
-            if(lastActive>=0)TurnEnded(main,lastActive,allies);
+            if(lastActive>=0)TurnEnded(main,lastActive,allies,screen);
             // A restart of the service in the middle of the ally's turn must not open it twice.
             if(allies.Contains(active)&&!(lastActive<0&&LastTurnMark()==$"— ход {Of[active]} начался"))
             {
                 Append(active,Date(main),"turn",$"— ход {Of[active]} начался");
                 turnResources=Resources(main,active);
+                turnDate=Date(main);
             }
-            if(allies.Contains(active))turnResources??=Resources(main,active);
+            if(allies.Contains(active)){turnResources??=Resources(main,active);if(turnDate.Length==0)turnDate=Date(main);}
             lastActive=active;pendingKey=committedKey=null;committed=null;seen.Clear();
         }
         if(!allies.Contains(active))return;
@@ -67,19 +69,28 @@ internal sealed class AllyWatch(WindowsGame game,int player,string root)
         committed=now;committedKey=key;
     }
 
-    private void TurnEnded(uint main,int colour,List<int> allies)
+    private void TurnEnded(uint main,int colour,List<int> allies,uint screen)
     {
         if(colour==player){Append(colour,Date(main),"own_end","— твой ход закончен");return;}
         if(!allies.Contains(colour))return;
+        int[] date=turnDate.Length==3?turnDate:Date(main);
+        // The last step of the turn may not have held for two reads before the turn passed; the
+        // state at hand-over is final, so it is taken as it is.
+        if(committed is not null)
+        {
+            var last=Read(main,allies,false);
+            foreach(string line in Diff(committed,last))Append(colour,date,"event",line);
+            Look(last,allies,report:true,colour);
+        }
         if(turnResources is not null)
         {
             int[] after=Resources(main,colour);
             var change=Enumerable.Range(0,7).Where(i=>after[i]!=turnResources[i])
                 .Select(i=>$"{ResourceNames[i]} {after[i]-turnResources[i]:+#;-#}").ToList();
-            if(change.Count>0)Append(colour,Date(main),"event",$"ресурсы за ход: {string.Join(", ",change)}");
+            if(change.Count>0)Append(colour,date,"event",$"ресурсы за ход: {string.Join(", ",change)}");
         }
-        Append(colour,Date(main),"turn",$"— ход {Of[colour]} окончен");
-        turnResources=null;
+        Append(colour,date,"turn",$"— ход {Of[colour]} окончен");
+        turnResources=null;turnDate=[];
     }
 
     private List<int> Allies(uint main)
@@ -263,8 +274,16 @@ internal sealed class AllyWatch(WindowsGame game,int player,string root)
         var lines=all.Skip(from+1).Where(e=>e.Kind!="own_end").Select(Line).ToList();
         if(lines.Count==0)return [];
         var result=new List<string>{"Союзник за свой ход (полностью — ally_log):"};
-        result.AddRange(lines.Take(max).Select(l=>"   "+l));
-        if(lines.Count>max)result.Add($"   … ещё {lines.Count-max} строк — ally_log");
+        // The end of his turn — where his heroes stopped and what it cost him — matters most, so a
+        // long log keeps its start and its end and drops the middle.
+        if(lines.Count<=max)result.AddRange(lines.Select(l=>"   "+l));
+        else
+        {
+            int tail=max/2,head=max-tail;
+            result.AddRange(lines.Take(head).Select(l=>"   "+l));
+            result.Add($"   … ещё {lines.Count-max} строк — ally_log");
+            result.AddRange(lines.Skip(lines.Count-tail).Select(l=>"   "+l));
+        }
         return result;
     }
 
