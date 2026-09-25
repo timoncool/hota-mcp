@@ -64,6 +64,8 @@ internal sealed class RouteExplainer(WindowsGame game,int player)
         int Subtype(int i)=>BitConverter.ToInt16(tiles,i*0x26+0x22);
         var own=observation.Heroes.Where(h=>h.Position[2]==tz).Select(h=>h.Position[1]*size+h.Position[0]).ToHashSet();
         int start=hero.Position[1]*size+hero.Position[0],goal=ty*size+tx;
+        // The hero standing on the target is not a way to explain.
+        if(start==goal)return null;
         if(Land(start)==Water)return null;
         if(!Seen(goal))return "клетка цели скрыта туманом войны";
 
