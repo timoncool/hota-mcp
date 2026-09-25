@@ -116,6 +116,10 @@ internal sealed class GameReference
             buildingNames=result;
         }
         if(id>=0&&id<17&&id<buildingNames.Count&&buildingNames[id].Length>1)return buildingNames[id];
+        // The towns HotA added keep their building names in HotA.dat, not in the SoD tables,
+        // which carry only placeholders for them.
+        if(faction>=0&&id is >=17 and <=27&&HotaTownRow("sp",faction,id-17) is {} hotaSpecial)return hotaSpecial;
+        if(faction>=0&&id is >=30 and <=43&&HotaTownRow("dw",faction,id-30) is {} hotaDwelling)return hotaDwelling;
         // Buildings of one town type: the special ones are eleven rows per faction in BldgSpec,
         // row k for building 17+k; the dwellings fourteen rows per faction in Dwelling, the base
         // ones by level and the upgraded ones seven rows further on.
@@ -128,6 +132,37 @@ internal sealed class GameReference
         if(id is >=30 and <=36)return $"жилище {id-29} уровня";
         if(id is >=37 and <=43)return $"улучшенное жилище {id-36} уровня";
         return $"постройка №{id}";
+    }
+
+    private static Dictionary<string,string[]>? hotaTowns;
+
+    /// HotA.dat holds, per added town type, a block keyed «Castles\\cas<dw|sp>cost<type+1>.str»:
+    /// a length-prefixed text of fourteen dwelling names (base, then upgraded) or eleven special
+    /// building names, one per line.
+    private static string? HotaTownRow(string kind,int faction,int row)
+    {
+        if(hotaTowns is null)
+        {
+            hotaTowns=new();
+            string? data=FindDataDirectory();
+            string file=data is null?"":Path.Combine(Path.GetDirectoryName(data)!,"HotA.dat");
+            if(File.Exists(file))
+            {
+                byte[] bytes=File.ReadAllBytes(file);
+                string latin=Encoding.Latin1.GetString(bytes);
+                foreach(System.Text.RegularExpressions.Match m in System.Text.RegularExpressions.Regex.Matches(latin,@"Castles\\cas(dw|sp)cost(\d+)\.str"))
+                    for(int at=m.Index+m.Length;at<Math.Min(bytes.Length-4,m.Index+m.Length+200);at++)
+                    {
+                        int length=BitConverter.ToInt32(bytes,at);
+                        if(length is <=20 or >=2000||at+4+length>bytes.Length)continue;
+                        string text=Encoding.GetEncoding(1251).GetString(bytes,at+4,length);
+                        if(!text.Contains('\n'))continue;
+                        hotaTowns[$"{m.Groups[1].Value}{m.Groups[2].Value}"]=text.Split('\n').Select(l=>l.Trim()).ToArray();
+                        break;
+                    }
+            }
+        }
+        return hotaTowns.TryGetValue($"{kind}{faction+1}",out var rows)&&row<rows.Length&&rows[row].Length>1?rows[row]:null;
     }
 
     private static readonly Dictionary<string,List<string[]>> plainTables=new();
