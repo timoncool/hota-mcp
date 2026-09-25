@@ -231,6 +231,14 @@ dead. First `hero:switch` (Space): the visitor moves up to lead the garrison and
 join his army. Then `town:tavern` → `tavern:pick:<side>` → `tavern:hire`. The same move is how the whole
 garrison is taken in one gesture. `hota_docs("найм героя в таверне")` has it in Russian.
 
+## Two levels: surface and underground
+
+On a map with an underground, every cell in your plan and marks carries its level — «(35,36 surface)»
+and «(35,37 underground)» are different places, and a plan without levels sends heroes the wrong way.
+The brief says which level is on screen («На экране подземелье/поверхность»); the sidebar toggle
+`view:level` switches the view (its picture: iam003 = underground shown, iam010 = surface shown; no
+hotkey). Heroes change level only through the Subterranean Gates.
+
 ## Taking the whole garrison in one gesture
 
 To give the visiting hero everything the town has hired: `hero:switch` raises him into the garrison
