@@ -299,6 +299,9 @@ internal sealed class MapReader(WindowsGame game,int player)
         return false;
     }
 
+    /// The type of the object standing on a visible cell, 0 when nothing stands there.
+    public int TypeAt(Observation observation,int x,int y,int z)=>BitConverter.ToInt16(game.Read(VisibleTile(observation,x,y,z)+0x1e,2));
+
     public bool IsOnScreen(Observation observation,int x,int y,int z)
     {
         try{_=ScreenPoint(observation,x,y,z);return true;}

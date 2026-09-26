@@ -1222,6 +1222,8 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
                 throw new InvalidOperationException("Cell outside supported map bounds");
             int[] destination=[request.X,request.Y,request.Z];
             RefuseCreatureCell(before,destination);
+            var map=new MapReader(game,player);
+            int standing=map.TypeAt(before,request.X,request.Y,request.Z);
             // A press on the hero's own cell opens his screen; there is nowhere to walk.
             if(before.Hero!.Position.SequenceEqual(destination))
                 throw new ActionRefused(ActionRefused.AlreadySet,$"{before.Hero.Name} уже стоит на ({request.X},{request.Y}): идти некуда, ничего не нажато.");
@@ -1232,9 +1234,17 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
                     if(after.Screen!="adventure")return "Movement opened an interaction; read the dialog";
                     return null;
                 },
-                after=>after.Hero?.Id==before.Hero!.Id&&after.Hero.Movement<before.Hero.Movement
-                    &&!after.Hero.Position.SequenceEqual(before.Hero.Position)
-                    ?"Hero stopped short of the commanded cell":null);
+                after=>
+                {
+                    if(!(after.Hero?.Id==before.Hero!.Id&&after.Hero.Movement<before.Hero.Movement
+                        &&!after.Hero.Position.SequenceEqual(before.Hero.Position)))return null;
+                    // A find is taken from the cell beside it: the hero stops next to it and the
+                    // object is gone from its cell.
+                    bool beside=Math.Max(Math.Abs(after.Hero.Position[0]-request.X),Math.Abs(after.Hero.Position[1]-request.Y))==1&&after.Hero.Position[2]==request.Z;
+                    return beside&&standing!=0&&map.TypeAt(after,request.X,request.Y,request.Z)==0
+                        ?$"Hero picked up what lay at ({request.X},{request.Y}) from the cell beside it"
+                        :"Hero stopped short of the commanded cell";
+                });
         }
         finally{gate.Release();}
     }
