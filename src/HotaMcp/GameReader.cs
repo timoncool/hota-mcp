@@ -387,25 +387,17 @@ internal sealed class GameReader(WindowsGame game,int player)
         // Two matching reads reduce transitional snapshots; safe-point synchronization remains future work.
         var first=ReadOnce();
         var second=ReadOnce();
-        if(second.Screen!=animatedScreen)
+        string layout=Layout(second);
+        if(layout!=animatedLayout)
         {
-            // A screen just opened: watch it for a few beats so every picture that animates on
-            // its own is known before the first revision is handed out, not discovered one
-            // observation later as a spurious change of state.
-            animatedKeys=[];animatedScreen=second.Screen;
-            var look=second;
-            // Four short beats missed slower animations on the map, and the first revision after
-            // leaving a town then went stale on the very next read.
-            for(int beat=0;beat<8;beat++)
-            {
-                Thread.Sleep(80);
-                var next=ReadOnce();
-                if(next.Screen!=look.Screen||next.Elements.Count!=look.Elements.Count)break;
-                for(int i=0;i<next.Elements.Count;i++)
-                    if(next.Elements[i]!=look.Elements[i]&&(next.Elements[i] with {Frame=0})==(look.Elements[i] with {Frame=0}))
-                        animatedKeys.Add(next.Elements[i].Key);
-                look=next;
-            }
+            animatedLayout=layout;animatedScreen=second.Screen;
+            // The same window drawn the same way animates the same pictures every time: what was
+            // learned on an earlier visit holds, and returning to the map after each window costs
+            // nothing. A layout never seen before is watched for a few beats, so every picture that
+            // animates on its own is known before the first revision is handed out, not discovered
+            // one observation later as a spurious change of state.
+            if(learned.TryGetValue(layout,out var known))animatedKeys=[..known];
+            else Watch(second,layout);
         }
         if(first.Revision==second.Revision)return Revise(second);
         // Some screens animate: the creatures in the fort and in the recruitment window step
@@ -425,17 +417,55 @@ internal sealed class GameReader(WindowsGame game,int player)
         // up: two reads that happen to catch the same frame must not bring them back into the
         // revision, or the next observation looks like a different state.
         animatedKeys.UnionWith(animated);
-        var settled=Revise(second);
-        return settled;
+        if(learned.TryGetValue(animatedLayout,out var kept))kept.UnionWith(animated);
+        return Revise(second);
     }
+
+    /// One reading, without the second read and without watching a new window: the bridge's own
+    /// look while an action lands. Its revision leaves out the animations already learned.
+    public Observation Peek()
+    {
+        ReadCreatureNames();
+        ReadArtifactNames();
+        return Revise(ReadOnce());
+    }
+
+    /// The game day of the latest reading, whoever made it.
+    public int[] LastDate {get;private set;}=[];
 
     private HashSet<string> animatedKeys=[];
     private string animatedScreen="";
+    private string animatedLayout="";
+    private readonly Dictionary<string,HashSet<string>> learned=[];
+
+    /// Which window this is and how it is drawn: the screen with every control's id and picture.
+    private static string Layout(Observation state)=>state.Screen+"|"+string.Join(",",state.Elements.Select(e=>$"{e.Id}/{e.Asset}"));
+
+    private void Watch(Observation first,string layout)
+    {
+        animatedKeys=[];
+        var look=first;
+        // Four short beats missed slower animations on the map, and the first revision after
+        // leaving a town then went stale on the very next read.
+        for(int beat=0;beat<8;beat++)
+        {
+            Thread.Sleep(80);
+            var next=ReadOnce();
+            // The window changed under the watch: what was seen is kept for now, not remembered.
+            if(next.Screen!=look.Screen||next.Elements.Count!=look.Elements.Count)return;
+            for(int i=0;i<next.Elements.Count;i++)
+                if(next.Elements[i]!=look.Elements[i]&&(next.Elements[i] with {Frame=0})==(look.Elements[i] with {Frame=0}))
+                    animatedKeys.Add(next.Elements[i].Key);
+            look=next;
+        }
+        learned[layout]=[..animatedKeys];
+    }
 
     /// The revision of an observation, with the frames of pictures that animate on their own left
     /// out: they change between two reads of the very same state.
     private Observation Revise(Observation result)
     {
+        if(result.Date.Length==3)LastDate=result.Date;
         bool same=result.Screen==animatedScreen;
         // The adventure status line follows the pointer — anyone's pointer over the window — and says
         // nothing about the state; left in, it made a fresh revision stale between two calls.
@@ -928,7 +958,7 @@ internal sealed class GameReader(WindowsGame game,int player)
                     }
                     byte[] h2;
                     try{h2=game.Read(at,0x492);}catch{continue;}
-                    string name2=Encoding.GetEncoding(1251).GetString(h2,0x23,13).Split(' ')[0];
+                    string name2=Encoding.GetEncoding(1251).GetString(h2,0x23,13).Split('\0')[0];
                     roster.Add(new(id,name2,Enumerable.Range(0,3).Select(i=>(int)BitConverter.ToInt16(h2,i*2)).ToArray(),
                         BitConverter.ToInt16(h2,0x18),BitConverter.ToInt32(h2,0x4d),BitConverter.ToInt32(h2,0x49),
                         h2.Skip(0x476).Take(4).Select(v=>(int)v).ToArray(),

@@ -109,9 +109,7 @@ internal static class Deliveries
         if (exit is not null)
         {
             await Press(context, exit, ct);
-            await Task.Delay(250, CancellationToken.None);
-            try { if (context.Reader.Observe().Screen != context.Before.Screen) return; }
-            catch (InvalidOperationException) { return; }
+            if (await Until(() => ScreenNow(context) != context.Before.Screen, 400)) return;
         }
         await context.Game.KeyAsync(0x0d, 0x1c);
     };
@@ -127,6 +125,24 @@ internal static class Deliveries
             ?? throw new InvalidOperationException(missing);
         await Press(context, point.X, point.Y, ct);
     };
+
+    /// Waits for something the game shows, looking every 50 ms up to the limit.
+    public static async Task<bool> Until(Func<bool> condition, int milliseconds = 600)
+    {
+        for (int waited = 0; waited < milliseconds; waited += 50)
+        {
+            await Task.Delay(50, CancellationToken.None);
+            if (condition()) return true;
+        }
+        return condition();
+    }
+
+    /// The screen the game shows now, or null while it is between two.
+    public static string? ScreenNow(CommandContext context)
+    {
+        try { return context.Reader.Peek().Screen; }
+        catch (InvalidOperationException) { return null; }
+    }
 
     public static Task Press(CommandContext context, UiElement element, CancellationToken ct) =>
         Press(context, element.X + element.Width / 2, element.Y + element.Height / 2, ct);
@@ -645,7 +661,7 @@ internal static class GameCommands
             // Without that line the segment is already down and a press would do nothing.
             await context.Game.MouseAsync(centre.X, centre.Y, context.Before.Width, context.Before.Height, false, ct);
             await Task.Delay(250, CancellationToken.None);
-            string status = context.Reader.Observe().Elements.FirstOrDefault(e => e.Id == 2005)?.Text?.Trim() ?? "";
+            string status = context.Reader.Peek().Elements.FirstOrDefault(e => e.Id == 2005)?.Text?.Trim() ?? "";
             if (!status.StartsWith("Атака", StringComparison.Ordinal))
                 throw new ActionRefused(ActionRefused.SegmentNotTarget,$"По «{part}» катапульте не выстрелить: строка состояния «{status}», а не «Атака: …» — сегмент разрушен или не цель. Выбери другой. Ничего не отправлено.");
             await Deliveries.Press(context, centre.X, centre.Y, ct);
@@ -734,12 +750,23 @@ internal static class GameCommands
         if (slot >= 5) throw new InvalidOperationException($"Город {name} ниже видимой части списка; прокрути список городов");
         var portrait = context.Before.Elements.FirstOrDefault(e => e.Id == 32 + slot && e.Asset == "itpa.def")
             ?? throw new InvalidOperationException($"Место города {name} в списке справа не найдено");
-        for (int attempt = 0; attempt < 2; attempt++)
+        // A press on the town already selected opens it, within about 200 ms; on another town it
+        // only selects it — the selected hero, if any, loses the selection — and a second press
+        // opens it. The portraits carry no selection flag of their own.
+        await Deliveries.Press(context, portrait, ct);
+        int? was = context.Before.Hero?.Id;
+        bool opened = false;
+        await Deliveries.Until(() =>
         {
-            await Deliveries.Press(context, portrait, ct);
-            await Task.Delay(150, CancellationToken.None);
-            if (context.Reader.Observe().Screen == "town") break;
-        }
+            try
+            {
+                var now = context.Reader.Peek();
+                opened = now.Screen == "town";
+                return opened || was is not null && now.Hero?.Id != was;
+            }
+            catch (InvalidOperationException) { opened = true; return true; }
+        }, 350);
+        if (!opened) await Deliveries.Press(context, portrait, ct);
     };
 
     /// Another own town from inside the town screen: its icon in the town list on the right.
@@ -765,7 +792,7 @@ internal static class GameCommands
         {
             await context.Game.KeyAsync(0x48, 0x23);
             await Task.Delay(300, CancellationToken.None);
-            var hero = context.Reader.Observe().Hero;
+            var hero = context.Reader.Peek().Hero;
             if (hero is not null && hero.Id != before) break;
             if (hero is not null && before is null) break;
         }
@@ -797,7 +824,7 @@ internal static class GameCommands
             await context.Game.KeyAsync(steps > 0 ? (ushort)0x28 : (ushort)0x26, steps > 0 ? (ushort)0x50 : (ushort)0x48);
             await Task.Delay(40, CancellationToken.None);
         }
-        var now = context.Reader.Observe().Saves?.SelectedIndex;
+        var now = context.Reader.Peek().Saves?.SelectedIndex;
         if (now != index) throw new InvalidOperationException($"Выделение встало на строку {now}, а не на {index}");
     };
 
@@ -812,7 +839,7 @@ internal static class GameCommands
         {
             await Deliveries.Press(context, icon, ct);
             await Task.Delay(250, CancellationToken.None);
-            if (ScreenActions.LevelSkillChosen(context.Reader.Observe().Elements, icon)) return;
+            if (ScreenActions.LevelSkillChosen(context.Reader.Peek().Elements, icon)) return;
         }
         throw new InvalidOperationException($"Игра не отметила выбор «{skill}» после трёх нажатий");
     };
@@ -842,9 +869,21 @@ internal static class GameCommands
     {
         var portrait = HeroPortrait(context);
         await Deliveries.Press(context, portrait, ct);
-        await Task.Delay(400, CancellationToken.None);
-        try { if (context.Reader.Observe().Screen == "hero_screen") return; }
-        catch (InvalidOperationException) { return; }
+        // The first press opens the screen of the hero already selected, or only selects another
+        // one; a changed selection calls for the second press at once.
+        int? was = context.Before.Hero?.Id;
+        bool opened = false;
+        await Deliveries.Until(() =>
+        {
+            try
+            {
+                var now = context.Reader.Peek();
+                opened = now.Screen == "hero_screen";
+                return opened || now.Hero?.Id != was;
+            }
+            catch (InvalidOperationException) { opened = true; return true; }
+        });
+        if (opened) return;
         await Deliveries.Press(context, portrait, ct);
     };
 
@@ -871,7 +910,7 @@ internal static class GameCommands
         var (x,y)=ArmyCell(context,cell.Garrison,cell.Slot);
         await Deliveries.Press(context,x,y,ct);
         await Task.Delay(400,CancellationToken.None);
-        if(context.Reader.Observe().Screen=="creature_card")
+        if(context.Reader.Peek().Screen=="creature_card")
         {
             var close=context.Reader.FindControlById(30722);
             if(close is not null)
@@ -897,7 +936,7 @@ internal static class GameCommands
         var (x, y) = ArmyCell(context, garrison, int.Parse(where[1..]));
         await Deliveries.Press(context, x, y, ct);
         await Task.Delay(400, CancellationToken.None);
-        try { if (context.Reader.Observe().Screen == "creature_card") return; }
+        try { if (context.Reader.Peek().Screen == "creature_card") return; }
         catch (InvalidOperationException) { return; }
         await Deliveries.Press(context, x, y, ct);
     };
@@ -1092,7 +1131,7 @@ internal static class GameCommands
             await Task.Delay(60, CancellationToken.None);
         }
         await Task.Delay(150, CancellationToken.None);
-        string? now = context.Reader.Observe().Elements.FirstOrDefault(e => e.Id == 160)?.Text;
+        string? now = context.Reader.Peek().Elements.FirstOrDefault(e => e.Id == 160)?.Text;
         if (!string.Equals(now, name, StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException($"В поле имени «{now}», а не «{name}»: игра набирает буквы по своей раскладке — напиши имя буквами этой раскладки; не сохраняй");
     };
@@ -1235,7 +1274,7 @@ internal static class GameCommands
             {
                 try
                 {
-                    string text = context.Reader.Observe().Elements.FirstOrDefault(e => e.Id == count)?.Text ?? "";
+                    string text = context.Reader.Peek().Elements.FirstOrDefault(e => e.Id == count)?.Text ?? "";
                     return int.TryParse(new string(text.Where(char.IsDigit).ToArray()), out int v)
                         ? v : throw new InvalidOperationException("Число у ползунка не прочитано");
                 }
@@ -1286,7 +1325,7 @@ internal static class GameCommands
         if (source is null) throw new InvalidOperationException($"Артефакта «{name}» у героев в окне нет");
         await Deliveries.Press(context, items.First(e => e.Id == source.Value.Id), ct);
         await Task.Delay(250, CancellationToken.None);
-        var lifted = context.Reader.Observe().Elements;
+        var lifted = context.Reader.Peek().Elements;
         int doll2 = source.Value.Left ? 46 : 27, pack2 = source.Value.Left ? 94 : 89;
         var target = lifted.Where(e => e.Id >= doll2 && e.Id < doll2 + 19 && e.Frame == ExchangeArtifacts.Highlight).OrderBy(e => e.Id).FirstOrDefault();
         if (target is null)
@@ -1311,7 +1350,7 @@ internal static class GameCommands
             ?? throw new InvalidOperationException($"«{name}» в видимой части рюкзака нет");
         await Deliveries.Press(context, item, ct);
         await Task.Delay(250, CancellationToken.None);
-        var lifted = context.Reader.Observe().Elements;
+        var lifted = context.Reader.Peek().Elements;
         var target = lifted.FirstOrDefault(e => e.Id is >= 2 and <= 20 && e.Frame == ExchangeArtifacts.Highlight)
             ?? throw new InvalidOperationException($"«{name}» поднят, но игра не подсветила ни одного слота, куда его надеть");
         bool occupied = context.Before.Elements.Any(e => e.Id == target.Id);
@@ -1320,7 +1359,7 @@ internal static class GameCommands
         // The slot was taken: the game swaps, and what was worn there is now on the cursor. It
         // goes into the first free backpack cell, so the hand is empty again.
         await Task.Delay(250, CancellationToken.None);
-        var after = context.Reader.Observe().Elements;
+        var after = context.Reader.Peek().Elements;
         // While an artefact is on the cursor the game lights the slots it fits; with no slot lit the
         // hand is empty — the game has already put the removed artefact into the backpack itself.
         if (after.All(e => e.Frame != ExchangeArtifacts.Highlight)) return;

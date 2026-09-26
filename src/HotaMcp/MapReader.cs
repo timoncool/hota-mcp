@@ -221,6 +221,23 @@ internal sealed class MapReader(WindowsGame game,int player)
         return(viewport.MapX,viewport.MapY,viewport.Width/32,viewport.Height/32,viewport.Z);
     }
 
+    /// Whether stopping on a cell can open a window: something stands on it, or a wandering
+    /// monster (type 54) guards a cell beside it.
+    public bool CanOpenWindow(Observation observation,int x,int y,int z)
+    {
+        var context=Context(observation);
+        for(int dy=-1;dy<=1;dy++)
+            for(int dx=-1;dx<=1;dx++)
+            {
+                int xx=x+dx,yy=y+dy;
+                if(xx<0||yy<0||xx>=context.Size||yy>=context.Size)continue;
+                uint tile=checked(context.Tiles+(uint)((z*context.Size+yy)*context.Size+xx)*0x26);
+                int type=BitConverter.ToInt16(game.Read(tile+0x1e,2));
+                if(dx==0&&dy==0?type!=0:type==54)return true;
+            }
+        return false;
+    }
+
     public bool IsOnScreen(Observation observation,int x,int y,int z)
     {
         try{_=ScreenPoint(observation,x,y,z);return true;}

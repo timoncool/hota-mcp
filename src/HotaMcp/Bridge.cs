@@ -173,16 +173,15 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
         finally{gate.Release();}
     }
 
+    /// The game day of the latest reading; the usage ledger files every call under it.
+    public int[] LastDate=>reader.LastDate;
+
     /// A turn is long and a controller's memory is not guaranteed to survive it. The plan and the
     /// last few results are therefore part of every observation, not something to be asked for:
     /// whoever reads the state also reads what the goal was and what already happened, so nothing
     /// is re-decided from scratch or done twice.
-    /// The game day of the latest reading; the usage ledger files every call under it.
-    public int[] LastDate {get;private set;}=[];
-
     private Observation WithMemory(Observation state)
     {
-        if(state.Date.Length==3)LastDate=state.Date;
         var lines=new List<string>(state.Brief);
         if(state.Screen=="adventure"&&state.Side is {Underground:true})
             try{lines.Insert(Math.Min(1,lines.Count),new MapReader(game,player).View().Z==1
@@ -749,8 +748,9 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             var pending=new OperationResult("uncertain","Dispatch started; do not repeat using a new ID",null);
             operations.Add(request.OperationId,(request,pending));
             Record("operation_started",request);
+            var clock=System.Diagnostics.Stopwatch.StartNew();
             await command.Deliver(new CommandContext(game,reader,player,before,request.Element),ct);
-            return await AwaitResult(request,before,command,pending);
+            return await AwaitResult(request,before,command,pending,clock);
         }
         finally{gate.Release();}
     }
@@ -781,14 +781,15 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
 
     /// Waits for the game itself to show the action happened. A screen that merely looks right is
     /// not evidence: the observed revision must change, and every extra Confirm flag must hold.
-    private async Task<OperationResult> AwaitResult(OperationRequest request,Observation before,GameCommand command,OperationResult pending)
+    private async Task<OperationResult> AwaitResult(OperationRequest request,Observation before,GameCommand command,OperationResult pending,System.Diagnostics.Stopwatch clock)
     {
+        long delivered=clock.ElapsedMilliseconds;
         var deadline=DateTime.UtcNow.AddSeconds(command.TimeoutSeconds);
         while(DateTime.UtcNow<deadline)
         {
             await Task.Delay(70,CancellationToken.None);
             Observation? after=null;
-            try{after=reader.Observe();}
+            try{after=reader.Peek();}
             catch(InvalidOperationException){}
             if(after is null)continue;
             if(command.BattleMayEnd&&after.Screen=="battle_result")
@@ -806,6 +807,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             // Ending a turn legitimately lands on the game's own question instead of the map.
             bool landed=command.Accepts(after.Screen)||command.Confirm.HasFlag(Confirm.TurnAdvanced)&&after.Screen=="message";
             if(!(screenChanged&&landed||sameScreenReset))continue;
+            long confirmed=clock.ElapsedMilliseconds;
             if(after.Combat is not null&&before.Combat is not null)
                 Record("combat_action_evidence",new{request.OperationId,Action=request.Element,
                     BeforeLogCount=before.Combat.LogCount,AfterLogCount=after.Combat.LogCount,
@@ -822,7 +824,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
                 {
                     await Task.Delay(150,CancellationToken.None);
                     Observation again;
-                    try{again=reader.Observe();}catch(InvalidOperationException){continue;}
+                    try{again=reader.Peek();}catch(InvalidOperationException){continue;}
                     if(again.Combat is null){after=again;break;}
                     bool same=again.Combat.ActiveStack==after.Combat!.ActiveStack&&again.Combat.OwnTurn==after.Combat.OwnTurn
                         &&again.Combat.LogCount==after.Combat.LogCount
@@ -855,34 +857,26 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
                 blow=struck?" Удар состоялся."
                     :" УДАРА НЕ БЫЛО: отряд переместился, но не атаковал — цель вне досягаемости или выбрана клетка хода. Посмотри журнал боя и досягаемые клетки.";
             }
-            // Closing a window on the map is often followed by the next one — a level-up after a
-            // chest, a message after a fight. It opens a moment later, so the answer waits for it
-            // rather than telling the agent the map is free.
+            // Closing an event window on the map is often followed by the next one — a level-up
+            // after a chest, a message after a fight. It opens a moment later, so the answer waits
+            // for it rather than telling the agent the map is free. A window the player opened
+            // himself has nothing queued behind it.
             string next="";
-            if(after.Screen=="adventure"&&before.Screen!="adventure")
+            if(after.Screen=="adventure"&&EventWindows.Contains(before.Screen))
                 for(int beat=0;beat<12;beat++)
                 {
                     await Task.Delay(100,CancellationToken.None);
                     Observation settled;
-                    try{settled=reader.Observe();}catch(InvalidOperationException){continue;}
+                    try{settled=reader.Peek();}catch(InvalidOperationException){continue;}
                     if(settled.Screen!="adventure"){after=settled;next=$"; the game then opened {settled.Screen} — read it";break;}
                 }
-            // After a press the camera may still glide to the hero and pictures still settle; the
-            // revision handed back is the one the next action will be checked against, so it is
-            // taken only once two reads in a row agree.
-            for(int beat=0;beat<10;beat++)
-            {
-                await Task.Delay(100,CancellationToken.None);
-                Observation again;
-                try{again=reader.Observe();}catch(InvalidOperationException){continue;}
-                if(again.Revision==after.Revision&&again.Screen==after.Screen)break;
-                after=again;
-            }
+            after=await Settle(after);
             var result=new OperationResult("completed",
                 (screenChanged?"Screen transition confirmed by revision change":"Same screen, state change confirmed by revision")+blow+next
                 +(command.Confirm.HasFlag(Confirm.GarrisonChanged)?ArmyChange(before,after):""),after);
             operations[request.OperationId]=(request,result);
-            Record("operation_completed",new{request.OperationId,after.Revision,after.Screen,BeforeScreen=before.Screen});
+            Record("operation_completed",new{request.OperationId,after.Revision,after.Screen,BeforeScreen=before.Screen,
+                Ms=new{Delivered=delivered,Confirmed=confirmed,Total=clock.ElapsedMilliseconds}});
             if(request.Element=="scenario:start"&&after.Screen!="scenario_selection")ArchiveMemory(before.Setup?.Map?.Name);
             if(after.Screen=="tavern"&&before.Screen!="tavern")await ReadTavern(after);
             return result;
@@ -890,6 +884,24 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
         Record("operation_uncertain",new{request.OperationId});
         return pending;
     }
+
+    /// After a press the camera may still glide to the hero and pictures still settle; the
+    /// revision handed back is the one the next action will be checked against, so it is taken
+    /// from full reads, once two in a row agree.
+    private async Task<Observation> Settle(Observation after)
+    {
+        for(int beat=0;beat<10;beat++)
+        {
+            await Task.Delay(100,CancellationToken.None);
+            Observation again;
+            try{again=reader.Observe();}catch(InvalidOperationException){continue;}
+            if(again.Revision==after.Revision&&again.Screen==after.Screen)return again;
+            after=again;
+        }
+        return after;
+    }
+
+    private static readonly HashSet<string> EventWindows=["message","battle_result","level_up","popup_choice"];
 
     /// Everything this side holds in troops, in one comparable string: every hero's army and every
     /// town's garrison. Two observations with the same signature hold the same troops in the same
@@ -1194,7 +1206,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
         for(int attempt=0;attempt<20;attempt++)
         {
             await Task.Delay(50,CancellationToken.None);
-            try{planned=reader.Observe();}
+            try{planned=reader.Peek();}
             catch(InvalidOperationException){continue;}
             if(planned.Hero?.Id==before.Hero.Id&&planned.Hero.PlannedDestination.SequenceEqual(destination))break;
         }
@@ -1207,6 +1219,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             throw new InvalidOperationException(NoRouteReason(before,destination));
         }
         verifyPlanned?.Invoke(planned);
+        bool quiet=!new MapReader(game,player).CanOpenWindow(before,destination[0],destination[1],destination[2]);
         if(planned.Hero.Movement!=before.Hero.Movement||!planned.Hero.Position.SequenceEqual(before.Hero.Position))
             throw new InvalidOperationException("Hero changed during route preparation");
         // M is the game's ordinary move-along-selected-path command.
@@ -1218,7 +1231,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
         {
             await Task.Delay(100,CancellationToken.None);
             Observation after;
-            try{after=reader.Observe();}
+            try{after=reader.Peek();}
             catch(InvalidOperationException){continue;}
             string? message=finished(after);
             // Pressing M walks the whole planned path. Reporting on the first step would end the
@@ -1236,11 +1249,13 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             }
             // Arriving at a town, a bank or a find opens its window a moment after the hero stops;
             // answering on the stop alone told the agent «reached» while a dialog was on its way.
-            for(int beat=0;beat<12&&after.Screen=="adventure";beat++)
+            // A stop on bare ground with no wandering monster beside it opens nothing.
+            int beats=quiet&&message.StartsWith("Hero reached",StringComparison.Ordinal)?2:12;
+            for(int beat=0;beat<beats&&after.Screen=="adventure";beat++)
             {
                 await Task.Delay(100,CancellationToken.None);
                 Observation settled;
-                try{settled=reader.Observe();}
+                try{settled=reader.Peek();}
                 catch(InvalidOperationException){continue;}
                 if(settled.Screen!="adventure"){after=settled;message+=$"; the game then opened {settled.Screen} — read it";}
                 else if(settled.Hero is not null)after=settled;
@@ -1254,7 +1269,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             else if(after.Hero is {} carried&&carried.Position[2]!=before.Hero!.Position[2])
                 message=$"The hero went through a teleporting object on the way and is now at ({string.Join(",",carried.Position)})"
                     +(carried.Position[2]==0?" — on the surface":" — underground")+$"; the commanded cell ({string.Join(",",destination)}) was not reached";
-            var result=new OperationResult("completed",message,after);
+            var result=new OperationResult("completed",message,await Settle(after));
             operations[operationId]=(identity,result);
             Record(journal+"_completed",new{operationId,result});
             return result;
@@ -1325,9 +1340,8 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             await game.MouseAsync(toggle.X+toggle.Width/2,toggle.Y+toggle.Height/2,observation.Width,observation.Height,false,CancellationToken.None);
             await Task.Delay(150,CancellationToken.None);
             await game.MouseAsync(toggle.X+toggle.Width/2,toggle.Y+toggle.Height/2,observation.Width,observation.Height,true,CancellationToken.None);
-            await Task.Delay(300,CancellationToken.None);
-            if(map.View().Z!=z)throw new InvalidOperationException($"The elevation toggle did not bring level {z} into view");
-            observation=reader.Observe();
+            if(!await Deliveries.Until(()=>map.View().Z==z))throw new InvalidOperationException($"The elevation toggle did not bring level {z} into view");
+            observation=reader.Peek();
             Record("level_switched",new{z});
             if(map.IsOnScreen(observation,x,y,z))return observation;
         }
@@ -1335,8 +1349,8 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
         // Ctrl+arrow arrives as a bare arrow — a step of the selected hero.
         var point=map.MinimapPoint(observation,x,y,z);
         await game.MouseAsync(point.X,point.Y,observation.Width,observation.Height,true,CancellationToken.None);
-        await Task.Delay(300,CancellationToken.None);
-        var moved=reader.Observe();
+        await Deliveries.Until(()=>map.IsOnScreen(observation,x,y,z));
+        var moved=reader.Peek();
         if(!map.IsOnScreen(moved,x,y,z))
         {
             var view=map.View();
@@ -1379,10 +1393,10 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
                 }
             if(free is null)throw new InvalidOperationException("No free cell beside the hero to re-plan the route without sending him");
             await PressCell(observation,free.Value.X,free.Value.Y,at[2]);
-            observation=reader.Observe();
+            observation=reader.Peek();
         }
         await PressCell(observation,x,y,z);
-        if(meeting&&reader.Observe().Hero?.Id is int now&&now!=selected)
+        if(meeting&&reader.Peek().Hero?.Id is int now&&now!=selected)
             throw new ActionRefused(ActionRefused.UnknownControl,"Щелчок по своему герою выбрал его, а не проложил путь к встрече: выбранный герой сменился. Ничего не пройдено.");
     }
 
@@ -1411,7 +1425,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             {
                 reset=true;attempt=-1;
                 // Picking the hero centres the camera on him, so the cell is brought back into view.
-                shown=await EnsureVisible(reader.Observe(),x,y,z);
+                shown=await EnsureVisible(reader.Peek(),x,y,z);
                 point=map.ScreenPoint(shown,x,y,z);
                 continue;
             }
@@ -1441,7 +1455,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             await Task.Delay(300,CancellationToken.None);
         }
         Record("pointer_reset",new{hero=observation.Hero.Id});
-        return reader.Observe().Hero?.Id==observation.Hero.Id;
+        return reader.Peek().Hero?.Id==observation.Hero.Id;
     }
 
     private async Task<Observation> PlanRouteTo(Observation observation,int x,int y,int z)
@@ -1457,7 +1471,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
         {
             await Task.Delay(50,CancellationToken.None);
             Observation current;
-            try{current=reader.Observe();}
+            try{current=reader.Peek();}
             catch(InvalidOperationException){continue;}
             if(current.Screen!="adventure")return current;
             if(!map.RoutesAreStale(current)&&current.Hero?.PlannedDestination.SequenceEqual(new[]{x,y,z})==true)
@@ -1584,9 +1598,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
         Directory.CreateDirectory(stateDirectory);
         var node=System.Text.Json.Nodes.JsonNode.Parse(JsonSerializer.Serialize(data));
         Strip(node);
-        int[] day=[];
-        try{day=reader.Observe().Date;}catch{}
-        var entry=new JournalEntry(journal.Count+1,DateTimeOffset.UtcNow,kind,new{day,detail=node});
+        var entry=new JournalEntry(journal.Count+1,DateTimeOffset.UtcNow,kind,new{day=reader.LastDate,detail=node});
         File.AppendAllText(Path.Combine(stateDirectory,"journal.jsonl"),JsonSerializer.Serialize(entry)+"\n");
         journal.Add(entry);
     }
