@@ -34,7 +34,7 @@ if(stdio)
     var host=Host.CreateApplicationBuilder();
     host.Logging.ClearProviders();host.Logging.AddConsole(o=>o.LogToStandardErrorThreshold=LogLevel.Trace);
     host.Services.AddSingleton<IGameEndpoint>(new RemoteEndpoint(http));
-    host.Services.AddMcpServer(o=>o.ServerInstructions=ServerInstructions.Text).WithStdioServerTransport().WithTools<GameTools>()
+    host.Services.AddMcpServer(o=>o.ServerInstructions=ServerInstructions.Text).WithStdioServerTransport().WithTools<GameTools>(ToolJson.Options)
         .WithRequestFilters(f=>f.AddCallToolFilter(ToolErrors.Filter));
     await host.Build().RunAsync();return;
 }
@@ -101,7 +101,7 @@ var builder=WebApplication.CreateBuilder();
 builder.Configuration["AllowedHosts"]="127.0.0.1;localhost;[::1]";
 builder.Logging.ClearProviders();builder.Logging.AddConsole(o=>o.LogToStandardErrorThreshold=LogLevel.Trace);
 builder.Services.AddSingleton<IGameEndpoint>(session);
-builder.Services.AddMcpServer(o=>o.ServerInstructions=ServerInstructions.Text).WithHttpTransport(o=>o.SessionMode=HttpServerSessionMode.StatefulForInitializeClients).WithTools<GameTools>().WithResources<GameResources>()
+builder.Services.AddMcpServer(o=>o.ServerInstructions=ServerInstructions.Text).WithHttpTransport(o=>o.SessionMode=HttpServerSessionMode.StatefulForInitializeClients).WithTools<GameTools>(ToolJson.Options).WithResources<GameResources>()
     .WithRequestFilters(f=>f.AddCallToolFilter(ToolErrors.Filter));
 var app=builder.Build();
 // Claude Code's own telemetry (OTLP/HTTP JSON logs) cannot carry the per-start secret; it only
@@ -197,3 +197,23 @@ record MapRequest(int X,int Y,int Z,int Radius);
 record MiniMapRequest(int Z);
 record TileRequest(int X,int Y,int Z,string Revision);
 
+/// Tool answers are read by a model: Cyrillic escaped as \uXXXX costs six characters a letter and
+/// many times the tokens, so answers keep their text as it is, and fields with no value are left
+/// out. Zeros and false stay: no movement left and not your turn are answers.
+static class ToolJson
+{
+    public static readonly System.Text.Json.JsonSerializerOptions Options=new(ModelContextProtocol.McpJsonUtilities.DefaultOptions)
+    {
+        Encoder=System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+        DefaultIgnoreCondition=System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
+        // A control's animation frame is the bridge's own bookkeeping for revisions; to a player
+        // it is a meaningless number on every control.
+        TypeInfoResolver=System.Text.Json.Serialization.Metadata.JsonTypeInfoResolver.WithAddedModifier(
+            ModelContextProtocol.McpJsonUtilities.DefaultOptions.TypeInfoResolver!,
+            info=>{
+                if(info.Type!=typeof(UiElement))return;
+                var frame=info.Properties.FirstOrDefault(p=>p.Name=="frame");
+                if(frame is not null)info.Properties.Remove(frame);
+            }),
+    };
+}

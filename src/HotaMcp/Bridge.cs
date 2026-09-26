@@ -260,7 +260,9 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             lines.Add("Последнее, что делал этот контроллер (полностью — read_journal):");
             lines.AddRange(recent);
         }
-        return state with {Brief=lines};
+        // A control with no caption, no picture and no press is a backdrop; the revision already
+        // counted it, the reader of the answer has nothing to learn from it.
+        return state with {Brief=lines,Elements=state.Elements.Where(e=>e.Interactive||e.Text is not null||e.Asset is not null).ToList()};
     }
 
     private static readonly System.Text.Json.JsonSerializerOptions Readable=new()

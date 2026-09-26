@@ -97,7 +97,7 @@ internal sealed class GameSession(int? requestedPid,int player,string directory,
         {
             Refresh();
             var result=await action(bridge??throw new InvalidOperationException(detail));
-            UsageLedger.Record(directory,player,call,bridge?.LastDate??[],System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(result).LongLength,clock.ElapsedMilliseconds,null);
+            UsageLedger.Record(directory,player,call,bridge?.LastDate??[],System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(result,ToolJson.Options).LongLength,clock.ElapsedMilliseconds,null);
             return result;
         }
         catch(ActionRefused refusal)
