@@ -796,7 +796,9 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             }
             if(!Confirmed(command.Confirm,request.Element,before,after))continue;
             bool screenChanged=after.Screen!=before.Screen&&after.Revision!=before.Revision;
-            bool sameScreenReset=after.Screen==before.Screen&&after.Revision!=before.Revision;
+            // A change on the same screen proves the press only for a command meant to stay there:
+            // an animated menu changes its revision on its own while the press has not landed.
+            bool sameScreenReset=after.Screen==before.Screen&&after.Revision!=before.Revision&&command.Accepts(before.Screen);
             // Ending a turn legitimately lands on the game's own question instead of the map.
             bool landed=command.Accepts(after.Screen)||command.Confirm.HasFlag(Confirm.TurnAdvanced)&&after.Screen=="message";
             if(!(screenChanged&&landed||sameScreenReset))continue;
