@@ -54,7 +54,8 @@ internal sealed class RouteReader(WindowsGame game,int player)
             byte[] node=game.Read(nodes+(uint)cell*0x1e,0x1e);
             int nodeX=node[0],nodeY=node[2];
             if(node.All(b=>b==0))
-                return Unknown($"The game found no path to ({x},{y},{level})");
+                return steps==0&&Planned(finder,x,y,level,hero) is RouteView planned?planned
+                    :Unknown($"The game found no path to ({x},{y},{level})");
             if(nodeX!=x||nodeY!=y)
                 return Unknown($"A route cache node does not match its cell: step {steps} at ({x},{y},{level}) carries ({nodeX},{nodeY})");
             int fromX=node[8],fromY=node[10];
@@ -85,5 +86,26 @@ internal sealed class RouteReader(WindowsGame game,int player)
         if(remaining!=hero.Movement-cost)
             return Unknown($"The game's own arithmetic does not close: cost {cost}, left {remaining}, had {hero.Movement}");
         return new("reachable_today",cost,remaining,steps);
+    }
+
+    /// Underground the game fills no whole-map table: the route to the destination it has just
+    /// planned lives only in the short list at +0x3C..+0x40, whose nodes carry the level as bit
+    /// 10 of y. The destination's own node there gives the cost and what is left.
+    private RouteView? Planned(uint finder,int x,int y,int level,HeroView hero)
+    {
+        uint start=game.U32(finder+0x3c),end=game.U32(finder+0x40);
+        if(start==0||end<=start||(end-start)%0x1e!=0||end-start>0x1e*256)return null;
+        byte[] list=game.Read(start,(int)(end-start));
+        for(int i=0;i<list.Length;i+=0x1e)
+        {
+            int nx=BitConverter.ToUInt16(list,i),ny=BitConverter.ToUInt16(list,i+2);
+            if(nx!=x||(ny&0x3ff)!=y||(ny>>10&1)!=level)continue;
+            int cost=BitConverter.ToUInt16(list,i+0x18),left=BitConverter.ToUInt16(list,i+0x1c);
+            if(cost>hero.Movement)
+                return new("needs_more_days",cost,null,null){Days=hero.MaxMovement>0?1+(int)Math.Ceiling((cost-hero.Movement)/(double)hero.MaxMovement):null};
+            if(left!=hero.Movement-cost)return null;
+            return new("reachable_today",cost,left,null);
+        }
+        return null;
     }
 }
