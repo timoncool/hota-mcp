@@ -88,7 +88,8 @@ public sealed class GameTools(IGameEndpoint endpoint)
      Description("Makes the game plan the selected hero's route to any explored cell, the way pointing at it does, and reads "
         +"the game's own answer. Returns movement cost, steps and a state — reachable_today, needs_more_days or not_available "
         +"with the reason (no path at all, fog on the way). Use it to learn whether an area can be walked to at all and in how "
-        +"many days, before sending a hero there. Does NOT move the hero.")]
+        +"many days, before sending a hero there. A route longer than today also says StopsToday — the cell where the hero stands "
+        +"when today's movement runs out, the end of the green arrows — and Days, how many days of movement it takes. Does NOT move the hero.")]
     public Task<RouteView> InspectPath(
         [Description("Cell x.")] int x,
         [Description("Cell y.")] int y,

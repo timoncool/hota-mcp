@@ -1,6 +1,13 @@
 namespace HotaMcp;
 
-public sealed record RouteView(string State,int? MovementCost,int? RemainingMovement,int? Steps,string? Detail=null);
+public sealed record RouteView(string State,int? MovementCost,int? RemainingMovement,int? Steps,string? Detail=null)
+{
+    /// Where the hero stands at the end of today's movement along this route — the last green arrow
+    /// the game draws — when the whole route takes longer than today.
+    public int[]? StopsToday {get;init;}
+    /// Full days of movement the route takes at the hero's full daily movement, today counted.
+    public int? Days {get;init;}
+}
 
 internal sealed class RouteReader(WindowsGame game,int player)
 {
@@ -35,14 +42,16 @@ internal sealed class RouteReader(WindowsGame game,int player)
         int level=target.Z,x=target.X,y=target.Y;
         var seen=new HashSet<int>();
         int steps=0,cost=0,remaining=hero.Movement;
+        int[]? today=null;
         while(true)
         {
             if(x<0||y<0||x>=size||y>=size)return Unknown("The route leaves the map");
-            int index=(level*size+y)*size+x;
-            if(!seen.Add(index)||steps>512)return Unknown("The route chain is broken or too long");
+            // The route table is one level wide — the hero's — while the fog plane holds both levels.
+            int cell=y*size+x,index=(level*size+y)*size+x;
+            if(!seen.Add(cell)||steps>512)return Unknown("The route chain is broken or too long");
             if((game.Read(vision+(uint)index*2,1)[0]&(1<<player))==0)
                 return Unknown("Part of the route lies in the fog of war");
-            byte[] node=game.Read(nodes+(uint)index*0x1e,0x1e);
+            byte[] node=game.Read(nodes+(uint)cell*0x1e,0x1e);
             int nodeX=node[0],nodeY=node[2];
             if(node.All(b=>b==0))
                 return Unknown($"The game found no path to ({x},{y},{level})");
@@ -50,6 +59,9 @@ internal sealed class RouteReader(WindowsGame game,int player)
                 return Unknown($"A route cache node does not match its cell: step {steps} at ({x},{y},{level}) carries ({nodeX},{nodeY})");
             int fromX=node[8],fromY=node[10];
             if(steps==0){cost=BitConverter.ToUInt16(node,0x18);remaining=BitConverter.ToUInt16(node,0x1c);}
+            // Walking back from the target, the first cell the hero reaches within today's points
+            // is where the green arrows end.
+            if(today is null&&BitConverter.ToUInt16(node,0x18)<=hero.Movement)today=[x,y,level];
             // The hero's own cell is its own predecessor and costs nothing to stand on.
             if(fromX==x&&fromY==y)
             {
@@ -64,7 +76,12 @@ internal sealed class RouteReader(WindowsGame game,int player)
         if(steps==0)return Unknown("Target is the hero's own cell");
         // Only what the game itself worked out. A path longer than today's movement is the dashed
         // continuation the player also sees; it is reported as such, never as an invented estimate.
-        if(cost>hero.Movement)return new("needs_more_days",cost,null,steps);
+        if(cost>hero.Movement)
+            return new("needs_more_days",cost,null,steps)
+            {
+                StopsToday=today,
+                Days=hero.MaxMovement>0?1+(int)Math.Ceiling((cost-hero.Movement)/(double)hero.MaxMovement):null,
+            };
         if(remaining!=hero.Movement-cost)
             return Unknown($"The game's own arithmetic does not close: cost {cost}, left {remaining}, had {hero.Movement}");
         return new("reachable_today",cost,remaining,steps);
