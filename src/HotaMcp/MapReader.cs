@@ -62,6 +62,7 @@ internal sealed class MapReader(WindowsGame game,int player)
             throw new InvalidOperationException("Map coordinates out of bounds");
         int left=Math.Max(0,x-radius),top=Math.Max(0,y-radius),right=Math.Min(context.Size-1,x+radius),bottom=Math.Min(context.Size-1,y+radius);
         var terrain=new List<string>();var roads=new List<string>();var blocked=new List<string>();var objects=new List<MapObject>();
+        var drawn=new HashSet<int>();
         for(int yy=top;yy<=bottom;yy++)
         {
             string tr="",rr="",br="";
@@ -73,38 +74,98 @@ internal sealed class MapReader(WindowsGame game,int player)
                 byte land=game.Read(tile+4,1)[0],road=game.Read(tile+8,1)[0],access=game.Read(tile+0xd,1)[0];
                 if(land>11||road>3)throw new InvalidOperationException("Terrain layout not supported");
                 tr+="dgsnrluwvhax"[land];rr+=(char)('0'+road);br+=(access&1)!=0?'#':'.';
-                int type=BitConverter.ToInt16(game.Read(tile+0x1e,2));
                 // Publish only validated visible categories at their entrance. No setup, counts, events or grail.
-                if((access&16)!=0)
-                {
-                    // Anything standing on the map is reported. The slug stays for the objects the
-                    // bridge acts on by name; everything else carries the game's own name, because
-                    // an object the player can see must not vanish just for want of a slug.
-                    int subtype=BitConverter.ToInt16(game.Read(tile+0x22,2));
-                    string name=ObjectName(type,subtype);
-                    string kind=KnownObjects.TryGetValue(type,out var known)?known:GameReference.MapObject(type,subtype);
-                    int id=BitConverter.ToUInt16(game.Read(tile,2));
-                    // A town is known by its name and the flag over it, as every player sees it.
-                    if(type==98&&new TownReader(game,player).Describe(id) is {} town&&!string.IsNullOrWhiteSpace(town.Name))
-                        name=$"{town.Name} — "+(town.Owner==player?"твой город":town.Owner>7?"ничей город":$"город игрока {Colours[town.Owner]}");
-                    if(type==53)
-                    {
-                        name+=MineOwner(id,xx,yy,z) switch
-                        {
-                            null=>" — флаг не прочитан",
-                            int o when o==player=>" — твоя",
-                            >7=>" — ничья",
-                            int o=>$" — флаг {Colours[o]}",
-                        };
-                    }
-                    objects.Add(new(xx,yy,z,type,kind){Name=name,Id=id});
-                }
+                if((access&16)!=0)objects.Add(Describe(tile,xx,yy,z));
+                drawn.UnionWith(DrawnObjects(tile));
             }
             terrain.Add(tr);roads.Add(rr);blocked.Add(br);
         }
+        // An object whose picture shows on open ground while the cell of its entrance is still in
+        // fog is seen by the player all the same; it is reported at its entrance, marked as such.
+        foreach(int drawnObject in drawn)
+            if(HiddenEntrance(context,drawnObject,z) is var (ex,ey,entrance))
+            {
+                var seen=Describe(entrance,ex,ey,z);
+                objects.Add(seen with{Name=seen.Name+" — вход в тумане"});
+            }
         return new(observation.Revision,left,top,z,right-left+1,bottom-top+1,terrain.ToArray(),roads.ToArray(),blocked.ToArray(),objects,
             "? hidden; terrain d dirt,g sand,s grass,n snow,r swamp,l rough,u subterranean,w lava,v water,h rock,a highlands,x wasteland; roads 0 none,1 dirt,2 gravel,3 cobblestone; # terrain blocked,. not terrain-blocked (not a path guarantee)");
     }
+    /// One object at its entrance cell, named the way the player sees it.
+    private MapObject Describe(uint tile,int x,int y,int z)
+    {
+        // Anything standing on the map is reported. The slug stays for the objects the bridge acts
+        // on by name; everything else carries the game's own name, because an object the player
+        // can see must not vanish just for want of a slug.
+        int type=BitConverter.ToInt16(game.Read(tile+0x1e,2));
+        int subtype=BitConverter.ToInt16(game.Read(tile+0x22,2));
+        string name=ObjectName(type,subtype);
+        string kind=KnownObjects.TryGetValue(type,out var known)?known:GameReference.MapObject(type,subtype);
+        int id=BitConverter.ToUInt16(game.Read(tile,2));
+        // A town is known by its name and the flag over it, as every player sees it.
+        if(type==98&&new TownReader(game,player).Describe(id) is {} town&&!string.IsNullOrWhiteSpace(town.Name))
+            name=$"{town.Name} — "+(town.Owner==player?"твой город":town.Owner>7?"ничей город":$"город игрока {Colours[town.Owner]}");
+        if(type==53)
+        {
+            name+=MineOwner(id,x,y,z) switch
+            {
+                null=>" — флаг не прочитан",
+                int o when o==player=>" — твоя",
+                >7=>" — ничья",
+                int o=>$" — флаг {Colours[o]}",
+            };
+        }
+        return new(x,y,z,type,kind){Name=name,Id=id};
+    }
+
+    /// The map objects a cell draws: its draw list (+0x12 begin, +0x16 end) holds four-byte entries
+    /// whose first word is the object's index in the map's object list.
+    private IEnumerable<int> DrawnObjects(uint tile)
+    {
+        uint begin=game.U32(tile+0x12),end=game.U32(tile+0x16);
+        if(end==begin)return [];
+        if(end<begin||end-begin>64||(end-begin)%4!=0)throw new InvalidOperationException("Tile draw list layout not supported");
+        byte[] entries=game.Read(begin,(int)(end-begin));
+        return Enumerable.Range(0,entries.Length/4).Select(i=>(int)BitConverter.ToUInt16(entries,i*4));
+    }
+
+    /// The entrance of a drawn object when that cell is hidden from this player. An object's record
+    /// (12 bytes in the list at setup+0x14) holds its bottom-right cell at +4 (x, y, level); its picture spans at
+    /// most 8 by 6 cells up and left from there, and the entrance is the cell of that span which
+    /// draws the object, carries the entrance flag and has the object's type. Scenery has no
+    /// entrance and gives null.
+    private (int X,int Y,uint Tile)? HiddenEntrance((int Size,uint Tiles,uint Vision) context,int index,int z)
+    {
+        uint setup=game.U32(0x699538)+0x1fb70;
+        uint begin=game.U32(setup+0x14),end=game.U32(setup+0x18);
+        if(end<begin||(end-begin)%12!=0)throw new InvalidOperationException("Map object list layout not supported");
+        if(index<0||index>=(end-begin)/12)throw new InvalidOperationException($"Map object {index} is outside the object list");
+        byte[] record=game.Read(begin+(uint)index*12,12);
+        int ax=record[4],ay=record[5],az=record[6];
+        if(az!=z)return null;
+        // The object's kind comes from its description (0x44 bytes each in the list at setup+4,
+        // type at +0x38). A neighbour's entrance can lie inside the span and draw an edge of this
+        // object; only a cell whose own type is this object's is its entrance.
+        uint attributes=game.U32(setup+4),attributesEnd=game.U32(setup+8);
+        int described=BitConverter.ToUInt16(record,8);
+        if(attributesEnd<attributes||described>=(attributesEnd-attributes)/0x44)
+            throw new InvalidOperationException($"Map object {index} names description {described} outside the list");
+        int kind=game.I32(attributes+(uint)described*0x44+0x38);
+        for(int dy=0;dy<6;dy++)
+            for(int dx=0;dx<8;dx++)
+            {
+                int cx=ax-dx,cy=ay-dy;
+                if(cx<0||cy<0||cx>=context.Size||cy>=context.Size)continue;
+                uint cell=checked((uint)((z*context.Size+cy)*context.Size+cx));
+                uint tile=checked(context.Tiles+cell*0x26);
+                if((game.Read(tile+0xd,1)[0]&16)==0||BitConverter.ToInt16(game.Read(tile+0x1e,2))!=kind
+                   ||!DrawnObjects(tile).Contains(index))continue;
+                bool visible=(game.Read(context.Vision+cell*2,1)[0]&(1<<player))!=0;
+                return visible?null:(cx,cy,tile);
+            }
+        return null;
+    }
+
     /// The colour of the flag over a mine, as every player sees it on the map: 0-7 a player, 255
     /// nobody. The tile's index points into the game's mine list (H3Main+0x4E388, records of 0x40:
     /// +0 owner, +0x3C x, +0x3D y, +0x3E z); a record whose cell is not this one is refused.
