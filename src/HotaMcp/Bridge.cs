@@ -1209,6 +1209,9 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
                 throw new InvalidOperationException("Cell outside supported map bounds");
             int[] destination=[request.X,request.Y,request.Z];
             RefuseCreatureCell(before,destination);
+            // A press on the hero's own cell opens his screen; there is nowhere to walk.
+            if(before.Hero!.Position.SequenceEqual(destination))
+                throw new ActionRefused(ActionRefused.AlreadySet,$"{before.Hero.Name} уже стоит на ({request.X},{request.Y}): идти некуда, ничего не нажато.");
             return await RunMove(request.OperationId,identity,before,destination,12,"move_tile",null,
                 after=>
                 {

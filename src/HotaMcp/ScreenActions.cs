@@ -224,6 +224,18 @@ internal static class ScreenActions
                         $"Забрать часть «{theirs}» x{right} у второго героя в свободную клетку: откроется окно разделения "
                         +"(split_army), там split:amount:<n> и split:confirm."));
             }
+            // Two stacks of one creature in one hero's row waste a slot: pressing one and then the
+            // other merges them, as in any army row of the game.
+            foreach(var (side,picture,count,label) in new[]{("left",13,65,"левого героя"),("right",20,72,"правого героя")})
+                for(int slot=0;slot<7;slot++)
+                {
+                    string name=Named(picture+slot,count+slot);
+                    if(name.Length==0)continue;
+                    int other=Enumerable.Range(slot+1,6-slot).FirstOrDefault(o=>Named(picture+o,count+o)==name,-1);
+                    if(other<0)continue;
+                    actions.Add(new($"exchange:join:{side}{slot}+{other}",
+                        $"Слить два отряда «{name}» в ряду {label}: x{Count(count+slot)} и x{Count(count+other)} станут одним отрядом и освободят клетку."));
+                }
             // exchange:give/take press the arrow under the cell: the whole stack goes across in one
             // press; a hero's last stack leaves one creature behind.
             // The specialty icon sits beside each portrait — 105 on the left, 106 on the right — and
@@ -811,6 +823,8 @@ if(screen=="town"&&items.Any(i=>i.Id==3000&&i.Interactive))actions.Add(new("town
             }
             }
         }
-        return actions;
+        // Actions addressed by a creature's name repeat when two stacks share it; the command acts
+        // on the first such stack, so one key is offered once.
+        return actions.DistinctBy(a=>a.Key).ToList();
     }
 }

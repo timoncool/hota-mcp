@@ -607,6 +607,8 @@ internal static class GameCommands
         "exchange:artifacts:left" => new("exchange",Deliveries.Control(452,"SwAML_M.def")),
         _ when action.Key.StartsWith("exchange:give:",StringComparison.Ordinal)
             => new("exchange",ExchangeStack(true)){Confirm=Confirm.GarrisonChanged},
+        _ when action.Key.StartsWith("exchange:join:",StringComparison.Ordinal)
+            => new("exchange",ExchangeJoin){Confirm=Confirm.GarrisonChanged},
         _ when action.Key.StartsWith("exchange:take:",StringComparison.Ordinal)
             => new("exchange",ExchangeStack(false)){Confirm=Confirm.GarrisonChanged},
 
@@ -1037,6 +1039,26 @@ internal static class GameCommands
                 $"Нажатие по клетке {first} не взяло отряд: рамка выделения не появилась там, где ожидалась. "
                 +"Ничего не слито, состояние не изменилось.");
         await Deliveries.Press(context, target.X, target.Y, ct);
+    };
+
+    /// Two stacks of one creature in the same hero's row of the exchange window: the first press
+    /// picks one up, the second on the other merges them. The cells are the pictures, 13 plus the
+    /// slot on the left and 20 plus the slot on the right.
+    private static readonly Deliver ExchangeJoin = async (context, ct) =>
+    {
+        string where = context.Element["exchange:join:".Length..];
+        bool left = where.StartsWith("left", StringComparison.Ordinal);
+        string slots = where[(left ? 4 : 5)..];
+        int plus = slots.IndexOf('+');
+        int first = int.Parse(slots[..plus]), second = int.Parse(slots[(plus + 1)..]);
+        int picture = left ? 13 : 20;
+        UiElement Cell(int slot) => context.Before.Elements.FirstOrDefault(e => e.Id == picture + slot && e.Frame > 0)
+            ?? throw new InvalidOperationException($"Клетки {slot} в ряду {(left ? "левого" : "правого")} героя на экране нет");
+        var source = Cell(first);
+        var target = Cell(second);
+        await Deliveries.Press(context, source, ct);
+        await Task.Delay(250, CancellationToken.None);
+        await Deliveries.Press(context, target, ct);
     };
 
     /// Moving a stack between two heroes who met on the map. The gesture is the one every army
