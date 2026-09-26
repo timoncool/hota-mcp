@@ -1236,7 +1236,7 @@ internal sealed class GameReader(WindowsGame game,int player)
             }
             side=side with{Allies=allies.ToArray(),Participants=participants,Underground=header[0x10]!=0};
         }
-        var result=new Observation("",player,date,resources,hero,screen,width,height,items){Towns=towns,Actions=actions,Setup=setup,Combat=combat,Saves=saves,Sheet=sheet,Build=build,Heroes=roster,Side=side,SelectedStack=selected,OpenTown=openTown,ForeignHero=foreignName,ForeignArmy=foreignArmy,ForeignHeroes=foreignHeroes,Brief=ScreenBriefing.Build(waiting?"waiting":screen,date,resources,towns,roster,hero,side,selected,build,openTown,foreignName,foreignArmy,foreignHeroes,items,combat,screen=="adventure"?SidebarHeroes(game,player):null,screen=="recruitment"?CreatureCost:null)};
+        var result=new Observation("",player,date,resources,hero,screen,width,height,items){Towns=towns,Actions=actions,Setup=setup,Combat=combat,Saves=saves,Sheet=sheet,Build=build,Heroes=roster,Side=side,SelectedStack=selected,OpenTown=openTown,ForeignHero=foreignName,ForeignArmy=foreignArmy,ForeignHeroes=foreignHeroes,Brief=[..(setup?.Summary??[]),..ScreenBriefing.Build(waiting?"waiting":screen,date,resources,towns,roster,hero,side,selected,build,openTown,foreignName,foreignArmy,foreignHeroes,items,combat,screen=="adventure"?SidebarHeroes(game,player):null,screen=="recruitment"?CreatureCost:null)]};
         if(tavernBlocked is not null)result=result with{Brief=[tavernBlocked,..result.Brief]};
         if(screen=="high_scores")result=result with{Brief=[..HighScoreLines(items),..result.Brief]};
         return Revise(result);

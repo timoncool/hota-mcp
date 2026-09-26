@@ -1,10 +1,23 @@
 namespace HotaMcp;
 
-public record ScenarioMap(string Name,string Description,int Size,int Players,int Humans,string Victory,string Loss);
+public record ScenarioMap(string Name,string Description,int Size,int Players,int Humans,string Victory,string Loss)
+{
+    /// «Рейтинг карты» of the right panel: the map header's byte +5 — 0 «Легко», 1 «Нормально».
+    public string Rating {get;init;}="";
+}
 public record SetupChoice(string Action,string Label,bool Selected,bool Enabled);
 public record SetupField(string Key,int Value,List<SetupChoice> Choices);
+public record SetupPlayer(string Colour,string Name,bool Human,string Handicap,string Town,string Hero,string Bonus);
 public record ScenarioSetup(string Panel,ScenarioMap? Map,List<SetupField> Fields)
 {
+    /// The player rows as the players panel draws them: who sits at each colour and the town, hero
+    /// and bonus each starts with.
+    public List<SetupPlayer> Players {get;init;}=[];
+    /// The difficulty piece pressed under «Уровень сложности» with its score percent, and the timer.
+    public string? Difficulty {get;init;}
+    public string? Timer {get;init;}
+    /// The whole window in words, for the brief.
+    public List<string> Summary {get;init;}=[];
     /// The flags the right panel draws under «Союзники» and «Враги» for the chosen map, seen from
     /// the first human colour: who plays together and who against.
     public List<string> Allies {get;init;}=[];
@@ -37,6 +50,21 @@ internal sealed class ScenarioReader(WindowsGame game)
         ScenarioMap? map=null;
         var fields=new List<SetupField>();
         var available=new List<SetupChoice>();
+        // The right panel always shows the chosen map, whatever panel is open on the left.
+        {
+            uint first=game.U32(dialog+0x1054),last=game.U32(dialog+0x1058);
+            int index=game.I32(dialog+0x374);
+            if(first<last&&(last-first)%0xca4==0&&index>=0&&(uint)index<(last-first)/0xca4)
+            {
+                uint selected=checked(first+(uint)index*0xca4);
+                int size=game.I32(selected+0x18);
+                if(size is >=36 and <=252&&size%36==0)
+                    map=new(game.Text(game.U32(selected+0x2d4))??"",game.Text(game.U32(selected+0x2e4),8192)??"",size,
+                        game.Read(selected+6,1)[0],game.Read(selected+8,1)[0],
+                        GameReference.Victory(game.Read(selected+0x30,1)[0]),GameReference.Loss(game.Read(selected+0x7c,1)[0]))
+                    {Rating=game.Read(selected+5,1)[0] switch{0=>"Легко",1=>"Нормально",2=>"Сложно",3=>"Эксперт",4=>"Невозможно",var r=>$"рейтинг №{r}"}};
+            }
+        }
         if(panel=="random")
         {
             foreach(var (key,offset) in new[]{("size",0x18a0u),("players",0x18a8u),("computer_only",0x18b0u),("water",0x18b8u),("monsters",0x18bcu)})
@@ -60,12 +88,7 @@ internal sealed class ScenarioReader(WindowsGame game)
             int index=game.I32(dialog+0x374);
             if(first>last||last>cap||(last-first)%0xca4!=0||index<0||(uint)index>=(last-first)/0xca4)
                 throw new InvalidOperationException("Scenario list layout unsupported");
-            uint selected=checked(first+(uint)index*0xca4);
-            int size=game.I32(selected+0x18);
-            if(size<36||size>252||size%36!=0)throw new InvalidOperationException("Scenario map size unsupported");
-            map=new(game.Text(game.U32(selected+0x2d4))??"",game.Text(game.U32(selected+0x2e4),8192)??"",size,
-                game.Read(selected+6,1)[0],game.Read(selected+8,1)[0],
-                GameReference.Victory(game.Read(selected+0x30,1)[0]),GameReference.Loss(game.Read(selected+0x7c,1)[0]));
+            if(map is null)throw new InvalidOperationException("Scenario map size unsupported");
             // Every scenario the filter currently admits, in the order the list shows them. The
             // player scrolls this list with his eyes; without it the agent knows only the one row
             // that happens to be selected and cannot choose a map at all.
@@ -97,6 +120,36 @@ internal sealed class ScenarioReader(WindowsGame game)
         // Flags 112-119 stand under «Союзники», 120-127 under «Враги»; each flag's frame is its colour.
         List<string> Flags(int from)=>items.Where(i=>i.Id>=from&&i.Id<from+8&&i.Frame is >=0 and <8)
             .OrderBy(i=>i.Id).Select(i=>ColourName(i.Frame)).ToList();
-        return new(panel,map,fields){Allies=Flags(112),Enemies=Flags(120)};
+        // The player rows. Each colour's start is a block of 0x7C bytes from dialog+0x1084: the hero
+        // at +0 and the town at +4 (-1 is «Случайно»), the bonus at +0x4C — 0 artefact, 1 gold,
+        // 2 resource, anything else «Случайно». Found by stepping each arrow and reading back what
+        // the window drew. The name over the row is the player, or «Компьютер».
+        var rows=new List<SetupPlayer>();
+        for(int slot=0;panel=="players"&&slot<8;slot++)
+        {
+            var label=items.FirstOrDefault(i=>i.Id==345+slot);
+            if(label?.Text is not {Length:>0} name)continue;
+            uint block=checked(dialog+0x1084+(uint)slot*0x7c);
+            int hero=game.I32(block),town=game.I32(block+4),bonus=game.I32(block+0x4c);
+            if(town is < -1 or >= 12)throw new InvalidOperationException($"Start town {town} of colour {slot} is outside the towns");
+            rows.Add(new(ColourName(slot),name.Trim(),name.Trim()!="Компьютер",items.FirstOrDefault(i=>i.Id==207+slot)?.Text?.Trim()??"",
+                town<0?"Случайно":GameReference.Faction(town),hero<0?"Случайно":GameReference.Hero(hero),
+                bonus switch{0=>"Артефакт",1=>"Золото",2=>"Ресурс",_=>"Случайно"}));
+        }
+        // Five chess pieces choose the difficulty; the pressed one carries the selection bit.
+        string[] pieces=["Пешка","Конь","Ладья","Ферзь","Король"];int[] percents=[80,100,130,160,200];
+        int piece=Enumerable.Range(0,5).FirstOrDefault(i=>items.Any(e=>e.Id==107+i&&e.Selected),-1);
+        string? difficulty=piece<0?null:$"{pieces[piece]} ({percents[piece]}% очков)";
+        string? timer=items.FirstOrDefault(i=>i.Id==2705)?.Text?.Trim();
+        var summary=new List<string>();
+        if(map is not null)
+            summary.Add($"Сценарий «{map.Name}»: {map.Size}×{map.Size}, рейтинг карты «{map.Rating}», игроков {map.Players} (людьми {map.Humans}); победа — {map.Victory}; поражение — {map.Loss}. {map.Description.Replace('\n',' ').Trim()}");
+        var allies=Flags(112);var enemies=Flags(120);
+        if(allies.Count+enemies.Count>0)summary.Add($"Союзники: {string.Join(", ",allies.DefaultIfEmpty("нет"))}; враги: {string.Join(", ",enemies.DefaultIfEmpty("нет"))}.");
+        foreach(var p in rows)
+            summary.Add($"Игрок {p.Colour}: {p.Name} ({(p.Human?"человек":"компьютер")}), помеха «{p.Handicap}»; город — {p.Town}, герой — {p.Hero}, бонус — {p.Bonus}.");
+        if(difficulty is not null||timer is not null)
+            summary.Add($"Сложность: {difficulty??"не выбрана"}. Таймер: {timer??"не прочитан"}.");
+        return new(panel,map,fields){Allies=allies,Enemies=enemies,Players=rows,Difficulty=difficulty,Timer=timer,Summary=summary};
     }
 }
