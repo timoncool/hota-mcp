@@ -144,6 +144,26 @@ internal static class Deliveries
         catch (InvalidOperationException) { return null; }
     }
 
+    /// A portrait in the sidebar answers the way the game's list does: a press on the hero or town
+    /// already selected opens its screen, on another one only selects it — the selected hero then
+    /// changes or loses the selection — and a second press opens it. The second press goes only
+    /// when the screen has still not opened by the last look, so it cannot land inside the screen.
+    public static async Task PressUntilOpened(CommandContext context, UiElement portrait, string screen, CancellationToken ct)
+    {
+        await Press(context, portrait, ct);
+        int? was = context.Before.Hero?.Id;
+        await Until(() =>
+        {
+            Observation now;
+            try { now = context.Reader.Peek(); }
+            catch (InvalidOperationException) { return false; }
+            return now.Screen == screen || now.Hero?.Id != was;
+        });
+        // A screen that cannot be read at this moment is one in the middle of changing.
+        if (ScreenNow(context) is not string shown || shown != context.Before.Screen) return;
+        await Press(context, portrait, ct);
+    }
+
     public static Task Press(CommandContext context, UiElement element, CancellationToken ct) =>
         Press(context, element.X + element.Width / 2, element.Y + element.Height / 2, ct);
 
@@ -602,7 +622,7 @@ internal static class GameCommands
         // Half of what the dwelling holds: the slider moved to that number, then hire.
         "recruit:half" => new("town,town_fort,adventure", async (context, ct) =>
         {
-            await SliderTo(559, 526, c => Math.Max(1, RecruitTotal(c) / 2))(context, ct);
+            await MoveSlider(context, 559, 526, Math.Max(1, RecruitTotal(context) / 2), ct);
             await context.Game.KeyAsync(0x0d, 0x1c);
         }) { Confirm = Confirm.GoldSpent },
         _ when action.Key.StartsWith("recruit:amount:") => new("recruitment", SliderTo(559, 526, c => int.Parse(c.Element["recruit:amount:".Length..]))) { TimeoutSeconds = 30 },
@@ -750,23 +770,7 @@ internal static class GameCommands
         if (slot >= 5) throw new InvalidOperationException($"Город {name} ниже видимой части списка; прокрути список городов");
         var portrait = context.Before.Elements.FirstOrDefault(e => e.Id == 32 + slot && e.Asset == "itpa.def")
             ?? throw new InvalidOperationException($"Место города {name} в списке справа не найдено");
-        // A press on the town already selected opens it, within about 200 ms; on another town it
-        // only selects it — the selected hero, if any, loses the selection — and a second press
-        // opens it. The portraits carry no selection flag of their own.
-        await Deliveries.Press(context, portrait, ct);
-        int? was = context.Before.Hero?.Id;
-        bool opened = false;
-        await Deliveries.Until(() =>
-        {
-            try
-            {
-                var now = context.Reader.Peek();
-                opened = now.Screen == "town";
-                return opened || was is not null && now.Hero?.Id != was;
-            }
-            catch (InvalidOperationException) { opened = true; return true; }
-        }, 350);
-        if (!opened) await Deliveries.Press(context, portrait, ct);
+        await Deliveries.PressUntilOpened(context, portrait, "town", ct);
     };
 
     /// Another own town from inside the town screen: its icon in the town list on the right.
@@ -867,24 +871,7 @@ internal static class GameCommands
 
     private static readonly Deliver OpenHeroSheet = async (context, ct) =>
     {
-        var portrait = HeroPortrait(context);
-        await Deliveries.Press(context, portrait, ct);
-        // The first press opens the screen of the hero already selected, or only selects another
-        // one; a changed selection calls for the second press at once.
-        int? was = context.Before.Hero?.Id;
-        bool opened = false;
-        await Deliveries.Until(() =>
-        {
-            try
-            {
-                var now = context.Reader.Peek();
-                opened = now.Screen == "hero_screen";
-                return opened || now.Hero?.Id != was;
-            }
-            catch (InvalidOperationException) { opened = true; return true; }
-        });
-        if (opened) return;
-        await Deliveries.Press(context, portrait, ct);
+        await Deliveries.PressUntilOpened(context, HeroPortrait(context), "hero_screen", ct);
     };
 
     /// The two army rows of the town screen are a fixed grid: seven 58x64 cells starting at x=305
@@ -1265,6 +1252,15 @@ internal static class GameCommands
     private static Deliver SliderTo(int slider, int count, Func<CommandContext, int> target) => async (context, ct) =>
     {
         int wanted = target(context);
+        // Nothing to move is an answer, not a wait for a change that will never come.
+        if (!await MoveSlider(context, slider, count, wanted, ct))
+            throw new ActionRefused(ActionRefused.AlreadySet, $"Ползунок уже стоит на {wanted}: ничего не отправлено.");
+    };
+
+    /// Walks the slider to the wanted number; false when it already stood there. The cursor is
+    /// brought over the arrow once, the way a hand stays on it, and every further unit is a click.
+    private static async Task<bool> MoveSlider(CommandContext context, int slider, int count, int wanted, CancellationToken ct)
+    {
         var bar = context.Reader.FindControlById(slider)
             ?? throw new InvalidOperationException("Ползунка количества на экране нет");
         // The screen is redrawn while the slider moves; a read that lands mid-redraw is repeated.
@@ -1285,14 +1281,17 @@ internal static class GameCommands
             }
         }
         int now = Read();
+        if (now == wanted) return false;
+        bool? aimed = null;
         while (now != wanted)
         {
             bool up = now < wanted;
-            int x = up ? bar.X + bar.Width - 8 : bar.X + 8;
-            await Deliveries.Press(context, x, bar.Y + bar.Height / 2, ct);
+            int x = up ? bar.X + bar.Width - 8 : bar.X + 8, y = bar.Y + bar.Height / 2;
+            if (aimed != up) { await Deliveries.Press(context, x, y, ct); aimed = up; }
+            else await context.Game.MouseAsync(x, y, context.Before.Width, context.Before.Height, true, CancellationToken.None);
             // The number under the slider is redrawn a moment after the press.
             int next = Read();
-            for (int wait = 0; wait < 6 && next == now; wait++) { await Task.Delay(100, CancellationToken.None); next = Read(); }
+            for (int wait = 0; wait < 20 && next == now; wait++) { await Task.Delay(30, CancellationToken.None); next = Read(); }
             if (next == now)
                 throw new InvalidOperationException($"Ползунок встал на {now}, до {wanted} не дойти: "
                     + (up ? "больше не позволяет запас" : "меньше поставить нельзя"));
@@ -1302,7 +1301,8 @@ internal static class GameCommands
                 throw new InvalidOperationException($"Ползунок идёт шагами: после {now} сразу {next}, ровно {wanted} не поставить. Выбери число из этого ряда.");
             now = next;
         }
-    };
+        return true;
+    }
 
     /// Hands one artefact to the other hero the way a player does: press it to lift it onto the
     /// cursor, then press a cell of the other hero that the game lights up for it, or a free cell

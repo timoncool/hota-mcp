@@ -390,7 +390,7 @@ internal sealed class GameReader(WindowsGame game,int player)
         string layout=Layout(second);
         if(layout!=animatedLayout)
         {
-            animatedLayout=layout;animatedScreen=second.Screen;
+            animatedLayout=layout;
             // The same window drawn the same way animates the same pictures every time: what was
             // learned on an earlier visit holds, and returning to the map after each window costs
             // nothing. A layout never seen before is watched for a few beats, so every picture that
@@ -444,7 +444,6 @@ internal sealed class GameReader(WindowsGame game,int player)
     public int[] LastDate {get;private set;}=[];
 
     private HashSet<string> animatedKeys=[];
-    private string animatedScreen="";
     private string animatedLayout="";
     private readonly Dictionary<string,HashSet<string>> learned=[];
 
@@ -473,10 +472,14 @@ internal sealed class GameReader(WindowsGame game,int player)
 
     /// The revision of an observation, with the frames of pictures that animate on their own left
     /// out: they change between two reads of the very same state.
+    /// Whether two readings hold the same state, both judged with the animations known now: one
+    /// taken before a picture was learned to animate still matches its own later frames.
+    public bool SameState(Observation a,Observation b)=>Revise(a).Revision==Revise(b).Revision;
+
     private Observation Revise(Observation result)
     {
         if(result.Date.Length==3)LastDate=result.Date;
-        bool same=result.Screen==animatedScreen;
+        bool same=Layout(result)==animatedLayout;
         // The adventure status line follows the pointer — anyone's pointer over the window — and says
         // nothing about the state; left in, it made a fresh revision stale between two calls.
         bool map=result.Screen=="adventure";

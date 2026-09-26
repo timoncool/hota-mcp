@@ -100,7 +100,9 @@ internal sealed class GameSession(int? requestedPid,int player,string directory,
         {
             Refresh();
             FollowTurn();
+            Mark();
             var result=await action(bridge??throw new InvalidOperationException(detail));
+            Mark();
             UsageLedger.Record(directory,Acting,call,bridge?.LastDate??[],System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(result,ToolJson.Options).LongLength,clock.ElapsedMilliseconds,null);
             return result;
         }
@@ -114,7 +116,32 @@ internal sealed class GameSession(int? requestedPid,int player,string directory,
     }
     /// The controller's model spend from its telemetry, filed under the current game on the day
     /// the bridge last saw.
-    public int Telemetry(System.Text.Json.JsonElement export)=>UsageLedger.Ingest(directory,Acting,bridge?.LastDate??[],export);
+    public int Telemetry(System.Text.Json.JsonElement export)=>UsageLedger.Ingest(directory,SideAt,export);
+
+    // Which side acted on which game day from when: telemetry arrives in batches seconds later,
+    // after the turn may have passed, so a request is filed by its own time.
+    private readonly List<(DateTimeOffset From,int Player,int[] Day)> timeline=[];
+    private readonly object timelineGate=new();
+
+    private void Mark()
+    {
+        var day=bridge?.LastDate??[];
+        lock(timelineGate)
+        {
+            if(timeline.Count>0&&timeline[^1].Player==Acting&&timeline[^1].Day.SequenceEqual(day))return;
+            timeline.Add((DateTimeOffset.Now,Acting,day));
+        }
+    }
+
+    private (int Player,int[] Day) SideAt(DateTimeOffset time)
+    {
+        lock(timelineGate)
+        {
+            for(int i=timeline.Count-1;i>=0;i--)
+                if(timeline[i].From<=time)return(timeline[i].Player,timeline[i].Day);
+            return timeline.Count>0?(timeline[0].Player,timeline[0].Day):(Acting,bridge?.LastDate??[]);
+        }
+    }
 
     public async Task<object> Status(CancellationToken ct)
     {
@@ -166,7 +193,10 @@ internal sealed class GameSession(int? requestedPid,int player,string directory,
             try
             {
                 Refresh();
-                IEnumerable<Bridge> watching=sides.Count>0?sides.Values:bridge is null?[]:[bridge];
+                // With every side played, only the sides waiting for their turn have an ally to watch.
+                IEnumerable<Bridge> watching=sides.Count>0
+                    ?sides.Values.Where(s=>game is not null&&GameReader.ActiveHuman(game)!=s.Player)
+                    :bridge is null?[]:[bridge];
                 foreach(var side in watching)side.AllyTick();
                 lastFault=null;
             }

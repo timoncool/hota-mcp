@@ -827,6 +827,15 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             bool turnPassed=command.Confirm.HasFlag(Confirm.TurnAdvanced)&&after.Side is not null&&before.Side is not null
                 &&after.Side.ActivePlayer!=before.Side.ActivePlayer;
             if(!(screenChanged&&landed||sameScreenReset||turnPassed))continue;
+            // A change on the same screen seen in one quick read may be a picture animating that is
+            // not learned yet; a full read, with the state before judged the same way, decides.
+            if(!screenChanged&&!turnPassed)
+            {
+                Observation full;
+                try{full=reader.Observe();}catch(InvalidOperationException){continue;}
+                if(full.Screen!=before.Screen||reader.SameState(before,full))continue;
+                after=full;
+            }
             long confirmed=clock.ElapsedMilliseconds;
             if(after.Combat is not null&&before.Combat is not null)
                 Record("combat_action_evidence",new{request.OperationId,Action=request.Element,
@@ -1289,7 +1298,9 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             else if(after.Hero is {} carried&&carried.Position[2]!=before.Hero!.Position[2])
                 message=$"The hero went through a teleporting object on the way and is now at ({string.Join(",",carried.Position)})"
                     +(carried.Position[2]==0?" — on the surface":" — underground")+$"; the commanded cell ({string.Join(",",destination)}) was not reached";
-            var result=new OperationResult("completed",message,await Settle(after));
+            var final=await Settle(after);
+            if(final.Screen!=after.Screen&&final.Screen!="adventure")message+=$"; the game then opened {final.Screen} — read it";
+            var result=new OperationResult("completed",message,final);
             operations[operationId]=(identity,result);
             Record(journal+"_completed",new{operationId,result});
             return result;

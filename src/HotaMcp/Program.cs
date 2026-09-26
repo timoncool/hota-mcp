@@ -106,7 +106,16 @@ builder.Services.AddMcpServer(o=>o.ServerInstructions=ServerInstructions.Text).W
 var app=builder.Build();
 // Claude Code's own telemetry (OTLP/HTTP JSON logs) cannot carry the per-start secret; it only
 // files costs, and the service listens on loopback alone.
-app.MapPost("/v1/logs",(System.Text.Json.JsonElement export)=>{session.Telemetry(export);return Results.Json(new{});});
+app.MapPost("/v1/logs",(System.Text.Json.JsonElement export)=>
+{
+    try{session.Telemetry(export);return Results.Json(new{});}
+    catch(Exception e) when(e is InvalidOperationException or System.Text.Json.JsonException or IOException)
+    {
+        // A malformed export is the client's fault and resending it cannot help: logged, answered 400.
+        File.AppendAllText(Path.Combine(directory,"errors.log"),$"{DateTimeOffset.Now:O} /v1/logs{Environment.NewLine}{e}{Environment.NewLine}{Environment.NewLine}");
+        return Results.BadRequest(new{error=e.Message});
+    }
+});
 app.Use(async(context,next)=>{
     if(context.Request.Path.Equals("/v1/logs")){await next();return;}
     string supplied=context.Request.Headers.Authorization.ToString();

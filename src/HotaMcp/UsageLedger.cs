@@ -63,22 +63,40 @@ internal static class UsageLedger
         static bool Addressed(string text)=>text.Contains("/bridge/",StringComparison.Ordinal)||text.Contains("bridge.py",StringComparison.Ordinal);
         if(a.TryGetValue("tool_input",out var input)&&Addressed(input))return true;
         if(!a.TryGetValue("tool_parameters",out var parameters)||parameters.Length==0)return false;
-        using var json=JsonDocument.Parse(parameters);
-        var r=json.RootElement;
-        if(r.TryGetProperty("mcp_server_name",out var server)&&server.GetString() is string name&&name.StartsWith("hota",StringComparison.OrdinalIgnoreCase))return true;
-        return r.TryGetProperty("bash_command",out var command)&&Addressed(command.GetString()??"");
+        // Claude Code cuts long values short, and a cut parameter string is no longer JSON; its
+        // text still names the server or the command.
+        JsonDocument json;
+        try{json=JsonDocument.Parse(parameters);}
+        catch(JsonException){return Addressed(parameters)||parameters.Contains("\"mcp_server_name\":\"hota",StringComparison.OrdinalIgnoreCase);}
+        using(json)
+        {
+            var r=json.RootElement;
+            if(r.ValueKind!=JsonValueKind.Object)return false;
+            if(r.TryGetProperty("mcp_server_name",out var server)&&server.ValueKind==JsonValueKind.String
+               &&server.GetString()!.StartsWith("hota",StringComparison.OrdinalIgnoreCase))return true;
+            return r.TryGetProperty("bash_command",out var command)&&command.ValueKind==JsonValueKind.String&&Addressed(command.GetString()!);
+        }
     }
+
+    /// OTLP JSON leaves out empty lists, so a missing one holds nothing.
+    private static IEnumerable<JsonElement> Items(JsonElement owner,string name)=>
+        owner.ValueKind==JsonValueKind.Object&&owner.TryGetProperty(name,out var list)&&list.ValueKind==JsonValueKind.Array?list.EnumerateArray():[];
+
+    // Requests already filed, by session and the client's own event counter: an export the client
+    // resends after a lost answer is not counted twice.
+    private static readonly HashSet<string> filedEvents=[];
 
     private static long Number(Dictionary<string,string> a,string key)=>
         a.TryGetValue(key,out var v)&&long.TryParse(v,NumberStyles.Integer,CultureInfo.InvariantCulture,out long n)?n:0;
 
     /// An OTLP/HTTP JSON log export from Claude Code's telemetry. `tool_result` events mark the
     /// sessions that call the bridge; `api_request` events of those sessions are filed under the
-    /// current game with their `cost_usd` and token counts. Returns the requests filed.
-    public static int Ingest(string root,int player,int[] day,JsonElement export)
+    /// current game with their `cost_usd` and token counts, on the side and day `at` names for the
+    /// moment of the request. The whole export is checked before anything is written, so a bad
+    /// record fails it without leaving half of it filed. Returns the requests filed.
+    public static int Ingest(string root,Func<DateTimeOffset,(int Player,int[] Day)> at,JsonElement export)
     {
         string sessionsFile=Path.Combine(root,"usage","otel-sessions.json");
-        int filed=0;
         lock(gate)
         {
             var sessions=File.Exists(sessionsFile)
@@ -86,11 +104,12 @@ internal static class UsageLedger
                 :new HashSet<string>();
             int known=sessions.Count;
             string game=CurrentGame(root);
-            foreach(var resource in export.GetProperty("resourceLogs").EnumerateArray())
+            var rows=new List<(string Event,object Row)>();
+            foreach(var resource in Items(export,"resourceLogs"))
             {
                 var shared=Attributes(resource.TryGetProperty("resource",out var r)?r:default);
-                foreach(var scope in resource.GetProperty("scopeLogs").EnumerateArray())
-                foreach(var log in scope.GetProperty("logRecords").EnumerateArray())
+                foreach(var scope in Items(resource,"scopeLogs"))
+                foreach(var log in Items(scope,"logRecords"))
                 {
                     var a=Attributes(log);
                     foreach(var (k,v) in shared)a.TryAdd(k,v);
@@ -99,19 +118,25 @@ internal static class UsageLedger
                     if(name!="api_request"||!sessions.Contains(session))continue;
                     if(!a.TryGetValue("cost_usd",out var costText)||!decimal.TryParse(costText,NumberStyles.Float,CultureInfo.InvariantCulture,out decimal cost))
                         throw new InvalidOperationException($"api_request without a numeric cost_usd: «{costText}»");
-                    Append(root,game,new{time=DateTimeOffset.Now,player,game,kind="cost",day,session,model=a.GetValueOrDefault("model",""),
+                    var time=a.TryGetValue("event.timestamp",out var stamp)&&DateTimeOffset.TryParse(stamp,CultureInfo.InvariantCulture,DateTimeStyles.None,out var parsed)
+                        ?parsed:throw new InvalidOperationException($"api_request without an event.timestamp: «{stamp}»");
+                    string id=$"{session}#{a.GetValueOrDefault("event.sequence")??a.GetValueOrDefault("request_id")??stamp}";
+                    var (player,day)=at(time);
+                    rows.Add((id,new{time,player,game,kind="cost",day,session,model=a.GetValueOrDefault("model",""),
                         cost,input=Number(a,"input_tokens"),cacheWrite=Number(a,"cache_creation_tokens"),cacheRead=Number(a,"cache_read_tokens"),
-                        output=Number(a,"output_tokens")});
-                    filed++;
+                        output=Number(a,"output_tokens")}));
                 }
             }
+            int filed=0;
+            foreach(var (id,row) in rows)
+                if(filedEvents.Add(id)){Append(root,game,row);filed++;}
             if(sessions.Count!=known)
             {
                 Directory.CreateDirectory(Path.GetDirectoryName(sessionsFile)!);
                 File.WriteAllText(sessionsFile,JsonSerializer.Serialize(sessions));
             }
+            return filed;
         }
-        return filed;
     }
 
     private sealed record Call(DateTimeOffset Time,int Player,string Day,long Bytes,bool Refused);

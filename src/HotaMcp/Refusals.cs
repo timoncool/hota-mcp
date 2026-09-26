@@ -19,6 +19,7 @@ public sealed class ActionRefused(string code,string message):InvalidOperationEx
     public const string BadText="BAD_TEXT";
     public const string UnknownControl="UNKNOWN_CONTROL";
     public const string NotYourTurn="NOT_YOUR_TURN";
+    public const string AlreadySet="ALREADY_SET";
 }
 
 internal static class ToolErrors
