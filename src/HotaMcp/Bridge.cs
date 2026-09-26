@@ -1179,6 +1179,11 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             if(after.Hero is {} moved&&!moved.Position.SequenceEqual(destination)&&message.StartsWith("Hero reached",StringComparison.Ordinal))
                 message=$"Hero stepped onto ({string.Join(",",destination)}) and the object there carried him to ({string.Join(",",moved.Position)})"
                     +(moved.Position[2]!=destination[2]?(moved.Position[2]==0?" — now on the surface":" — now underground"):"");
+            // A route through a teleporting object ends on the other side of it, short of a
+            // destination that was on this side: the level is what tells.
+            else if(after.Hero is {} carried&&carried.Position[2]!=before.Hero!.Position[2])
+                message=$"The hero went through a teleporting object on the way and is now at ({string.Join(",",carried.Position)})"
+                    +(carried.Position[2]==0?" — on the surface":" — underground")+$"; the commanded cell ({string.Join(",",destination)}) was not reached";
             var result=new OperationResult("completed",message,after);
             operations[operationId]=(identity,result);
             Record(journal+"_completed",new{operationId,result});
