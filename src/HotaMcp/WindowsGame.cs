@@ -38,6 +38,20 @@ internal sealed class WindowsGame : IDisposable
             throw new InvalidOperationException("Game state unavailable or changing");
         return bytes;
     }
+    /// Committed private read-write memory between two addresses — where a thread's stack lives.
+    public IEnumerable<(uint Base, uint Size)> WritableRegions(uint from, uint to)
+    {
+        ulong address = from;
+        while (address < to)
+        {
+            if (VirtualQueryEx(handle, (nint)address, out var info, (nuint)Marshal.SizeOf<MemoryInfo>()) == 0) yield break;
+            ulong start = (ulong)info.BaseAddress, next = start + (ulong)info.RegionSize;
+            if (info.State == 0x1000 && info.Protect == 0x04 && info.Type == 0x20000 && start < to)
+                yield return ((uint)start, (uint)Math.Min((ulong)info.RegionSize, to - start));
+            if (next <= address) yield break;
+            address = next;
+        }
+    }
     public uint U32(uint address) => BitConverter.ToUInt32(Read(address,4));
     public int I32(uint address) => BitConverter.ToInt32(Read(address,4));
     public string? Text(uint address, int maximum = 1024)
@@ -206,6 +220,8 @@ internal sealed class WindowsGame : IDisposable
         }
     }
     public async Task ClickAsync(int gameX,int gameY,int width,int height,CancellationToken ct)=>await MouseAsync(gameX,gameY,width,height,true,ct);
+    [StructLayout(LayoutKind.Sequential)] private struct MemoryInfo {public nint BaseAddress,AllocationBase;public uint AllocationProtect;public ushort PartitionId;public nint RegionSize;public uint State,Protect,Type;}
+    [DllImport("kernel32.dll")] private static extern nuint VirtualQueryEx(SafeProcessHandle process,nint address,out MemoryInfo info,nuint length);
     [StructLayout(LayoutKind.Sequential)] private struct Rect {public int Left,Top,Right,Bottom;}
     [StructLayout(LayoutKind.Sequential)] private struct Point {public int X,Y;}
     [DllImport("kernel32.dll",SetLastError=true)] private static extern SafeProcessHandle OpenProcess(uint access,bool inherit,int pid);

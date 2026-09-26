@@ -272,14 +272,46 @@ internal sealed class GameReader(WindowsGame game,int player)
         byte[] dateBytes=game.Read(game.U32(0x699538)+0x1f63e,6);
         int[] date=Enumerable.Range(0,3).Select(i=>(int)BitConverter.ToUInt16(dateBytes,i*2)).ToArray();
         int days=(date[2]-1)*28+(date[1]-1)*7+date[0];
+        var shown=ScoreScreen(days);
         var result=new Observation("",player,date,[],null,"game_over",width,height,[])
         {
             Actions=[new("gameover:continue","Дальше: закрыть экран итогов игры (Enter)")],
             Brief=[$"Игра окончена: {gameOver}. Экран итогов игры: общее время {days} дн. (м{date[2]} н{date[1]} д{date[0]}); "
-                +"базовый и окончательный счёт, сложность и ранг игра рисует поверх ролика — их читает debug_snapshot. Дальше — gameover:continue."],
+                +(shown is var (score,percent,rank)
+                    ?$"счёт {score}, сложность «{DifficultyName(percent)}» ({percent}%), ранг «{rank}». "
+                    :"счёт, сложность и ранг на экране не найдены — их показывает debug_snapshot. ")
+                +"Дальше — gameover:continue."],
         };
         return Revise(result);
     }
+
+    /// What the score screen prints. The game shows it from one function it stays in while the
+    /// screen is up; on the main thread's stack sit its return address 0x004F48DB and after it the
+    /// arguments — score, days, difficulty in percent — and 0x24 on the rank as text. The days must
+    /// be the game's own, or the frame is not this screen's.
+    private (int Score,int Percent,string Rank)? ScoreScreen(int days)
+    {
+        foreach(var (start,size) in game.WritableRegions(0x10000,0x800000))
+        {
+            byte[] stack=game.Read(start,(int)Math.Min(size,1048576u));
+            for(int at=0;at+0x44<=stack.Length;at+=4)
+            {
+                if(BitConverter.ToUInt32(stack,at)!=0x004F48DB||BitConverter.ToInt32(stack,at+8)!=days)continue;
+                int score=BitConverter.ToInt32(stack,at+4),percent=BitConverter.ToInt32(stack,at+12);
+                if(score is <0 or >1000||percent is not (80 or 100 or 130 or 160 or 200))continue;
+                string rank=Encoding.GetEncoding(1251).GetString(stack,at+0x24,32).Split('\0')[0].Trim();
+                if(rank.Length>0)return(score,percent,rank);
+            }
+        }
+        return null;
+    }
+
+    /// The game's own names of its five difficulties, as the score screen prints them.
+    private static string DifficultyName(int percent)=>percent switch
+    {
+        80=>"Пешка",100=>"Конь",130=>"Ладья",160=>"Ферзь",200=>"Король",
+        _=>throw new InvalidOperationException($"Unknown difficulty {percent}%"),
+    };
 
     private CombatView? Remember(CombatView? combat)
     {
