@@ -208,7 +208,10 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
         else if(progress==lastProgress)idleReads++;
         else {lastProgress=progress;idleReads=0;}
         var townsNow=state.Towns.Select(t=>t.Name??"безымянный").ToList();
-        if(heldTowns.Count>0)
+        // Towns are compared only inside a game: the score screen and the menus list none.
+        bool inGame=state.Date.Length==3&&state.Screen!="game_over";
+        if(!inGame)townsNow=heldTowns;
+        else if(heldTowns.Count>0)
         {
             foreach(var lost in heldTowns.Except(townsNow))
                 lines.Insert(0,$"ГОРОД ПОТЕРЯН: {lost} больше не твой. Его забрали на чужом ходу. "
@@ -1166,7 +1169,14 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
                 if(before.Hero is null||before.Screen!="adventure")throw new InvalidOperationException("State changed while planning the attack; observe again");
                 route=new RouteReader(game,player).Read(before,target);
             }
-            if(route is not null&&route.State!="reachable_today")
+            // Underground the game keeps no route table for near cells, so the table says «no path»
+            // to a stack next door. The path the game itself has laid to the target — the hero's
+            // planned destination — within straight reach of today's movement (150 a cell, above a
+            // diagonal step) is an open way there.
+            bool laidNearby=route is not null&&route.State!="reachable_today"&&target.Z==1
+                &&before.Hero!.PlannedDestination.SequenceEqual(new[]{target.X,target.Y,target.Z})
+                &&Math.Max(Math.Abs(target.X-before.Hero.Position[0]),Math.Abs(target.Y-before.Hero.Position[1]))*150<=before.Hero.Movement;
+            if(route is not null&&route.State!="reachable_today"&&!laidNearby)
                 throw new InvalidOperationException($"Отряд сегодня не достать: маршрут {route.State}"
                     +(route.MovementCost is int cost?$", нужно {cost} хода":"")
                     +(route.Detail is {} why?$" ({why})":"")

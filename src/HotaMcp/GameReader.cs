@@ -147,6 +147,8 @@ internal sealed class GameReader(WindowsGame game,int player)
     };
 
     /// The eight player colours in the order the game numbers them.
+    public static string ColourName(int index)=>Colour(index);
+
     private static string Colour(int index)=>index switch
     {
         0=>"красный",1=>"синий",2=>"коричневый",3=>"зелёный",

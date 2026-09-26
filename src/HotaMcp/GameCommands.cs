@@ -346,7 +346,7 @@ internal static class GameCommands
     /// people — on the window where the house rules are agreed before the first day.
     private const string AfterStart="adventure,message,popup_choice";
 
-    private const string AfterMessage="adventure,message,combat,battle_result,town,hero_screen,exchange,recruitment,level_up,mage_guild,tavern,marketplace,main_menu,system_options,save_game,load_game,scenario_selection,game_type,high_score_name,high_scores";
+    private const string AfterMessage="adventure,message,combat,battle_result,town,hero_screen,exchange,recruitment,level_up,mage_guild,tavern,marketplace,main_menu,system_options,save_game,load_game,scenario_selection,game_type,high_score_name,high_scores,game_over";
 
     /// Anything a town building can open.
     private const string AnyTownScreen="town,town_hall,building_confirmation,recruitment,tavern,"
@@ -546,7 +546,8 @@ internal static class GameCommands
         // Level-up: the two offered skills are picture buttons, and the confirm button only
         // becomes usable once one of them is chosen.
         _ when action.Key.StartsWith("level:choose:") => new("level_up", SelectLevelSkill),
-        "level:accept" => new("adventure,town,message,combat,battle_result",
+        // Enough experience for two levels opens the next level-up right after the first.
+        "level:accept" => new("adventure,town,message,combat,battle_result,level_up",
             Deliveries.Control(30722, "iokay.def")),
 
         // Hero screens.
@@ -646,7 +647,8 @@ internal static class GameCommands
         "combat:defend" => new("combat", Deliveries.Key(0x44, 0x20))
             { Confirm = Confirm.CombatTurn | Confirm.CombatLog, TimeoutSeconds = 10, BattleMayEnd = true },
         "combat:retreat" => new("combat", Deliveries.Control(2002)),
-        "combat:auto" => new("combat", Deliveries.Control(2004)),
+        // The game fights the rest itself; the answer is the result screen, not the first blow.
+        "combat:auto" => new("battle_result,message", Deliveries.Control(2004)) { Confirm = Confirm.ScreenLeft, BattleMayEnd = true, TimeoutSeconds = 180 },
         // Pressing a stack's cell opens the creature card the player sees, with upgrade and
         // dismiss on it; the cells themselves are addressed by ArmyCell.
         // The game asks to confirm the price before it upgrades; that question is the landing.

@@ -69,7 +69,28 @@ internal static class ScreenBriefing
             lines.Add("На экране сообщение игры, и пока оно висит, ничего другого сделать нельзя: "
                 +"ни походить, ни открыть город. Текст лежит в Elements; закрой его действием "
                 +"message:accept, а вопрос с двумя кнопками — message:confirm или message:decline.");
-        if(screen=="message")RewardBrief(lines,items);
+        if(screen=="message")
+        {
+            // What the window says goes into the brief itself: the body is control 1, else the
+            // longest caption. The window is shown to this side; a player's crest (crest58.def) on
+            // it names whom the event is about — a town under attack, a colour defeated — with the
+            // colour printed under it, and that colour is read as this side, an ally or an enemy.
+            var body=items.FirstOrDefault(i=>i.Id==1&&!string.IsNullOrWhiteSpace(i.Text))
+                ??items.Where(i=>!string.IsNullOrWhiteSpace(i.Text)).OrderByDescending(i=>i.Text!.Length).FirstOrDefault();
+            if(body is not null)lines.Add($"Текст окна: «{body.Text!.Trim().Replace('\n',' ')}».");
+            foreach(var crest in items.Where(i=>i.Asset is not null&&i.Asset.StartsWith("crest",StringComparison.OrdinalIgnoreCase)))
+            {
+                int centre=crest.X+crest.Width/2;
+                var colour=items.Where(t=>!string.IsNullOrWhiteSpace(t.Text)&&t.Y>=crest.Y+crest.Height-4&&t.Y<=crest.Y+crest.Height+40
+                        &&Math.Abs(t.X+t.Width/2-centre)<45).OrderBy(t=>t.Y).FirstOrDefault();
+                string? named=colour?.Text?.Trim();
+                int? who=named is null?null:Enumerable.Range(0,8).Cast<int?>().FirstOrDefault(c=>GameReader.ColourName(c!.Value)==named);
+                string relation=side is null?"":who is null?" — цвет не опознан":who==side.Player?" — это ты":side.Allies.Contains(who.Value)?" — твой союзник":" — твой противник";
+                lines.Add(named is null?"На окне герб игрока, цвет под ним не прочитан."
+                    :$"Событие о игроке {named} (его герб на окне){relation}.");
+            }
+            RewardBrief(lines,items);
+        }
         if(screen=="mage_guild")
         {
             var taught=items.Where(i=>i.Id is >=40 and <70&&i.Width==83&&i.Frame>0).OrderBy(i=>i.Id)
@@ -137,7 +158,10 @@ internal static class ScreenBriefing
         if(screen=="level_up")
         {
             var offers=items.Where(i=>i.Id is 2010 or 2011).Select(i=>ScreenActions.LevelSkill(items,i)+(ScreenActions.LevelSkillChosen(items,i)?" (выбран)":"")).ToList();
-            var said=items.Where(i=>i.Id<2000&&!string.IsNullOrWhiteSpace(i.Text)&&(i.Text.Contains("уровн")||i.Text.Contains('+'))).Select(i=>i.Text!.Trim().Replace('\n',' '));
+            // The window says it in two lines: 2003 «<герой> теперь на уровне N, <класс>.» and 2004
+            // the primary skill that grew, «Защита +1».
+            var said=items.Where(i=>i.Id is 2003 or 2004&&!string.IsNullOrWhiteSpace(i.Text)).OrderBy(i=>i.Id)
+                .Select(i=>i.Text!.Trim().Replace('\n',' ').TrimEnd('.')+".");
             lines.Add("Повышение уровня. "+string.Join(" ",said)+(offers.Count>0?$" На выбор: {string.Join(" или ",offers)} — level:choose:<навык>, затем level:accept. Что брать под роль героя — hota_docs(\"повышение уровня что брать\").":" Навыков на выбор нет — level:accept."));
         }
         if(screen=="battle_result")BattleResultBrief(lines,items);
@@ -450,8 +474,11 @@ internal static class ScreenBriefing
         }
         // Any other picture in the window — an artefact, a spell, a creature — is named by the
         // caption the game prints under it.
+        // A player's crest (crest58.def) is a flag, not a reward: «<цвет> терпит поражение!» shows
+        // the colour under it.
         foreach(var picture in items.Where(i=>i.Asset is not null&&!i.Interactive
-                    &&!i.Asset.StartsWith("resour",StringComparison.OrdinalIgnoreCase)).OrderBy(i=>i.X))
+                    &&!i.Asset.StartsWith("resour",StringComparison.OrdinalIgnoreCase)
+                    &&!i.Asset.StartsWith("crest",StringComparison.OrdinalIgnoreCase)).OrderBy(i=>i.X))
         {
             int centre=picture.X+picture.Width/2;
             var caption=items.Where(t=>!string.IsNullOrWhiteSpace(t.Text)&&t.Y>=picture.Y+picture.Height-4&&t.Y<=picture.Y+picture.Height+40
