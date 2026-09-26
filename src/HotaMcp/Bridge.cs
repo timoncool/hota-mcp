@@ -254,7 +254,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
         if(markers.Count>0&&state.Screen=="adventure")
             lines.Add("Твои метки на карте (tool mark): "+string.Join("; ",markers.Take(20).Select(m=>$"({m.Key}) {m.Value}"))
                 +(markers.Count>20?$"; ещё {markers.Count-20}":"")+".");
-        var recent=journal.Where(e=>e.Kind is "operation_completed" or "move_completed" or "battle_result"
+        var recent=journal.Where(e=>e.Kind is "operation_completed" or "move_completed" or "move_tile_completed" or "battle_finished"
                 or "plan_updated" or "cell_inspected" or "refused")
             .TakeLast(4)
             .Select(e=>$"   {e.Kind}: {Summarise(e)}").ToList();
@@ -275,9 +275,20 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
 
     private static string Delta(int value)=>value>0?"+"+value:value.ToString();
 
+    /// One line a player would write about the event: what was pressed and where it led, or what
+    /// the move ended with. Operation ids and revisions say nothing to the reader of the brief.
     private static string Summarise(JournalEntry entry)
     {
-        string text=System.Text.Json.JsonSerializer.Serialize(entry.Data,Readable);
+        var detail=System.Text.Json.Nodes.JsonNode.Parse(JsonSerializer.Serialize(entry.Data))?["detail"];
+        static string? Field(System.Text.Json.Nodes.JsonNode? node,string name)=>
+            node?[name] is System.Text.Json.Nodes.JsonValue value&&value.TryGetValue(out string? text)?text:null;
+        string text=entry.Kind switch
+        {
+            "operation_completed" when Field(detail,"Element") is string element=>$"{element}: {Field(detail,"BeforeScreen")} → {Field(detail,"Screen")}",
+            "move_completed" or "move_tile_completed" when Field(detail?["result"],"Message") is string message=>message,
+            "battle_finished"=>"бой окончен, открыт итог боя",
+            _=>JsonSerializer.Serialize(entry.Data,Readable),
+        };
         return text.Length>160?text[..160]+"…":text;
     }
 
@@ -884,7 +895,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
                 (screenChanged?"Screen transition confirmed by revision change":"Same screen, state change confirmed by revision")+blow+next
                 +(command.Confirm.HasFlag(Confirm.GarrisonChanged)?ArmyChange(before,after):""),after);
             operations[request.OperationId]=(request,result);
-            Record("operation_completed",new{request.OperationId,after.Revision,after.Screen,BeforeScreen=before.Screen,
+            Record("operation_completed",new{request.OperationId,request.Element,after.Revision,after.Screen,BeforeScreen=before.Screen,
                 Ms=new{Delivered=delivered,Confirmed=confirmed,Total=clock.ElapsedMilliseconds}});
             if(request.Element=="scenario:start"&&after.Screen!="scenario_selection")ArchiveMemory(before.Setup?.Map?.Name);
             if(after.Screen=="tavern"&&before.Screen!="tavern")await ReadTavern(after);
