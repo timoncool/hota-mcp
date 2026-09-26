@@ -945,8 +945,10 @@ internal sealed class GameReader(WindowsGame game,int player)
         // The result of a fight this side took part in is its own to accept, whoever's turn it is.
         if(waiting&&screen=="battle_result"&&new CombatReader(game,player).Participant())waiting=false;
         // A question the game asks in the middle of this side's fight — «Вы действительно хотите
-        // отступить?» — belongs to that fight; the map or the result window ends it.
-        if(waiting&&screen=="message"&&(midFight||items.Any(i=>i.Id==30726)&&new CombatReader(game,player).Participant()))waiting=false;
+        // отступить?» — belongs to that fight; the map or the result window ends it. The combat
+        // manager keeps its owners after a battle, so it cannot tell a live fight from an ally's
+        // question on his own turn.
+        if(waiting&&screen=="message"&&midFight)waiting=false;
         if(screen is "adventure" or "battle_result")midFight=false;
         var combat=Remember(fight);
         // A message on another player's turn — «Ходит КЛОДИК.» at the hand-over — is read by everyone
