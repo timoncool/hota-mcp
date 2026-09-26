@@ -239,9 +239,26 @@ internal sealed class GameSession(int? requestedPid,int player,string directory,
 
     /// Every side played: the bridge of the human colour to move. On a computer's turn and in the
     /// menus the last one stays.
+    // A controller that plays one colour of a hotseat names it on every call (header
+    // X-Hota-Player): it then acts only for that colour, whoever's turn it is.
+    private static readonly AsyncLocal<int?> pinned=new();
+
+    public void Pin(string? colour)
+    {
+        pinned.Value=string.IsNullOrWhiteSpace(colour)?null:PlayerSetting.Parse(colour);
+        if(pinned.Value is int wanted&&player!=PlayerSetting.EverySide&&wanted!=player)
+            throw new InvalidOperationException($"This service plays colour {player}; set Player=все in settings.ini to serve colour {wanted} too");
+        if(pinned.Value==PlayerSetting.EverySide)throw new InvalidOperationException("X-Hota-Player names one colour: 0-7 or red, blue, …");
+    }
+
     private void FollowTurn()
     {
         if(player!=PlayerSetting.EverySide||game is null)return;
+        if(pinned.Value is int own)
+        {
+            if(bridge?.Player!=own)bridge=sides.TryGetValue(own,out var mine)?mine:NewBridge(own);
+            return;
+        }
         if(GameReader.ActiveHuman(game) is not int colour||colour==bridge?.Player)return;
         bridge=sides.TryGetValue(colour,out var known)?known:NewBridge(colour);
     }

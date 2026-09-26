@@ -31,6 +31,8 @@ if(stdio)
     string token=File.ReadAllText(tokenFile).Trim();
     var http=new HttpClient{BaseAddress=new Uri(endpoint.TrimEnd('/')+"/"),Timeout=TimeSpan.FromSeconds(15)};
     http.DefaultRequestHeaders.Authorization=new AuthenticationHeaderValue("Bearer",token);
+    // A client playing one colour of a hotseat names it: HOTA_PLAYER=1 or blue.
+    if(Environment.GetEnvironmentVariable("HOTA_PLAYER") is {Length:>0} colour)http.DefaultRequestHeaders.Add("X-Hota-Player",colour);
     var host=Host.CreateApplicationBuilder();
     host.Logging.ClearProviders();host.Logging.AddConsole(o=>o.LogToStandardErrorThreshold=LogLevel.Trace);
     host.Services.AddSingleton<IGameEndpoint>(new RemoteEndpoint(http));
@@ -121,7 +123,11 @@ app.Use(async(context,next)=>{
     string supplied=context.Request.Headers.Authorization.ToString();
     if(!CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(supplied),Encoding.UTF8.GetBytes("Bearer "+secret)))
     {context.Response.StatusCode=401;return;}
-    try{await next();}
+    try
+    {
+        session.Pin(context.Request.Headers["X-Hota-Player"].FirstOrDefault());
+        await next();
+    }
     catch(InvalidOperationException e)
     {
         // A refusal is an answer; anything else is a fault, and its stack is what finds it.
