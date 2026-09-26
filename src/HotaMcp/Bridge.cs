@@ -1236,14 +1236,13 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
                 },
                 after=>
                 {
-                    if(!(after.Hero?.Id==before.Hero!.Id&&after.Hero.Movement<before.Hero.Movement
-                        &&!after.Hero.Position.SequenceEqual(before.Hero.Position)))return null;
-                    // A find is taken from the cell beside it: the hero stops next to it and the
-                    // object is gone from its cell.
+                    if(!(after.Hero?.Id==before.Hero!.Id&&after.Hero.Movement<before.Hero.Movement))return null;
+                    // A find is taken from the cell beside it: the hero stops next to it — or stays
+                    // where he stood, when he was beside it already — and the object is gone.
                     bool beside=Math.Max(Math.Abs(after.Hero.Position[0]-request.X),Math.Abs(after.Hero.Position[1]-request.Y))==1&&after.Hero.Position[2]==request.Z;
-                    return beside&&standing!=0&&map.TypeAt(after,request.X,request.Y,request.Z)==0
-                        ?$"Hero picked up what lay at ({request.X},{request.Y}) from the cell beside it"
-                        :"Hero stopped short of the commanded cell";
+                    if(beside&&standing!=0&&map.TypeAt(after,request.X,request.Y,request.Z)==0)
+                        return $"Hero picked up what lay at ({request.X},{request.Y}) from the cell beside it";
+                    return after.Hero.Position.SequenceEqual(before.Hero.Position)?null:"Hero stopped short of the commanded cell";
                 });
         }
         finally{gate.Release();}
