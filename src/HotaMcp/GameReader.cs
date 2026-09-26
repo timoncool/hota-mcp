@@ -204,16 +204,22 @@ internal sealed class GameReader(WindowsGame game,int player)
     }
 
     private bool midFight;
+    // The game's own «all your enemies are defeated» (or defeat) message was the last window: the
+    // window-less score screen that follows is told from a mere transition by it.
+    private bool endMessage;
 
     /// The table the high-score window paints, from the file it paints it from: Data\HiScore.dat
     /// holds 22 records of 100 bytes — eleven campaigns, then eleven scenarios — with the player's
     /// name at 0, the map at 41, the score at 0x54 and the days at 0x58 (cp1251 text).
+    private (DateTime Written,byte[] Data)? scoreFile;
     private List<string> HighScoreLines(List<UiElement> items)
     {
         string exe=game.Process.MainModule?.FileName??throw new InvalidOperationException("Game path unavailable");
         string file=Path.Combine(Path.GetDirectoryName(exe)!,"Data","HiScore.dat");
         if(!File.Exists(file))return ["Таблица рекордов: файл Data\\HiScore.dat не найден."];
-        byte[] data=File.ReadAllBytes(file);
+        var written=File.GetLastWriteTimeUtc(file);
+        if(scoreFile is not {} cached||cached.Written!=written)scoreFile=(written,File.ReadAllBytes(file));
+        byte[] data=scoreFile.Value.Data;
         if(data.Length<2200)return [$"Таблица рекордов: файл HiScore.dat короче ожидаемого ({data.Length} байт)."];
         bool scenarios=items.FirstOrDefault(i=>i.Id==1002)?.Selected??true;
         var enc=Encoding.GetEncoding(1251);
@@ -835,7 +841,7 @@ internal sealed class GameReader(WindowsGame game,int player)
         uint manager=game.U32(0x6992d0),dlg=game.U32(manager+0x54);
         // The score screen after the last enemy falls is the game's own modal loop over a video:
         // no window is on top, and the message before it said how the game ended.
-        if(dlg==0&&GameOutcome() is string outcome)return GameOverScreen(manager,outcome);
+        if(dlg==0&&endMessage&&GameOutcome() is string outcome)return GameOverScreen(manager,outcome);
         if(dlg==0)throw new InvalidOperationException("UI transition in progress");
         uint vtable=game.U32(dlg);
         // A popup over the scenario screen — a town grid, the options window, the team agreements —
@@ -1020,6 +1026,8 @@ internal sealed class GameReader(WindowsGame game,int player)
         // question on his own turn.
         if(waiting&&screen=="message"&&midFight)waiting=false;
         if(screen is "adventure" or "battle_result")midFight=false;
+        if(screen=="message")endMessage=items.Any(i=>i.Text is {} t&&(t.Contains("враги побеждены",StringComparison.OrdinalIgnoreCase)||t.Contains("потерпели поражение",StringComparison.OrdinalIgnoreCase)));
+        else if(screen is not "game_over")endMessage=false;
         var combat=Remember(fight);
         // A message on another player's turn — «Ходит КЛОДИК.» at the hand-over — is read by everyone
         // at the table; its words stay, its buttons do not.

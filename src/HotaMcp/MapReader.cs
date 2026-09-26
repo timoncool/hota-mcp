@@ -89,8 +89,13 @@ internal sealed class MapReader(WindowsGame game,int player)
                         name=$"{town.Name} — "+(town.Owner==player?"твой город":town.Owner>7?"ничей город":$"город игрока {Colours[town.Owner]}");
                     if(type==53)
                     {
-                        int owner=MineOwner(id,xx,yy,z);
-                        name+=owner==player?" — твоя":owner>7?" — ничья":$" — флаг {Colours[owner]}";
+                        name+=MineOwner(id,xx,yy,z) switch
+                        {
+                            null=>" — флаг не прочитан",
+                            int o when o==player=>" — твоя",
+                            >7=>" — ничья",
+                            int o=>$" — флаг {Colours[o]}",
+                        };
                     }
                     objects.Add(new(xx,yy,z,type,kind){Name=name,Id=id});
                 }
@@ -103,14 +108,14 @@ internal sealed class MapReader(WindowsGame game,int player)
     /// The colour of the flag over a mine, as every player sees it on the map: 0-7 a player, 255
     /// nobody. The tile's index points into the game's mine list (H3Main+0x4E388, records of 0x40:
     /// +0 owner, +0x3C x, +0x3D y, +0x3E z); a record whose cell is not this one is refused.
-    public int MineOwner(int id,int x,int y,int z)
+    /// Null when the record does not describe this cell — that one mine is then reported unread.
+    public int? MineOwner(int id,int x,int y,int z)
     {
         uint main=game.U32(0x699538);
         uint start=game.U32(main+0x4e38c),end=game.U32(main+0x4e390);
-        if(id<0||start==0||start+(uint)(id+1)*0x40>end)throw new InvalidOperationException($"Mine index {id} is outside the game's mine list");
+        if(id<0||start==0||start+(uint)(id+1)*0x40>end)return null;
         var record=game.Read(start+(uint)id*0x40,0x40);
-        if(record[0x3c]!=x||record[0x3d]!=y||record[0x3e]!=z)
-            throw new InvalidOperationException($"Mine record {id} describes ({record[0x3c]},{record[0x3d]},{record[0x3e]}), not ({x},{y},{z})");
+        if(record[0x3c]!=x||record[0x3d]!=y||record[0x3e]!=z)return null;
         return record[0];
     }
     /// The whole level as the minimap shows it, one character per cell, from the game's own map:
@@ -125,29 +130,34 @@ internal sealed class MapReader(WindowsGame game,int player)
         var marks=new List<string>();
         string Who(int owner)=>owner==player?"твой":owner>7?"ничей":observation.Side?.Allies.Contains(owner)==true?$"союзник {Colours[owner]}":$"враг {Colours[owner]}";
         char Flag(int owner,char mine,char ally,char enemy,char none)=>owner==player?mine:owner>7?none:observation.Side?.Allies.Contains(owner)==true?ally:enemy;
+        // One level of the fog plane and of the tile array, each read in one block.
+        uint first=checked((uint)(z*size*size));
+        byte[] vision=game.Read(context.Vision+first*2,size*size*2);
+        byte[] tiles=game.Read(context.Tiles+first*0x26,size*size*0x26);
         for(int y=0;y<size;y++)
         {
             grid[y]=new char[size];
             for(int x=0;x<size;x++)
             {
-                uint index=checked((uint)((z*size+y)*size+x));
-                if((game.Read(context.Vision+index*2,1)[0]&(1<<player))==0){grid[y][x]='?';continue;}
-                uint tile=checked(context.Tiles+index*0x26);
-                byte land=game.Read(tile+4,1)[0],access=game.Read(tile+0xd,1)[0];
+                int cell=y*size+x,at=cell*0x26;
+                if((vision[cell*2]&(1<<player))==0){grid[y][x]='?';continue;}
+                byte land=tiles[at+4],access=tiles[at+0xd];
                 grid[y][x]=land==8?'~':land==9?'#':(access&1)!=0?'^':'.';
                 if((access&16)==0)continue;
-                int type=BitConverter.ToInt16(game.Read(tile+0x1e,2)),id=BitConverter.ToUInt16(game.Read(tile,2));
+                int type=BitConverter.ToInt16(tiles,at+0x1e),id=BitConverter.ToUInt16(tiles,at);
                 if(type==98&&new TownReader(game,player).Describe(id) is var (name,holder))
                 {
                     grid[y][x]=Flag(holder,'Т','Г','В','Н');
                     marks.Add($"город {name} ({x},{y}) — {Who(holder)}");
                 }
-                else if(type==53)
-                {
-                    int flag=MineOwner(id,x,y,z);
-                    grid[y][x]=Flag(flag,'ш','с','в','н');
-                }
+                else if(type==53)grid[y][x]=MineOwner(id,x,y,z) is int flag?Flag(flag,'ш','с','в','н'):'*';
             }
+        }
+        // A hero standing in a town's gate hides the town on its tile; this side's towns are known anyway.
+        foreach(var t in observation.Towns.Where(t=>t.Position.Length==3&&t.Position[2]==z&&!marks.Any(m=>m.StartsWith($"город {t.Name} ",StringComparison.Ordinal))))
+        {
+            grid[t.Position[1]][t.Position[0]]='Т';
+            marks.Add($"город {t.Name} ({t.Position[0]},{t.Position[1]}) — твой");
         }
         foreach(var h in observation.Heroes.Where(h=>h.Position.Length==3&&h.Position[2]==z)){grid[h.Position[1]][h.Position[0]]='@';marks.Add($"твой герой {h.Name} ({h.Position[0]},{h.Position[1]})");}
         foreach(var h in observation.ForeignHeroes.Where(h=>h.Position.Length==3&&h.Position[2]==z))
@@ -159,7 +169,7 @@ internal sealed class MapReader(WindowsGame game,int player)
         int fog=grid.Sum(r=>r.Count(c=>c=='?'));
         return new(z==0?"поверхность":"подземелье",size,grid.Select(r=>new string(r)).ToArray(),fog,marks,
             "строка = y, символ = x; ? туман (не разведано), ~ вода, # скалы, ^ суша, куда нельзя встать, . проходимая суша; "
-            +"города: Т твой, Г союзника, В врага, Н ничей; шахты: ш твоя, с союзника, в врага, н ничья; @ твой герой, a союзный, E вражеский");
+            +"города: Т твой, Г союзника, В врага, Н ничей; шахты: ш твоя, с союзника, в врага, н ничья, * флаг не прочитан; @ твой герой, a союзный, E вражеский");
     }
     private static readonly string[] Resources=["дерево","ртуть","руда","сера","кристаллы","самоцветы","золото"];
     private static readonly string[] Colours=["красный","синий","коричневый","зелёный","оранжевый","фиолетовый","бирюзовый","розовый"];

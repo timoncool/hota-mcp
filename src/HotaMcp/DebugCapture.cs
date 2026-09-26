@@ -31,7 +31,18 @@ internal static class DebugCapture
 
     /// The frame as the player sees it, as rows of RGB (each row led by one filter byte), with
     /// the same privacy rule as a saved frame.
-    public static (int Width,int Height,byte[] Rgb) Pixels(WindowsGame game,int player)=>SurfacePixels(game,Owner(game,player));
+    public static (int Width,int Height,byte[] Rgb) Pixels(WindowsGame game,int player)
+    {
+        try
+        {
+            var (width,height,rgb,_)=SurfacePixels(game,Owner(game,player));
+            return (width,height,rgb);
+        }
+        catch(InvalidOperationException e)when(e.Data.Contains("fallback"))
+        {
+            throw new InvalidOperationException($"The game's drawing surface cannot be read ({e.Data["fallback"]}); read the map with read_minimap instead");
+        }
+    }
 
     private static uint Owner(WindowsGame game,int player)
     {
@@ -52,13 +63,11 @@ internal static class DebugCapture
 
     private static CaptureResult FromSurface(WindowsGame game,uint owner,string directory)
     {
-        var (width,height,rgb)=SurfacePixels(game,owner);
-        return Write(directory,width,height,rgb,"game_framebuffer_"+lastFormat);
+        var (width,height,rgb,format)=SurfacePixels(game,owner);
+        return Write(directory,width,height,rgb,"game_framebuffer_"+format);
     }
 
-    private static string lastFormat="";
-
-    private static (int Width,int Height,byte[] Rgb) SurfacePixels(WindowsGame game,uint owner)
+    private static (int Width,int Height,byte[] Rgb,string Format) SurfacePixels(WindowsGame game,uint owner)
     {
         uint manager=game.U32(0x6992d0),surface=game.U32(manager+0x40);
         if(surface<0x10000)throw Fallback("the game exposes no drawing surface");
@@ -107,8 +116,7 @@ internal static class DebugCapture
                 }
             }
         }
-        lastFormat=bytesPerPixel==4?"bgra32":fiveFiveFive?"rgb555":"rgb565";
-        return (width,height,rgb);
+        return (width,height,rgb,bytesPerPixel==4?"bgra32":fiveFiveFive?"rgb555":"rgb565");
     }
 
     /// In 5-6-5 the top bit is the high bit of red, so a real frame lights it somewhere. In 5-5-5

@@ -446,10 +446,14 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
                 var target=targets[list[i].Id];
                 if(target.Type==53)
                 {
-                    int owner=new MapReader(game,player).MineOwner(target.Id,target.X,target.Y,target.Z);
-                    string flag=owner==player?"твоя":owner>7?"ничья — захватить"
-                        :observation.Side?.Allies.Contains(owner)==true?$"флаг {ColourName(owner)} (союзник — не трогать)"
-                        :$"флаг {ColourName(owner)} (противник — захватить)";
+                    string flag=new MapReader(game,player).MineOwner(target.Id,target.X,target.Y,target.Z) switch
+                    {
+                        null=>"флаг не прочитан — посмотри карточку inspect_cell",
+                        int o when o==player=>"твоя",
+                        >7=>"ничья — захватить",
+                        int o when observation.Side?.Allies.Contains(o)==true=>$"флаг {ColourName(o)} (союзник — не трогать)",
+                        int o=>$"флаг {ColourName(o)} (противник — захватить)",
+                    };
                     list[i]=list[i] with{Kind=$"{list[i].Kind} — {flag}"};
                     continue;
                 }
@@ -1110,6 +1114,14 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             // tomorrow with nothing left. That is refused with the reason, so the detour is a
             // decision taken with move_to_tile rather than a side effect of an attack order.
             var route=attack?new RouteReader(game,player).Read(before,target):null;
+            // The table may be stale after a hero switch or a step: the attack points at the stack
+            // first, as the player's click does, and judges the route the game then lays.
+            if(route is not null&&route.State!="reachable_today")
+            {
+                before=await PlanRouteTo(before,target.X,target.Y,target.Z);
+                if(before.Hero is null||before.Screen!="adventure")throw new InvalidOperationException("State changed while planning the attack; observe again");
+                route=new RouteReader(game,player).Read(before,target);
+            }
             if(route is not null&&route.State!="reachable_today")
                 throw new InvalidOperationException($"Отряд сегодня не достать: маршрут {route.State}"
                     +(route.MovementCost is int cost?$", нужно {cost} хода":"")

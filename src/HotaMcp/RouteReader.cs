@@ -77,12 +77,7 @@ internal sealed class RouteReader(WindowsGame game,int player)
         if(steps==0)return Unknown("Target is the hero's own cell");
         // Only what the game itself worked out. A path longer than today's movement is the dashed
         // continuation the player also sees; it is reported as such, never as an invented estimate.
-        if(cost>hero.Movement)
-            return new("needs_more_days",cost,null,steps)
-            {
-                StopsToday=today,
-                Days=hero.MaxMovement>0?1+(int)Math.Ceiling((cost-hero.Movement)/(double)hero.MaxMovement):null,
-            };
+        if(cost>hero.Movement)return Later(cost,steps,hero) with{StopsToday=today};
         if(remaining!=hero.Movement-cost)
             return Unknown($"The game's own arithmetic does not close: cost {cost}, left {remaining}, had {hero.Movement}");
         return new("reachable_today",cost,remaining,steps);
@@ -91,8 +86,15 @@ internal sealed class RouteReader(WindowsGame game,int player)
     /// Underground the game fills no whole-map table: the route to the destination it has just
     /// planned lives only in the short list at +0x3C..+0x40, whose nodes carry the level as bit
     /// 10 of y. The destination's own node there gives the cost and what is left.
+    /// A route longer than today: its cost and the days of movement it takes, today counted.
+    private static RouteView Later(int cost,int? steps,HeroView hero)=>
+        new("needs_more_days",cost,null,steps){Days=hero.MaxMovement>0?1+(int)Math.Ceiling((cost-hero.Movement)/(double)hero.MaxMovement):null};
+
     private RouteView? Planned(uint finder,int x,int y,int level,HeroView hero)
     {
+        // The list keeps the nodes of whatever was searched last; only the destination planned
+        // right now is this route.
+        if(!hero.PlannedDestination.SequenceEqual(new[]{x,y,level}))return null;
         uint start=game.U32(finder+0x3c),end=game.U32(finder+0x40);
         if(start==0||end<=start||(end-start)%0x1e!=0||end-start>0x1e*256)return null;
         byte[] list=game.Read(start,(int)(end-start));
@@ -101,8 +103,7 @@ internal sealed class RouteReader(WindowsGame game,int player)
             int nx=BitConverter.ToUInt16(list,i),ny=BitConverter.ToUInt16(list,i+2);
             if(nx!=x||(ny&0x3ff)!=y||(ny>>10&1)!=level)continue;
             int cost=BitConverter.ToUInt16(list,i+0x18),left=BitConverter.ToUInt16(list,i+0x1c);
-            if(cost>hero.Movement)
-                return new("needs_more_days",cost,null,null){Days=hero.MaxMovement>0?1+(int)Math.Ceiling((cost-hero.Movement)/(double)hero.MaxMovement):null};
+            if(cost>hero.Movement)return Later(cost,null,hero);
             if(left!=hero.Movement-cost)return null;
             return new("reachable_today",cost,left,null);
         }
