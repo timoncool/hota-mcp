@@ -1471,17 +1471,20 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
     }
 
     /// After a minimap jump the game can stop resolving the pointer over the map until a real
-    /// control is pressed. Picking another hero in the sidebar and then the selected one again is
-    /// such a press and leaves the selection as it was. With a single hero there is no such pair.
+    /// control is pressed. Picking another hero (or an own town) in the sidebar and then the
+    /// selected hero again is such a press and leaves the selection as it was.
     private async Task<bool> ResetPointer(Observation observation)
     {
         if(observation.Hero is null)return false;
         var list=GameReader.SidebarHeroes(game,player);
         int own=Array.IndexOf(list,observation.Hero.Id),other=Array.FindIndex(list,h=>h>=0&&h!=observation.Hero.Id);
-        if(own<0||other<0)return false;
-        UiElement? Portrait(int slot)=>observation.Elements.FirstOrDefault(e=>e.Id==15+slot&&e.Interactive);
-        if(Portrait(own) is not {} mine||Portrait(other) is not {} theirs)return false;
-        foreach(var press in new[]{theirs,mine})
+        UiElement? Portrait(int slot)=>slot<0?null:observation.Elements.FirstOrDefault(e=>e.Id==15+slot&&e.Interactive);
+        if(Portrait(own) is not {} mine)return false;
+        // Another hero to pick and pick back; with a single hero, an own town in the list does the
+        // same: pressing it takes the selection off the hero, pressing the hero gives it back.
+        var away=Portrait(other)??observation.Elements.FirstOrDefault(e=>e.Id is >=32 and <=36&&e.Asset=="itpa.def");
+        if(away is null)return false;
+        foreach(var press in new[]{away,mine})
         {
             await game.MouseAsync(press.X+press.Width/2,press.Y+press.Height/2,observation.Width,observation.Height,false,CancellationToken.None);
             await Task.Delay(150,CancellationToken.None);
