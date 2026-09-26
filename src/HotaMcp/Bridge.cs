@@ -326,6 +326,62 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
         finally{gate.Release();}
     }
 
+    public async Task<MiniMapView> ReadMiniMap(int z,CancellationToken ct)
+    {
+        await gate.WaitAsync(ct);
+        try
+        {
+            var before=reader.Observe();
+            var view=new MapReader(game,player).MiniMap(before,z);
+            if(reader.Observe().Revision!=before.Revision)throw new InvalidOperationException("Map changed while reading; observe again");
+            return view;
+        }
+        finally{gate.Release();}
+    }
+
+    // The player colours as the minimap draws them (flags of towns, mines and heroes).
+    private static readonly (string Name,char Mark,int R,int G,int B)[] FlagColours=
+    [
+        ("красный",'R',255,0,0),("синий",'B',49,82,255),("коричневый",'T',156,115,82),("зелёный",'G',66,148,41),
+        ("оранжевый",'O',255,132,0),("фиолетовый",'P',140,41,165),("бирюзовый",'C',8,156,156),("розовый",'K',198,123,140),
+    ];
+
+    /// The game's own minimap picture turned into text: each cell is the colour the minimap paints
+    /// there. It shows the level the adventure view shows now.
+    public async Task<MinimapPicture> MinimapCapture(CancellationToken ct)
+    {
+        await gate.WaitAsync(ct);
+        try
+        {
+            var o=reader.Observe();
+            if(o.Screen!="adventure")throw new InvalidOperationException("The minimap is drawn on the adventure map only; close this screen first");
+            var box=o.Elements.FirstOrDefault(e=>e.Id==1&&e.Width==e.Height&&e.Width>=72)
+                ??throw new InvalidOperationException("Minimap panel not found on the adventure screen");
+            int size=game.I32(0x6783c8);
+            if(size<36||size>252)throw new InvalidOperationException($"Unsupported map size {size}");
+            var (width,height,rgb)=DebugCapture.Pixels(game,player);
+            double step=(double)box.Width/size;
+            var rows=new string[size];
+            for(int y=0;y<size;y++)
+            {
+                var line=new char[size];
+                for(int x=0;x<size;x++)
+                {
+                    int px=box.X+(int)((x+0.5)*step),py=box.Y+(int)((y+0.5)*step);
+                    int at=py*(width*3+1)+1+px*3;
+                    int r=rgb[at],g=rgb[at+1],b=rgb[at+2];
+                    var near=FlagColours.Select(f=>(f.Mark,d:Math.Abs(f.R-r)+Math.Abs(f.G-g)+Math.Abs(f.B-b))).MinBy(f=>f.d);
+                    line[x]=r+g+b<40?'?':near.d<40?near.Mark:b>r+30&&b>g?'~':r+g+b<150?'#':'.';
+                }
+                rows[y]=new string(line);
+            }
+            string level=o.Elements.FirstOrDefault(e=>e.Id==4)?.Asset?.ToLowerInvariant() switch{"iam003.def"=>"подземелье","iam010.def"=>"поверхность",_=>"поверхность (карта без подземелья)"};
+            return new(level,size,rows,"снимок миникарты игры по цветам пикселей; строка = y, символ = x; ? чёрное (не разведано), ~ вода, # тёмное (скалы, лес), . суша; "
+                +"флаги по цветам игроков: "+string.Join(", ",FlagColours.Select(f=>$"{f.Mark} {f.Name}"))+". Другой уровень — view:level и снова этот тул.");
+        }
+        finally{gate.Release();}
+    }
+
     public async Task<NearbyTargets> Nearby(CancellationToken ct)
     {
         await gate.WaitAsync(ct);
@@ -1577,6 +1633,8 @@ public interface IGameEndpoint
     Task<object> Plan(string? value,CancellationToken ct);
     Task<object> Mark(int x,int y,int z,string? note,CancellationToken ct);
     Task<MapView> ReadMap(int x,int y,int z,int radius,CancellationToken ct);
+    Task<MiniMapView> ReadMiniMap(int z,CancellationToken ct);
+    Task<MinimapPicture> MinimapCapture(CancellationToken ct);
     Task<TileInspection> InspectTile(int x,int y,int z,string revision,CancellationToken ct);
     Task<NearbyTargets> Nearby(CancellationToken ct);
     Task<DocsAnswer> Docs(DocsRequest request,CancellationToken ct);
@@ -1613,6 +1671,8 @@ internal sealed class LocalEndpoint(Bridge bridge) : IGameEndpoint
     public Task<object> Plan(string? value,CancellationToken ct)=>bridge.Plan(value,ct);
     public Task<object> Mark(int x,int y,int z,string? note,CancellationToken ct)=>bridge.Mark(x,y,z,note,ct);
     public Task<MapView> ReadMap(int x,int y,int z,int radius,CancellationToken ct)=>bridge.ReadMap(x,y,z,radius,ct);
+    public Task<MiniMapView> ReadMiniMap(int z,CancellationToken ct)=>bridge.ReadMiniMap(z,ct);
+    public Task<MinimapPicture> MinimapCapture(CancellationToken ct)=>bridge.MinimapCapture(ct);
     public Task<TileInspection> InspectTile(int x,int y,int z,string revision,CancellationToken ct)=>bridge.InspectTile(x,y,z,revision,ct);
     public Task<NearbyTargets> Nearby(CancellationToken ct)=>bridge.Nearby(ct);
     public Task<DocsAnswer> Docs(DocsRequest request,CancellationToken ct)=>Task.FromResult(docs.Search(request.Query,request.Limit,request.Detail));
@@ -1669,6 +1729,8 @@ internal sealed class RemoteEndpoint(HttpClient client) : IGameEndpoint
     public Task<object> Plan(string? value,CancellationToken ct)=>Call<object>("bridge/plan",new{value},ct);
     public Task<object> Mark(int x,int y,int z,string? note,CancellationToken ct)=>Call<object>("bridge/mark",new{x,y,z,note},ct);
     public Task<MapView> ReadMap(int x,int y,int z,int radius,CancellationToken ct)=>Call<MapView>("bridge/map",new{x,y,z,radius},ct);
+    public Task<MiniMapView> ReadMiniMap(int z,CancellationToken ct)=>Call<MiniMapView>("bridge/minimap",new{z},ct);
+    public Task<MinimapPicture> MinimapCapture(CancellationToken ct)=>Call<MinimapPicture>("bridge/minimap-capture",new{},ct);
     public Task<TileInspection> InspectTile(int x,int y,int z,string revision,CancellationToken ct)=>Call<TileInspection>("bridge/inspect",new{x,y,z,revision},ct);
     public Task<NearbyTargets> Nearby(CancellationToken ct)=>Call<NearbyTargets>("bridge/nearby",new{},ct);
     public Task<DocsAnswer> Docs(DocsRequest request,CancellationToken ct)=>Call<DocsAnswer>("bridge/docs",request,ct);

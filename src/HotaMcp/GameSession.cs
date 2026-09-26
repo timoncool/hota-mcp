@@ -168,6 +168,8 @@ internal sealed class GameSession(int? requestedPid,int player,string directory,
     public Task<object> Plan(string? value,CancellationToken ct)=>WithGame(b=>b.Plan(value,ct),ct);
     public Task<object> Mark(int x,int y,int z,string? note,CancellationToken ct)=>WithGame(b=>b.Mark(x,y,z,note,ct),ct);
     public Task<MapView> ReadMap(int x,int y,int z,int radius,CancellationToken ct)=>WithGame(b=>b.ReadMap(x,y,z,radius,ct),ct);
+    public Task<MiniMapView> ReadMiniMap(int z,CancellationToken ct)=>WithGame(b=>b.ReadMiniMap(z,ct),ct);
+    public Task<MinimapPicture> MinimapCapture(CancellationToken ct)=>WithGame(b=>b.MinimapCapture(ct),ct);
     public Task<TileInspection> InspectTile(int x,int y,int z,string revision,CancellationToken ct)=>WithGame(b=>b.InspectTile(x,y,z,revision,ct),ct);
     public Task<NearbyTargets> Nearby(CancellationToken ct)=>WithGame(b=>b.Nearby(ct),ct);
     private readonly DocsIndex docsIndex=new();

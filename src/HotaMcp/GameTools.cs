@@ -96,6 +96,23 @@ public sealed class GameTools(IGameEndpoint endpoint)
         [Description("Revision from the latest observation.")] string revision,
         CancellationToken cancellationToken)=>endpoint.InspectPath(x,y,z,revision,cancellationToken);
 
+    [McpServerTool(Title="The whole level at a glance",ReadOnly=true,Destructive=false,Idempotent=true,OpenWorld=false),
+     Description("Reads one whole map level the way the minimap shows it, one character per cell, from the game's own map: "
+        +"'?' where the player has not been, water, rock, land, the flags over towns and mines (yours, an ally's, an enemy's, "
+        +"nobody's) and the heroes a player sees, plus a list of the towns and heroes with coordinates and the number of "
+        +"unexplored cells. Use it to see where the unexplored land and the enemy towns are before choosing a direction. "
+        +"Does NOT send input or reveal the fog.")]
+    public Task<MiniMapView> ReadMinimap(
+        [Description("Map level: 0 surface, 1 underground.")] int z,
+        CancellationToken cancellationToken)=>endpoint.ReadMiniMap(z,cancellationToken);
+
+    [McpServerTool(Title="The game's minimap picture as text",ReadOnly=true,Destructive=false,Idempotent=true,OpenWorld=false),
+     Description("Takes the minimap exactly as the game paints it on the adventure screen and turns each cell's colour into "
+        +"a character: unexplored black, water, dark rock and forest, land, and the players' flag colours. It shows the level "
+        +"the adventure view shows now (view:level switches it). Use it as the picture a player glances at; for exact objects "
+        +"use read_minimap or read_map. Does NOT send input.")]
+    public Task<MinimapPicture> MinimapCapture(CancellationToken cancellationToken)=>endpoint.MinimapCapture(cancellationToken);
+
     [McpServerTool(Title="Read the map around a cell",ReadOnly=true,Destructive=false,Idempotent=true,OpenWorld=false),
      Description("Reads the uncovered map around a cell: terrain, roads, cells blocked by terrain and the recognised visible "
         +"objects with their coordinates. Returns a grid where cells the player has not uncovered are '?'. "

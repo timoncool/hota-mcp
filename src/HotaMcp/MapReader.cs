@@ -10,6 +10,8 @@ public sealed record MapObject(int X,int Y,int Z,int Type,string Kind)
 }
 public sealed record MapView(string Revision,int X,int Y,int Z,int Width,int Height,string[] Terrain,string[] Roads,
     string[] Blocked,List<MapObject> Objects,string Legend);
+public sealed record MiniMapView(string Level,int Size,string[] Rows,int FogCells,List<string> Marks,string Legend);
+public sealed record MinimapPicture(string Level,int Columns,string[] Rows,string Legend);
 public sealed record TileInspection(int X,int Y,int Z,string? Hint,Observation Observation);
 internal sealed record Viewport(int X,int Y,int Width,int Height,int MapX,int MapY,int Z);
 
@@ -110,6 +112,54 @@ internal sealed class MapReader(WindowsGame game,int player)
         if(record[0x3c]!=x||record[0x3d]!=y||record[0x3e]!=z)
             throw new InvalidOperationException($"Mine record {id} describes ({record[0x3c]},{record[0x3d]},{record[0x3e]}), not ({x},{y},{z})");
         return record[0];
+    }
+    /// The whole level as the minimap shows it, one character per cell, from the game's own map:
+    /// fog, water, rock, land, and the flags over towns and mines and the heroes a player sees.
+    public MiniMapView MiniMap(Observation observation,int z)
+    {
+        var context=Context(observation);
+        int levels=game.Read(game.U32(0x699538)+0x1fc48,1)[0]+1;
+        if(z<0||z>=levels)throw new InvalidOperationException($"This map has no level {z}");
+        int size=context.Size;
+        var grid=new char[size][];
+        var marks=new List<string>();
+        string Who(int owner)=>owner==player?"твой":owner>7?"ничей":observation.Side?.Allies.Contains(owner)==true?$"союзник {Colours[owner]}":$"враг {Colours[owner]}";
+        char Flag(int owner,char mine,char ally,char enemy,char none)=>owner==player?mine:owner>7?none:observation.Side?.Allies.Contains(owner)==true?ally:enemy;
+        for(int y=0;y<size;y++)
+        {
+            grid[y]=new char[size];
+            for(int x=0;x<size;x++)
+            {
+                uint index=checked((uint)((z*size+y)*size+x));
+                if((game.Read(context.Vision+index*2,1)[0]&(1<<player))==0){grid[y][x]='?';continue;}
+                uint tile=checked(context.Tiles+index*0x26);
+                byte land=game.Read(tile+4,1)[0],access=game.Read(tile+0xd,1)[0];
+                grid[y][x]=land==8?'~':land==9?'#':(access&1)!=0?'^':'.';
+                if((access&16)==0)continue;
+                int type=BitConverter.ToInt16(game.Read(tile+0x1e,2)),id=BitConverter.ToUInt16(game.Read(tile,2));
+                if(type==98&&new TownReader(game,player).Describe(id) is var (name,holder))
+                {
+                    grid[y][x]=Flag(holder,'Т','Г','В','Н');
+                    marks.Add($"город {name} ({x},{y}) — {Who(holder)}");
+                }
+                else if(type==53)
+                {
+                    int flag=MineOwner(id,x,y,z);
+                    grid[y][x]=Flag(flag,'ш','с','в','н');
+                }
+            }
+        }
+        foreach(var h in observation.Heroes.Where(h=>h.Position.Length==3&&h.Position[2]==z)){grid[h.Position[1]][h.Position[0]]='@';marks.Add($"твой герой {h.Name} ({h.Position[0]},{h.Position[1]})");}
+        foreach(var h in observation.ForeignHeroes.Where(h=>h.Position.Length==3&&h.Position[2]==z))
+        {
+            bool ally=observation.Side?.Allies.Contains(h.Owner)==true;
+            grid[h.Position[1]][h.Position[0]]=ally?'a':'E';
+            marks.Add($"{(ally?"союзный":"вражеский")} герой {h.Name} ({Colours[h.Owner]}) ({h.Position[0]},{h.Position[1]})");
+        }
+        int fog=grid.Sum(r=>r.Count(c=>c=='?'));
+        return new(z==0?"поверхность":"подземелье",size,grid.Select(r=>new string(r)).ToArray(),fog,marks,
+            "строка = y, символ = x; ? туман (не разведано), ~ вода, # скалы, ^ суша, куда нельзя встать, . проходимая суша; "
+            +"города: Т твой, Г союзника, В врага, Н ничей; шахты: ш твоя, с союзника, в врага, н ничья; @ твой герой, a союзный, E вражеский");
     }
     private static readonly string[] Resources=["дерево","ртуть","руда","сера","кристаллы","самоцветы","золото"];
     private static readonly string[] Colours=["красный","синий","коричневый","зелёный","оранжевый","фиолетовый","бирюзовый","розовый"];

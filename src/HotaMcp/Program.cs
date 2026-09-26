@@ -151,6 +151,8 @@ app.Lifetime.ApplicationStarted.Register(()=>_ = session.WatchAllies(app.Lifetim
 app.MapPost("/bridge/plan",(PlanRequest request,CancellationToken ct)=>session.Plan(request.Value,ct));
 app.MapPost("/bridge/mark",(MarkRequest request,CancellationToken ct)=>session.Mark(request.X,request.Y,request.Z,request.Note,ct));
 app.MapPost("/bridge/map",(MapRequest request,CancellationToken ct)=>session.ReadMap(request.X,request.Y,request.Z,request.Radius,ct));
+app.MapPost("/bridge/minimap",(MiniMapRequest request,CancellationToken ct)=>session.ReadMiniMap(request.Z,ct));
+app.MapPost("/bridge/minimap-capture",(CancellationToken ct)=>session.MinimapCapture(ct));
 app.MapPost("/bridge/inspect",(TileRequest request,CancellationToken ct)=>session.InspectTile(request.X,request.Y,request.Z,request.Revision,ct));
 app.MapPost("/bridge/nearby",(CancellationToken ct)=>session.Nearby(ct));
 app.MapPost("/bridge/target",(TargetRequest request,CancellationToken ct)=>session.InspectTarget(request.TargetId,request.Revision,ct));
@@ -190,5 +192,6 @@ record GraphicsRequest(string? Renderer);
 record DocsReadRequest(string Path,string? Heading,int Offset,int MaxChars);
 record DocsCatalogRequest(string? Path);
 record MapRequest(int X,int Y,int Z,int Radius);
+record MiniMapRequest(int Z);
 record TileRequest(int X,int Y,int Z,string Revision);
 
