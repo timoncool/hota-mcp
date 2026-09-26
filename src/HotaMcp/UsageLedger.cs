@@ -51,8 +51,13 @@ internal static class UsageLedger
     private static Dictionary<string,string> Attributes(JsonElement owner)
     {
         var result=new Dictionary<string,string>();
+        // An attribute with no key or no value names nothing; the fields that matter are checked
+        // by name where they are used.
         if(owner.ValueKind==JsonValueKind.Object&&owner.TryGetProperty("attributes",out var list)&&list.ValueKind==JsonValueKind.Array)
-            foreach(var a in list.EnumerateArray())result[a.GetProperty("key").GetString()??""]=Text(a.GetProperty("value"));
+            foreach(var a in list.EnumerateArray())
+                if(a.ValueKind==JsonValueKind.Object&&a.TryGetProperty("key",out var key)&&key.ValueKind==JsonValueKind.String
+                   &&a.TryGetProperty("value",out var value))
+                    result[key.GetString()!]=Text(value);
         return result;
     }
 
@@ -83,8 +88,27 @@ internal static class UsageLedger
         owner.ValueKind==JsonValueKind.Object&&owner.TryGetProperty(name,out var list)&&list.ValueKind==JsonValueKind.Array?list.EnumerateArray():[];
 
     // Requests already filed, by session and the client's own event counter: an export the client
-    // resends after a lost answer is not counted twice.
+    // resends after a lost answer is not counted twice. Resends come within minutes, so the most
+    // recent ids are enough.
     private static readonly HashSet<string> filedEvents=[];
+    private static readonly Queue<string> filedOrder=new();
+
+    private static void Filed(string id)
+    {
+        filedEvents.Add(id);filedOrder.Enqueue(id);
+        while(filedOrder.Count>5000)filedEvents.Remove(filedOrder.Dequeue());
+    }
+
+    /// When the request was made: Claude Code's own event.timestamp, else the record's OTLP time.
+    private static DateTimeOffset RequestTime(Dictionary<string,string> a,JsonElement log)
+    {
+        if(a.TryGetValue("event.timestamp",out var stamp)&&DateTimeOffset.TryParse(stamp,CultureInfo.InvariantCulture,DateTimeStyles.None,out var parsed))
+            return parsed;
+        foreach(string field in new[]{"timeUnixNano","observedTimeUnixNano"})
+            if(log.TryGetProperty(field,out var nano)&&long.TryParse(nano.ValueKind==JsonValueKind.String?nano.GetString():nano.GetRawText(),out long ns)&&ns>0)
+                return DateTimeOffset.FromUnixTimeMilliseconds(ns/1_000_000);
+        throw new InvalidOperationException("api_request carries neither event.timestamp nor an OTLP time");
+    }
 
     private static long Number(Dictionary<string,string> a,string key)=>
         a.TryGetValue(key,out var v)&&long.TryParse(v,NumberStyles.Integer,CultureInfo.InvariantCulture,out long n)?n:0;
@@ -118,9 +142,9 @@ internal static class UsageLedger
                     if(name!="api_request"||!sessions.Contains(session))continue;
                     if(!a.TryGetValue("cost_usd",out var costText)||!decimal.TryParse(costText,NumberStyles.Float,CultureInfo.InvariantCulture,out decimal cost))
                         throw new InvalidOperationException($"api_request without a numeric cost_usd: «{costText}»");
-                    var time=a.TryGetValue("event.timestamp",out var stamp)&&DateTimeOffset.TryParse(stamp,CultureInfo.InvariantCulture,DateTimeStyles.None,out var parsed)
-                        ?parsed:throw new InvalidOperationException($"api_request without an event.timestamp: «{stamp}»");
-                    string id=$"{session}#{a.GetValueOrDefault("event.sequence")??a.GetValueOrDefault("request_id")??stamp}";
+                    var time=RequestTime(a,log);
+                    string id=$"{session}#"+(a.GetValueOrDefault("request_id")??a.GetValueOrDefault("event.sequence")
+                        ??$"{time:O}/{costText}/{a.GetValueOrDefault("input_tokens")}/{a.GetValueOrDefault("output_tokens")}");
                     var (player,day)=at(time);
                     rows.Add((id,new{time,player,game,kind="cost",day,session,model=a.GetValueOrDefault("model",""),
                         cost,input=Number(a,"input_tokens"),cacheWrite=Number(a,"cache_creation_tokens"),cacheRead=Number(a,"cache_read_tokens"),
@@ -129,7 +153,12 @@ internal static class UsageLedger
             }
             int filed=0;
             foreach(var (id,row) in rows)
-                if(filedEvents.Add(id)){Append(root,game,row);filed++;}
+            {
+                if(filedEvents.Contains(id))continue;
+                Append(root,game,row);
+                Filed(id);
+                filed++;
+            }
             if(sessions.Count!=known)
             {
                 Directory.CreateDirectory(Path.GetDirectoryName(sessionsFile)!);

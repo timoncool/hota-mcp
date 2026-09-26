@@ -765,7 +765,10 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             operations.Add(request.OperationId,(request,pending));
             Record("operation_started",request);
             var clock=System.Diagnostics.Stopwatch.StartNew();
-            await command.Deliver(new CommandContext(game,reader,player,before,request.Element),ct);
+            // A refusal raised while preparing the press means nothing reached the game: the id is
+            // free again rather than left «uncertain».
+            try{await command.Deliver(new CommandContext(game,reader,player,before,request.Element),ct);}
+            catch(ActionRefused){operations.Remove(request.OperationId);throw;}
             return await AwaitResult(request,before,command,pending,clock);
         }
         finally{gate.Release();}

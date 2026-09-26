@@ -152,13 +152,18 @@ internal static class Deliveries
     {
         await Press(context, portrait, ct);
         int? was = context.Before.Hero?.Id;
+        bool selected = false;
+        // A changed selection proves the press was taken as «select», so the second press is safe
+        // at once. With no such sign the screen gets a full second to open before pressing again.
         await Until(() =>
         {
             Observation now;
             try { now = context.Reader.Peek(); }
             catch (InvalidOperationException) { return false; }
-            return now.Screen == screen || now.Hero?.Id != was;
-        });
+            if (now.Screen == screen) return true;
+            selected = now.Hero?.Id != was;
+            return selected;
+        }, 1000);
         // A screen that cannot be read at this moment is one in the middle of changing.
         if (ScreenNow(context) is not string shown || shown != context.Before.Screen) return;
         await Press(context, portrait, ct);

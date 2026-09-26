@@ -387,10 +387,10 @@ internal sealed class GameReader(WindowsGame game,int player)
         // Two matching reads reduce transitional snapshots; safe-point synchronization remains future work.
         var first=ReadOnce();
         var second=ReadOnce();
-        string layout=Layout(second);
-        if(layout!=animatedLayout)
+        if(!SameLayout(second))
         {
-            animatedLayout=layout;
+            string layout=Layout(second);
+            animatedLayout=layout;layoutScreen=second.Screen;layoutParts=second.Elements.Select(e=>(e.Id,e.Asset)).ToArray();
             // The same window drawn the same way animates the same pictures every time: what was
             // learned on an earlier visit holds, and returning to the map after each window costs
             // nothing. A layout never seen before is watched for a few beats, so every picture that
@@ -450,6 +450,18 @@ internal sealed class GameReader(WindowsGame game,int player)
     /// Which window this is and how it is drawn: the screen with every control's id and picture.
     private static string Layout(Observation state)=>state.Screen+"|"+string.Join(",",state.Elements.Select(e=>$"{e.Id}/{e.Asset}"));
 
+    // The current layout kept as its parts, so the check on every read compares, not builds.
+    private string layoutScreen="";
+    private (int Id,string? Asset)[] layoutParts=[];
+
+    private bool SameLayout(Observation state)
+    {
+        if(state.Screen!=layoutScreen||state.Elements.Count!=layoutParts.Length)return false;
+        for(int i=0;i<layoutParts.Length;i++)
+            if(state.Elements[i].Id!=layoutParts[i].Id||state.Elements[i].Asset!=layoutParts[i].Asset)return false;
+        return true;
+    }
+
     private void Watch(Observation first,string layout)
     {
         animatedKeys=[];
@@ -479,7 +491,7 @@ internal sealed class GameReader(WindowsGame game,int player)
     private Observation Revise(Observation result)
     {
         if(result.Date.Length==3)LastDate=result.Date;
-        bool same=Layout(result)==animatedLayout;
+        bool same=SameLayout(result);
         // The adventure status line follows the pointer — anyone's pointer over the window — and says
         // nothing about the state; left in, it made a fresh revision stale between two calls.
         bool map=result.Screen=="adventure";
