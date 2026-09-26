@@ -96,6 +96,8 @@ internal static class ScreenBriefing
             lines.Add($"Гарнизон на карте. Верхний ряд — войска гарнизона: {(top.Length>0?top:"пусто")}. Нижний ряд — армия героя: {(bottom.Length>0?bottom:"пусто")}. "
                 +"Оставить отряд охранять — перенести вверх; закрыть окно — garrison:close.");
         }
+        if(screen=="main_menu")
+            lines.Add("Главное меню игры: партии нет. Новая игра — menu:new, загрузить сохранение — menu:load, таблица рекордов — menu:highscores, авторы — menu:credits, выйти из игры — menu:quit.");
         if(screen=="high_score_name")
         {
             string name=items.FirstOrDefault(i=>i.Id==501)?.Text?.Trim()??"";
