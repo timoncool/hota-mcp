@@ -135,7 +135,10 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
     private string PlanFile=>Path.Combine(
         Directory.GetParent(stateDirectory)?.Parent?.FullName??stateDirectory,$"plan-player{player}.txt");
 
-    public void Dispose(){game.Dispose();gate.Dispose();}
+    public int Player=>player;
+
+    /// The game belongs to whoever attached it; several bridges may share one.
+    public void Dispose()=>gate.Dispose();
 
     public void LoadTables()=>reader.LoadTables();
 
@@ -808,7 +811,11 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             bool sameScreenReset=after.Screen==before.Screen&&after.Revision!=before.Revision&&command.Accepts(before.Screen);
             // Ending a turn legitimately lands on the game's own question instead of the map.
             bool landed=command.Accepts(after.Screen)||command.Confirm.HasFlag(Confirm.TurnAdvanced)&&after.Screen=="message";
-            if(!(screenChanged&&landed||sameScreenReset))continue;
+            // In a hotseat the question «end the turn anyway?» gives way to «<next player> moves»:
+            // a message after a message, and the proof is the turn itself having passed.
+            bool turnPassed=command.Confirm.HasFlag(Confirm.TurnAdvanced)&&after.Side is not null&&before.Side is not null
+                &&after.Side.ActivePlayer!=before.Side.ActivePlayer;
+            if(!(screenChanged&&landed||sameScreenReset||turnPassed))continue;
             long confirmed=clock.ElapsedMilliseconds;
             if(after.Combat is not null&&before.Combat is not null)
                 Record("combat_action_evidence",new{request.OperationId,Action=request.Element,

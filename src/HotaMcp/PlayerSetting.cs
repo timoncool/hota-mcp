@@ -3,8 +3,12 @@ namespace HotaMcp;
 /// Which colour this service plays. A hotseat game has several people at one keyboard and the
 /// bridge must act for exactly one of them, so the colour is set, not assumed: `--player` on the
 /// command line, otherwise `Player=` in settings.ini of the state directory, otherwise red.
+/// `все` (all) follows the turn: the bridge acts for whichever human colour is to move, each
+/// with its own plan, marks and journal — one controller playing every side of a hotseat test.
 internal static class PlayerSetting
 {
+    public const int EverySide=-1;
+
     private static readonly string[][] Names=
     [
         ["0","красный","red"],["1","синий","blue"],["2","коричневый","tan"],["3","зелёный","зеленый","green"],
@@ -14,8 +18,9 @@ internal static class PlayerSetting
     public static int Parse(string value)
     {
         string wanted=value.Trim().ToLowerInvariant();
+        if(wanted is "все" or "all")return EverySide;
         for(int i=0;i<Names.Length;i++)if(Names[i].Contains(wanted))return i;
-        throw new InvalidOperationException($"Unknown player colour «{value}»: use 0-7 or a colour name (красный, синий, …)");
+        throw new InvalidOperationException($"Unknown player colour «{value}»: use 0-7, a colour name (красный, синий, …) or все");
     }
 
     public static int Read(string directory,string? commandLine)

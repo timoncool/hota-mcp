@@ -43,8 +43,8 @@ int? pid=int.TryParse(Value("--game-pid"),out int configuredPid)?configuredPid:n
 int player=PlayerSetting.Read(directory,Value("--player"));
 if(diagnostic)
 {
-    var game=new WindowsGame(pid??Process.GetProcessesByName("h3hota HD").Single().Id);
-    using var bridge=new Bridge(game,player,Path.Combine(directory,"diagnostic"));
+    using var game=new WindowsGame(pid??Process.GetProcessesByName("h3hota HD").Single().Id);
+    using var bridge=new Bridge(game,Math.Max(player,0),Path.Combine(directory,"diagnostic"));
     if(args.Contains("--center-hero"))await game.KeyAsync(0x48,0x23);
     if(args.Contains("--map"))
     {

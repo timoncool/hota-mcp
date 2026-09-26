@@ -430,6 +430,16 @@ internal sealed class GameReader(WindowsGame game,int player)
         return Revise(ReadOnce());
     }
 
+    /// The colour whose turn it is when that colour is played by a person; null on a computer's
+    /// turn and outside a game.
+    public static int? ActiveHuman(WindowsGame game)
+    {
+        uint main=game.U32(0x699538);
+        int active=game.I32(0x69ccf4);
+        if(main==0||active is <0 or >7)return null;
+        return game.Read(main+0x20ad0+(uint)active*0x168+0xe1,1)[0]!=0?active:null;
+    }
+
     /// The game day of the latest reading, whoever made it.
     public int[] LastDate {get;private set;}=[];
 

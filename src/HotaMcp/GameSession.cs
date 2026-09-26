@@ -9,6 +9,9 @@ internal sealed class GameSession(int? requestedPid,int player,string directory,
     private readonly SemaphoreSlim gate=new(1,1);
     private WindowsGame? game;
     private Bridge? bridge;
+    // With every side played, one bridge per human colour; `bridge` is the one whose turn it is.
+    private readonly Dictionary<int,Bridge> sides=[];
+    private int Acting=>bridge?.Player??Math.Max(player,0);
     private Process? adapter;
     private DateTime launchRequested;
     private string state="waiting_for_game",detail="Start HotA to connect";
@@ -58,7 +61,7 @@ internal sealed class GameSession(int? requestedPid,int player,string directory,
     private void Refresh()
     {
         if(game is not null && !game.Process.HasExited)return;
-        bridge?.Dispose();bridge=null;game=null;
+        DisposeBridges();game?.Dispose();game=null;
         Process[] candidates=[];
         try
         {
@@ -75,12 +78,12 @@ internal sealed class GameSession(int? requestedPid,int player,string directory,
                 return;
             }
             game=new WindowsGame(candidates[0].Id);
-            bridge=new Bridge(game,player,Path.Combine(directory,"sessions",Guid.NewGuid().ToString("N")));
+            bridge=NewBridge(Math.Max(player,0));
             state="attached";detail="Game attached; observations remain subject to player and screen checks";
         }
         catch(Exception e) when(e is InvalidOperationException or Win32Exception or IOException or ArgumentException)
         {
-            game?.Dispose();game=null;bridge=null;state="attachment_error";detail=e.Message;
+            DisposeBridges();game?.Dispose();game=null;state="attachment_error";detail=e.Message;
             // No dialog at all means an intro video is playing; a click skips it, as a player does.
             if(candidates.Length==1&&e.Message.Contains("no active dialog",StringComparison.Ordinal)
                &&WindowsGame.SkipIntro(candidates[0]))
@@ -96,26 +99,27 @@ internal sealed class GameSession(int? requestedPid,int player,string directory,
         try
         {
             Refresh();
+            FollowTurn();
             var result=await action(bridge??throw new InvalidOperationException(detail));
-            UsageLedger.Record(directory,player,call,bridge?.LastDate??[],System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(result,ToolJson.Options).LongLength,clock.ElapsedMilliseconds,null);
+            UsageLedger.Record(directory,Acting,call,bridge?.LastDate??[],System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(result,ToolJson.Options).LongLength,clock.ElapsedMilliseconds,null);
             return result;
         }
         catch(ActionRefused refusal)
         {
             bridge?.RecordRefusal(refusal);
-            UsageLedger.Record(directory,player,call,bridge?.LastDate??[],0,clock.ElapsedMilliseconds,refusal.Code);
+            UsageLedger.Record(directory,Acting,call,bridge?.LastDate??[],0,clock.ElapsedMilliseconds,refusal.Code);
             throw;
         }
         finally{gate.Release();}
     }
     /// The controller's model spend from its telemetry, filed under the current game on the day
     /// the bridge last saw.
-    public int Telemetry(System.Text.Json.JsonElement export)=>UsageLedger.Ingest(directory,player,bridge?.LastDate??[],export);
+    public int Telemetry(System.Text.Json.JsonElement export)=>UsageLedger.Ingest(directory,Acting,bridge?.LastDate??[],export);
 
     public async Task<object> Status(CancellationToken ct)
     {
         await gate.WaitAsync(ct);
-        try{Refresh();return new{state,detail,gamePid=game?.Process.Id,player,game=bridge?.Status()};}
+        try{Refresh();FollowTurn();return new{state,detail,gamePid=game?.Process.Id,player=Acting,everySide=player==PlayerSetting.EverySide,game=bridge?.Status()};}
         finally{gate.Release();}
     }
     public async Task<string> LauncherStatus(CancellationToken ct)
@@ -159,7 +163,13 @@ internal sealed class GameSession(int? requestedPid,int player,string directory,
         {
             try{await Task.Delay(1000,ct);}catch(OperationCanceledException){return;}
             if(!await gate.WaitAsync(0,ct))continue;
-            try{Refresh();bridge?.AllyTick();lastFault=null;}
+            try
+            {
+                Refresh();
+                IEnumerable<Bridge> watching=sides.Count>0?sides.Values:bridge is null?[]:[bridge];
+                foreach(var side in watching)side.AllyTick();
+                lastFault=null;
+            }
             catch(Exception e) when(e is InvalidOperationException or IOException or Win32Exception or ArgumentException)
             {
                 if(e.Message!=lastFault)
@@ -190,5 +200,28 @@ internal sealed class GameSession(int? requestedPid,int player,string directory,
     }
     public Task<TargetInspection> InspectTarget(string targetId,string revision,CancellationToken ct)=>WithGame(b=>b.InspectTarget(targetId,revision,ct),ct);
     public Task<RouteView> InspectPath(int x,int y,int z,string revision,CancellationToken ct)=>WithGame(async b=>{await EnsureAdapter(ct);return await b.InspectPath(x,y,z,revision,ct);},ct);
-    public void Dispose(){bridge?.Dispose();adapter?.Dispose();gate.Dispose();}
+    private Bridge NewBridge(int colour)
+    {
+        var made=new Bridge(game!,colour,Path.Combine(directory,"sessions",Guid.NewGuid().ToString("N")));
+        if(player==PlayerSetting.EverySide)sides[colour]=made;
+        return made;
+    }
+
+    /// Every side played: the bridge of the human colour to move. On a computer's turn and in the
+    /// menus the last one stays.
+    private void FollowTurn()
+    {
+        if(player!=PlayerSetting.EverySide||game is null)return;
+        if(GameReader.ActiveHuman(game) is not int colour||colour==bridge?.Player)return;
+        bridge=sides.TryGetValue(colour,out var known)?known:NewBridge(colour);
+    }
+
+    private void DisposeBridges()
+    {
+        foreach(var side in sides.Values)side.Dispose();
+        if(bridge is not null&&!sides.ContainsValue(bridge))bridge.Dispose();
+        sides.Clear();bridge=null;
+    }
+
+    public void Dispose(){DisposeBridges();game?.Dispose();adapter?.Dispose();gate.Dispose();}
 }
