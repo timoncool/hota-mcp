@@ -1171,11 +1171,11 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             }
             // Underground the game keeps no route table for near cells, so the table says «no path»
             // to a stack next door. The path the game itself has laid to the target — the hero's
-            // planned destination — within straight reach of today's movement (150 a cell, above a
-            // diagonal step) is an open way there.
+            // planned destination — within straight reach of today's movement (250 a cell: a diagonal
+            // step through swamp, the dearest there is) is an open way there.
             bool laidNearby=route is not null&&route.State!="reachable_today"&&target.Z==1
                 &&before.Hero!.PlannedDestination.SequenceEqual(new[]{target.X,target.Y,target.Z})
-                &&Math.Max(Math.Abs(target.X-before.Hero.Position[0]),Math.Abs(target.Y-before.Hero.Position[1]))*150<=before.Hero.Movement;
+                &&Math.Max(Math.Abs(target.X-before.Hero.Position[0]),Math.Abs(target.Y-before.Hero.Position[1]))*250<=before.Hero.Movement;
             if(route is not null&&route.State!="reachable_today"&&!laidNearby)
                 throw new InvalidOperationException($"Отряд сегодня не достать: маршрут {route.State}"
                     +(route.MovementCost is int cost?$", нужно {cost} хода":"")

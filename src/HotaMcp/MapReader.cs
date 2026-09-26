@@ -124,7 +124,7 @@ internal sealed class MapReader(WindowsGame game,int player)
     {
         uint begin=game.U32(tile+0x12),end=game.U32(tile+0x16);
         if(end==begin)return [];
-        if(end<begin||end-begin>64||(end-begin)%4!=0)throw new InvalidOperationException("Tile draw list layout not supported");
+        if(end<begin||end-begin>1024||(end-begin)%4!=0)throw new InvalidOperationException("Tile draw list layout not supported");
         byte[] entries=game.Read(begin,(int)(end-begin));
         return Enumerable.Range(0,entries.Length/4).Select(i=>(int)BitConverter.ToUInt16(entries,i*4));
     }
