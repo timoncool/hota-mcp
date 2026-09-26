@@ -319,6 +319,8 @@ internal static class GameCommands
         // Main menu and scenario setup.
         "menu:new" => new("game_type", Deliveries.Control(101)),
         "menu:highscores" => new("high_scores", Deliveries.Control(103,"mmenuhs.def")),
+        // The score screen after the game ends leaves on Return, like the game's own messages.
+        "gameover:continue" => new("high_score_name,high_scores,main_menu,message", Deliveries.Key(0x0d, 0x1c)) { TimeoutSeconds = 15 },
         "menu:credits" => new("credits", Deliveries.Control(104,"mmenucr.def")),
         // The game asks «Вы действительно хотите выйти?» first.
         "menu:quit" => new("main_menu,message", Deliveries.Control(105,"mmenuqt.def")),

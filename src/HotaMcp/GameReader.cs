@@ -205,6 +205,73 @@ internal sealed class GameReader(WindowsGame game,int player)
 
     private bool midFight;
 
+    /// The table the high-score window paints, from the file it paints it from: Data\HiScore.dat
+    /// holds 22 records of 100 bytes — eleven campaigns, then eleven scenarios — with the player's
+    /// name at 0, the map at 41, the score at 0x54 and the days at 0x58 (cp1251 text).
+    private List<string> HighScoreLines(List<UiElement> items)
+    {
+        string exe=game.Process.MainModule?.FileName??throw new InvalidOperationException("Game path unavailable");
+        string file=Path.Combine(Path.GetDirectoryName(exe)!,"Data","HiScore.dat");
+        if(!File.Exists(file))return ["Таблица рекордов: файл Data\\HiScore.dat не найден."];
+        byte[] data=File.ReadAllBytes(file);
+        if(data.Length<2200)return [$"Таблица рекордов: файл HiScore.dat короче ожидаемого ({data.Length} байт)."];
+        bool scenarios=items.FirstOrDefault(i=>i.Id==1002)?.Selected??true;
+        var enc=Encoding.GetEncoding(1251);
+        string Text(int at,int length){int end=Array.IndexOf(data,(byte)0,at,length);return enc.GetString(data,at,(end<0?at+length:end)-at).Trim();}
+        var rows=new List<string>();
+        for(int k=0;k<11;k++)
+        {
+            int at=(scenarios?11+k:k)*100;
+            rows.Add($"{k+1}. {Text(at,41)} — «{Text(at+41,43)}», дней {BitConverter.ToInt32(data,at+0x58)}, очков {BitConverter.ToInt32(data,at+0x54)}");
+        }
+        return [$"Таблица рекордов ({(scenarios?"сценарии":"кампании")}): "+string.Join("; ",rows)
+            +". Другая таблица — scores:scenarios / scores:campaigns; выйти — scores:exit."];
+    }
+    /// How the game has ended, read from the game itself: every rival team without a town or a
+    /// hero on the map is a won game, this side without either is a lost one; otherwise null.
+    private string? GameOutcome()
+    {
+        uint main=game.U32(0x699538);
+        if(main==0)return null;
+        byte[] teams=game.Read(main+0x1f86c+0xc,9);
+        if(teams[0] is 0 or >8||teams[1+player]>7)return null;
+        var towns=new TownReader(game,player);
+        var owners=new List<int>();
+        for(int id=0;id<48&&towns.Describe(id) is var (_,owner);id++)owners.Add(owner);
+        byte[] code=game.Read(0x4317e1,19);
+        if(!code.AsSpan(0,13).SequenceEqual(Convert.FromHexString("8BC2C1E00603C28D04C08D8441")))return null;
+        uint heroes=checked(main+BitConverter.ToUInt32(code,13));
+        for(int id=0;id<256;id++)
+        {
+            byte[] head;
+            try{head=game.Read(heroes+(uint)id*0x492,0x24);}catch(InvalidOperationException){break;}
+            if(BitConverter.ToInt32(head,0x1a)!=id||head[0x22]>7)continue;
+            if(BitConverter.ToInt16(head,0)>=0)owners.Add(head[0x22]);
+        }
+        bool Rival(int o)=>o<8&&teams[1+o]<8&&teams[1+o]!=teams[1+player];
+        bool Friend(int o)=>o<8&&teams[1+o]==teams[1+player];
+        if(owners.Count==0)return null;
+        if(!owners.Any(Rival))return "победа, все враги разбиты";
+        if(!owners.Any(Friend))return "поражение";
+        return null;
+    }
+
+    private Observation GameOverScreen(uint manager,string gameOver)
+    {
+        uint surface=game.U32(manager+0x40);
+        int width=game.I32(surface+0x24),height=game.I32(surface+0x28);
+        byte[] dateBytes=game.Read(game.U32(0x699538)+0x1f63e,6);
+        int[] date=Enumerable.Range(0,3).Select(i=>(int)BitConverter.ToUInt16(dateBytes,i*2)).ToArray();
+        int days=(date[2]-1)*28+(date[1]-1)*7+date[0];
+        var result=new Observation("",player,date,[],null,"game_over",width,height,[])
+        {
+            Actions=[new("gameover:continue","Дальше: закрыть экран итогов игры (Enter)")],
+            Brief=[$"Игра окончена: {gameOver}. Экран итогов игры: общее время {days} дн. (м{date[2]} н{date[1]} д{date[0]}); "
+                +"базовый и окончательный счёт, сложность и ранг игра рисует поверх ролика — их читает debug_snapshot. Дальше — gameover:continue."],
+        };
+        return Revise(result);
+    }
+
     private CombatView? Remember(CombatView? combat)
     {
         if(combat is null)return null;
@@ -766,6 +833,9 @@ internal sealed class GameReader(WindowsGame game,int player)
     {
         if(player is <0 or >7) throw new InvalidOperationException("Player configuration invalid");
         uint manager=game.U32(0x6992d0),dlg=game.U32(manager+0x54);
+        // The score screen after the last enemy falls is the game's own modal loop over a video:
+        // no window is on top, and the message before it said how the game ended.
+        if(dlg==0&&GameOutcome() is string outcome)return GameOverScreen(manager,outcome);
         if(dlg==0)throw new InvalidOperationException("UI transition in progress");
         uint vtable=game.U32(dlg);
         // A popup over the scenario screen — a town grid, the options window, the team agreements —
@@ -1069,6 +1139,7 @@ internal sealed class GameReader(WindowsGame game,int player)
         }
         var result=new Observation("",player,date,resources,hero,screen,width,height,items){Towns=towns,Actions=actions,Setup=setup,Combat=combat,Saves=saves,Sheet=sheet,Build=build,Heroes=roster,Side=side,SelectedStack=selected,OpenTown=openTown,ForeignHero=foreignName,ForeignArmy=foreignArmy,ForeignHeroes=foreignHeroes,Brief=ScreenBriefing.Build(waiting?"waiting":screen,date,resources,towns,roster,hero,side,selected,build,openTown,foreignName,foreignArmy,foreignHeroes,items,combat,screen=="adventure"?SidebarHeroes(game,player):null,screen=="recruitment"?CreatureCost:null)};
         if(tavernBlocked is not null)result=result with{Brief=[tavernBlocked,..result.Brief]};
+        if(screen=="high_scores")result=result with{Brief=[..HighScoreLines(items),..result.Brief]};
         return Revise(result);
     }
 }

@@ -96,6 +96,11 @@ internal static class ScreenBriefing
             lines.Add($"Гарнизон на карте. Верхний ряд — войска гарнизона: {(top.Length>0?top:"пусто")}. Нижний ряд — армия героя: {(bottom.Length>0?bottom:"пусто")}. "
                 +"Оставить отряд охранять — перенести вверх; закрыть окно — garrison:close.");
         }
+        if(screen=="high_score_name")
+        {
+            string name=items.FirstOrDefault(i=>i.Id==501)?.Text?.Trim()??"";
+            lines.Add($"Результат партии попал на доску почёта. Имя в поле: «{name}». Принять имя и перейти к таблице рекордов — score:accept.");
+        }
         if(screen=="town_fort")
         {
             // Seven cards in tier order: creature 25+i, dwelling 9+i, «Доступно: N» 33+i, growth 129+i.
