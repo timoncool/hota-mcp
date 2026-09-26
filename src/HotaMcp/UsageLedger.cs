@@ -148,7 +148,7 @@ internal static class UsageLedger
                     string id=$"{session}#"+(a.GetValueOrDefault("request_id")??a.GetValueOrDefault("event.sequence")
                         ??$"{time:O}/{costText}/{a.GetValueOrDefault("input_tokens")}/{a.GetValueOrDefault("output_tokens")}");
                     var (player,day)=at(time);
-                    rows.Add((id,new{time,player,game,kind="cost",day,session,model=a.GetValueOrDefault("model",""),
+                    rows.Add((id,new{time,player,game,kind="cost",day,session,source=a.GetValueOrDefault("query_source")??a.GetValueOrDefault("agent.name"),model=a.GetValueOrDefault("model",""),
                         cost,input=Number(a,"input_tokens"),cacheWrite=Number(a,"cache_creation_tokens"),cacheRead=Number(a,"cache_read_tokens"),
                         output=Number(a,"output_tokens")}));
                 }

@@ -125,6 +125,9 @@ internal sealed class GameSession(int? requestedPid,int player,string directory,
 
     private void Mark()
     {
+        // Only the side whose turn it is acts; a waiting side polling for its turn does not own
+        // the time its opponent spends thinking.
+        if(player==PlayerSetting.EverySide&&game is not null&&GameReader.ActiveHuman(game) is int active&&active!=Acting)return;
         var day=bridge?.LastDate??[];
         lock(timelineGate)
         {
