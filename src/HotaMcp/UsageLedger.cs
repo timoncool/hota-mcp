@@ -62,10 +62,12 @@ internal static class UsageLedger
     }
 
     /// A session plays this game once it calls the bridge: an MCP tool of a `hota` server, or a
-    /// command addressed to the bridge's HTTP routes.
+    /// command addressed to the bridge — its HTTP routes, its port, or the Python client
+    /// (`bridge.py`, `import bridge`).
     private static bool CallsBridge(Dictionary<string,string> a)
     {
-        static bool Addressed(string text)=>text.Contains("/bridge/",StringComparison.Ordinal)||text.Contains("bridge.py",StringComparison.Ordinal);
+        static bool Addressed(string text)=>text.Contains("/bridge/",StringComparison.Ordinal)||text.Contains("bridge.py",StringComparison.Ordinal)
+            ||text.Contains("import bridge",StringComparison.Ordinal)||text.Contains(":18773",StringComparison.Ordinal);
         if(a.TryGetValue("tool_input",out var input)&&Addressed(input))return true;
         if(!a.TryGetValue("tool_parameters",out var parameters)||parameters.Length==0)return false;
         // Claude Code cuts long values short, and a cut parameter string is no longer JSON; its

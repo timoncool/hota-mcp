@@ -108,9 +108,19 @@ builder.Services.AddMcpServer(o=>o.ServerInstructions=ServerInstructions.Text).W
 var app=builder.Build();
 // Claude Code's own telemetry (OTLP/HTTP JSON logs) cannot carry the per-start secret; it only
 // files costs, and the service listens on loopback alone.
-app.MapPost("/v1/logs",(System.Text.Json.JsonElement export)=>
+app.MapPost("/v1/logs",async(HttpContext context)=>
 {
-    try{session.Telemetry(export);return Results.Json(new{});}
+    try
+    {
+        // The body is read here, not bound by the framework: an export in another encoding would
+        // otherwise be turned away before any line of this service could say so.
+        string type=context.Request.ContentType??"";
+        if(!type.Contains("json",StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException($"Telemetry export arrived as «{type}»; the bridge reads OTLP JSON — set OTEL_EXPORTER_OTLP_LOGS_PROTOCOL=http/json");
+        using var body=await System.Text.Json.JsonDocument.ParseAsync(context.Request.Body);
+        session.Telemetry(body.RootElement);
+        return Results.Json(new{});
+    }
     catch(Exception e) when(e is InvalidOperationException or System.Text.Json.JsonException or IOException)
     {
         // A malformed export is the client's fault and resending it cannot help: logged, answered 400.
