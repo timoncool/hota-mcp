@@ -1,11 +1,12 @@
+using System.Globalization;
 using System.Text;
 using System.Text.Json;
 
 namespace HotaMcp;
 
-/// What a game costs the controller: every call to the bridge with the game day it was made on,
-/// the size of the answer and how long it took, one file per game. Tokens are the harness's to
-/// know, not the bridge's; the report joins the harness's own record to the days of the game.
+/// What a game costs, kept with the game itself: every call to the bridge with the game day it was
+/// made on, and every model request of the sessions that play it with the cost its client
+/// reported, stamped with the same day. One file per game.
 internal static class UsageLedger
 {
     private static readonly object gate=new();
@@ -26,11 +27,10 @@ internal static class UsageLedger
         return Path.Combine(root,"usage",safe+".jsonl");
     }
 
-    public static void Record(string root,int player,string call,int[] day,long bytes,long milliseconds,string? refused)
+    private static void Append(string root,string game,object record)
     {
-        string game=CurrentGame(root);
         string file=LedgerFile(root,game);
-        string line=JsonSerializer.Serialize(new{time=DateTimeOffset.Now,player,game,call,day,bytes,ms=milliseconds,refused});
+        string line=JsonSerializer.Serialize(record);
         lock(gate)
         {
             Directory.CreateDirectory(Path.GetDirectoryName(file)!);
@@ -38,70 +38,138 @@ internal static class UsageLedger
         }
     }
 
-    private sealed record Call(DateTimeOffset Time,string Day,long Bytes,bool Refused);
+    public static void Record(string root,int player,string call,int[] day,long bytes,long milliseconds,string? refused)
+    {
+        string game=CurrentGame(root);
+        Append(root,game,new{time=DateTimeOffset.Now,player,game,call,day,bytes,ms=milliseconds,refused});
+    }
 
-    /// A table per game day: calls, refusals, bytes the bridge answered with, and — when harness
-    /// transcripts are given — the tokens spent between the first and the last call of the game.
-    public static string Report(string root,string? game,IReadOnlyList<string> transcripts)
+    private static string Text(JsonElement value)=>value.ValueKind==JsonValueKind.Object
+        ?value.EnumerateObject().Select(p=>p.Value.ValueKind==JsonValueKind.String?p.Value.GetString()??"":p.Value.GetRawText()).FirstOrDefault()??""
+        :"";
+
+    private static Dictionary<string,string> Attributes(JsonElement owner)
+    {
+        var result=new Dictionary<string,string>();
+        if(owner.ValueKind==JsonValueKind.Object&&owner.TryGetProperty("attributes",out var list)&&list.ValueKind==JsonValueKind.Array)
+            foreach(var a in list.EnumerateArray())result[a.GetProperty("key").GetString()??""]=Text(a.GetProperty("value"));
+        return result;
+    }
+
+    /// A session plays this game once it calls the bridge: an MCP tool of a `hota` server, or a
+    /// command addressed to the bridge's HTTP routes.
+    private static bool CallsBridge(Dictionary<string,string> a)
+    {
+        static bool Addressed(string text)=>text.Contains("/bridge/",StringComparison.Ordinal)||text.Contains("bridge.py",StringComparison.Ordinal);
+        if(a.TryGetValue("tool_input",out var input)&&Addressed(input))return true;
+        if(!a.TryGetValue("tool_parameters",out var parameters)||parameters.Length==0)return false;
+        using var json=JsonDocument.Parse(parameters);
+        var r=json.RootElement;
+        if(r.TryGetProperty("mcp_server_name",out var server)&&server.GetString() is string name&&name.StartsWith("hota",StringComparison.OrdinalIgnoreCase))return true;
+        return r.TryGetProperty("bash_command",out var command)&&Addressed(command.GetString()??"");
+    }
+
+    private static long Number(Dictionary<string,string> a,string key)=>
+        a.TryGetValue(key,out var v)&&long.TryParse(v,NumberStyles.Integer,CultureInfo.InvariantCulture,out long n)?n:0;
+
+    /// An OTLP/HTTP JSON log export from Claude Code's telemetry. `tool_result` events mark the
+    /// sessions that call the bridge; `api_request` events of those sessions are filed under the
+    /// current game with their `cost_usd` and token counts. Returns the requests filed.
+    public static int Ingest(string root,int player,int[] day,JsonElement export)
+    {
+        string sessionsFile=Path.Combine(root,"usage","otel-sessions.json");
+        int filed=0;
+        lock(gate)
+        {
+            var sessions=File.Exists(sessionsFile)
+                ?JsonSerializer.Deserialize<HashSet<string>>(File.ReadAllText(sessionsFile))??throw new InvalidOperationException($"{sessionsFile} is empty")
+                :new HashSet<string>();
+            int known=sessions.Count;
+            string game=CurrentGame(root);
+            foreach(var resource in export.GetProperty("resourceLogs").EnumerateArray())
+            {
+                var shared=Attributes(resource.TryGetProperty("resource",out var r)?r:default);
+                foreach(var scope in resource.GetProperty("scopeLogs").EnumerateArray())
+                foreach(var log in scope.GetProperty("logRecords").EnumerateArray())
+                {
+                    var a=Attributes(log);
+                    foreach(var (k,v) in shared)a.TryAdd(k,v);
+                    if(!a.TryGetValue("session.id",out var session)||!a.TryGetValue("event.name",out var name))continue;
+                    if(name=="tool_result"&&CallsBridge(a)){sessions.Add(session);continue;}
+                    if(name!="api_request"||!sessions.Contains(session))continue;
+                    if(!a.TryGetValue("cost_usd",out var costText)||!decimal.TryParse(costText,NumberStyles.Float,CultureInfo.InvariantCulture,out decimal cost))
+                        throw new InvalidOperationException($"api_request without a numeric cost_usd: «{costText}»");
+                    Append(root,game,new{time=DateTimeOffset.Now,player,game,kind="cost",day,session,model=a.GetValueOrDefault("model",""),
+                        cost,input=Number(a,"input_tokens"),cacheWrite=Number(a,"cache_creation_tokens"),cacheRead=Number(a,"cache_read_tokens"),
+                        output=Number(a,"output_tokens")});
+                    filed++;
+                }
+            }
+            if(sessions.Count!=known)
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(sessionsFile)!);
+                File.WriteAllText(sessionsFile,JsonSerializer.Serialize(sessions));
+            }
+        }
+        return filed;
+    }
+
+    private sealed record Call(DateTimeOffset Time,int Player,string Day,long Bytes,bool Refused);
+    private sealed record Request(DateTimeOffset Time,int Player,string Day,string Model,decimal Cost,long Input,long CacheWrite,long CacheRead,long Output);
+
+    private static string Money(decimal value)=>value.ToString("0.00",CultureInfo.InvariantCulture);
+
+    private static string Label(JsonElement day)
+    {
+        int[] d=day.EnumerateArray().Select(v=>v.GetInt32()).ToArray();
+        return d.Length==3?$"м{d[2]} н{d[1]} д{d[0]}":"меню";
+    }
+
+    /// Per player and game day: bridge calls, refusals, bytes answered, model requests, tokens and
+    /// dollars; the total cost of the game at the top.
+    public static string Report(string root,string? game)
     {
         game??=CurrentGame(root);
         string file=LedgerFile(root,game);
         if(!File.Exists(file))throw new InvalidOperationException($"No usage ledger for game «{game}» ({file})");
         var calls=new List<Call>();
+        var requests=new List<Request>();
         foreach(string line in File.ReadLines(file))
         {
             using var json=JsonDocument.Parse(line);
             var r=json.RootElement;
-            int[] day=r.GetProperty("day").EnumerateArray().Select(v=>v.GetInt32()).ToArray();
-            string label=day.Length==3?$"м{day[2]} н{day[1]} д{day[0]}":"меню";
-            calls.Add(new(r.GetProperty("time").GetDateTimeOffset(),label,r.GetProperty("bytes").GetInt64(),
-                r.TryGetProperty("refused",out var refused)&&refused.ValueKind==JsonValueKind.String));
-        }
-        if(calls.Count==0)throw new InvalidOperationException($"Usage ledger for «{game}» is empty");
-        var days=calls.Select(c=>c.Day).Distinct().ToList();
-        var tokens=days.ToDictionary(d=>d,_=>new long[5]);
-        DateTimeOffset from=calls[0].Time.AddMinutes(-1),to=calls[^1].Time.AddMinutes(1);
-        foreach(string transcript in transcripts)
-        {
-            // One assistant message is written as several lines, each repeating its usage; the
-            // message id keeps it counted once.
-            var seen=new HashSet<string>();
-            foreach(string line in File.ReadLines(transcript))
+            var time=r.GetProperty("time").GetDateTimeOffset();
+            int player=r.GetProperty("player").GetInt32();
+            string day=Label(r.GetProperty("day"));
+            if(r.TryGetProperty("kind",out var kind)&&kind.GetString()=="cost")
             {
-                if(!line.Contains("\"usage\"",StringComparison.Ordinal))continue;
-                using var json=JsonDocument.Parse(line);
-                var r=json.RootElement;
-                if(!r.TryGetProperty("timestamp",out var stamp)||!r.TryGetProperty("message",out var message)
-                   ||message.ValueKind!=JsonValueKind.Object||!message.TryGetProperty("usage",out var usage))continue;
-                var time=stamp.GetDateTimeOffset();
-                if(time<from||time>to)continue;
-                if(message.TryGetProperty("id",out var id)&&!seen.Add(id.GetString()??""))continue;
-                string day=calls.LastOrDefault(c=>c.Time<=time)?.Day??calls[0].Day;
-                long Get(string name)=>usage.TryGetProperty(name,out var v)&&v.ValueKind==JsonValueKind.Number?v.GetInt64():0;
-                var t=tokens[day];
-                t[0]+=Get("input_tokens");t[1]+=Get("cache_creation_input_tokens");t[2]+=Get("cache_read_input_tokens");
-                t[3]+=Get("output_tokens");t[4]++;
+                requests.Add(new(time,player,day,r.GetProperty("model").GetString()??"",r.GetProperty("cost").GetDecimal(),
+                    r.GetProperty("input").GetInt64(),r.GetProperty("cacheWrite").GetInt64(),r.GetProperty("cacheRead").GetInt64(),r.GetProperty("output").GetInt64()));
+                continue;
             }
+            calls.Add(new(time,player,day,r.GetProperty("bytes").GetInt64(),r.TryGetProperty("refused",out var refused)&&refused.ValueKind==JsonValueKind.String));
         }
+        if(calls.Count==0&&requests.Count==0)throw new InvalidOperationException($"Usage ledger for «{game}» is empty");
         var text=new StringBuilder();
         text.AppendLine($"Партия: {game}");
-        text.AppendLine($"Вызовов моста: {calls.Count}, отказов: {calls.Count(c=>c.Refused)}, ответы моста: {calls.Sum(c=>c.Bytes)/1024} КБ");
-        bool withTokens=transcripts.Count>0;
-        text.AppendLine(withTokens
-            ?"День | вызовы | отказы | КБ ответов | вход | запись кэша | чтение кэша | выход | сообщений"
-            :"День | вызовы | отказы | КБ ответов");
-        foreach(string day in days)
+        text.AppendLine(requests.Count>0
+            ?$"Стоимость: ${Money(requests.Sum(q=>q.Cost))} ({requests.Count} запросов к модели: {string.Join(", ",requests.Select(q=>q.Model).Distinct())})"
+            :"Стоимость неизвестна: запросов к модели в журнале нет (телеметрия Claude Code не включена или сессия не вызывала мост).");
+        foreach(int player in calls.Select(c=>c.Player).Concat(requests.Select(q=>q.Player)).Distinct().Order())
         {
-            var list=calls.Where(c=>c.Day==day).ToList();
-            var t=tokens[day];
-            text.AppendLine(withTokens
-                ?$"{day} | {list.Count} | {list.Count(c=>c.Refused)} | {list.Sum(c=>c.Bytes)/1024} | {t[0]} | {t[1]} | {t[2]} | {t[3]} | {t[4]}"
-                :$"{day} | {list.Count} | {list.Count(c=>c.Refused)} | {list.Sum(c=>c.Bytes)/1024}");
-        }
-        if(withTokens)
-        {
-            var sum=Enumerable.Range(0,5).Select(i=>tokens.Values.Sum(t=>t[i])).ToArray();
-            text.AppendLine($"Итого токенов: вход {sum[0]}, запись кэша {sum[1]}, чтение кэша {sum[2]}, выход {sum[3]}; сообщений {sum[4]}");
+            var mine=calls.Where(c=>c.Player==player).ToList();
+            var spent=requests.Where(q=>q.Player==player).ToList();
+            text.AppendLine();
+            text.AppendLine($"Игрок {player}: ${Money(spent.Sum(q=>q.Cost))}; вызовов моста {mine.Count}, отказов {mine.Count(c=>c.Refused)}, ответы моста {mine.Sum(c=>c.Bytes)/1024} КБ");
+            text.AppendLine("День | $ | запросов | вход | запись кэша | чтение кэша | выход | вызовы | отказы | КБ ответов");
+            var days=mine.Select(c=>(c.Time,c.Day)).Concat(spent.Select(q=>(q.Time,q.Day))).OrderBy(x=>x.Time).Select(x=>x.Day).Distinct();
+            foreach(string day in days)
+            {
+                var c=mine.Where(x=>x.Day==day).ToList();
+                var q=spent.Where(x=>x.Day==day).ToList();
+                text.AppendLine($"{day} | {Money(q.Sum(x=>x.Cost))} | {q.Count} | {q.Sum(x=>x.Input)} | {q.Sum(x=>x.CacheWrite)} | {q.Sum(x=>x.CacheRead)} | {q.Sum(x=>x.Output)} | "
+                    +$"{c.Count} | {c.Count(x=>x.Refused)} | {c.Sum(x=>x.Bytes)/1024}");
+            }
         }
         return text.ToString();
     }

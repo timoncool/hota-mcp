@@ -17,11 +17,9 @@ if(!endpointUri.IsLoopback||endpointUri.Scheme!="http")throw new InvalidOperatio
 
 if(args.Contains("--usage"))
 {
-    // A report of what the current game (or --game <id>) has cost: calls per game day and, with
-    // --transcript <harness transcript> given once or more, the tokens spent on those days.
-    var transcripts=args.Select((a,i)=>(a,i)).Where(x=>x.a=="--transcript"&&x.i+1<args.Length).Select(x=>args[x.i+1]).ToList();
+    // What the current game (or --game <id>) has cost, from its own ledger.
     Console.OutputEncoding=Encoding.UTF8;
-    Console.WriteLine(UsageLedger.Report(directory,Value("--game"),transcripts));
+    Console.WriteLine(UsageLedger.Report(directory,Value("--game")));
     return;
 }
 
@@ -106,7 +104,11 @@ builder.Services.AddSingleton<IGameEndpoint>(session);
 builder.Services.AddMcpServer(o=>o.ServerInstructions=ServerInstructions.Text).WithHttpTransport(o=>o.SessionMode=HttpServerSessionMode.StatefulForInitializeClients).WithTools<GameTools>().WithResources<GameResources>()
     .WithRequestFilters(f=>f.AddCallToolFilter(ToolErrors.Filter));
 var app=builder.Build();
+// Claude Code's own telemetry (OTLP/HTTP JSON logs) cannot carry the per-start secret; it only
+// files costs, and the service listens on loopback alone.
+app.MapPost("/v1/logs",(System.Text.Json.JsonElement export)=>{session.Telemetry(export);return Results.Json(new{});});
 app.Use(async(context,next)=>{
+    if(context.Request.Path.Equals("/v1/logs")){await next();return;}
     string supplied=context.Request.Headers.Authorization.ToString();
     if(!CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(supplied),Encoding.UTF8.GetBytes("Bearer "+secret)))
     {context.Response.StatusCode=401;return;}

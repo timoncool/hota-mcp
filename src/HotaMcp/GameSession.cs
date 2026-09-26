@@ -108,6 +108,10 @@ internal sealed class GameSession(int? requestedPid,int player,string directory,
         }
         finally{gate.Release();}
     }
+    /// The controller's model spend from its telemetry, filed under the current game on the day
+    /// the bridge last saw.
+    public int Telemetry(System.Text.Json.JsonElement export)=>UsageLedger.Ingest(directory,player,bridge?.LastDate??[],export);
+
     public async Task<object> Status(CancellationToken ct)
     {
         await gate.WaitAsync(ct);
