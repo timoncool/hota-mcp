@@ -207,17 +207,24 @@ internal sealed class WindowsGame : IDisposable
     /// Key presses for the edit fields that read the keyboard rather than characters (the hotseat
     /// names). The game turns a key into a letter by the keyboard layout of its own window, so each
     /// character is found on that layout; one that needs Shift or is not on it is refused.
-    public async Task TypeKeysAsync(string text)
+    /// The keys that type the text on the game window's own layout, one plain key a character;
+    /// a character that needs Shift or another layout is refused before anything is pressed.
+    public ushort[] KeysFor(string text)
     {
         nint layout=GetKeyboardLayout(GetWindowThreadProcessId(Window,out _));
-        foreach(char character in text)
+        return text.Select(character=>
         {
             short scan=VkKeyScanExW(character,layout);
             if(scan==-1||(scan>>8)!=0)
-                throw new InvalidOperationException($"«{character}» не набирается на раскладке окна игры без Shift: используй строчные буквы этой раскладки, цифры и пробел");
-            ushort key=(ushort)(scan&0xff);
-            await KeyAsync(key,(ushort)MapVirtualKeyExW(key,0,layout));
-        }
+                throw new ActionRefused(ActionRefused.BadText,$"«{character}» не набирается на раскладке окна игры без Shift: используй строчные буквы этой раскладки, цифры и пробел. Поле не тронуто.");
+            return (ushort)(scan&0xff);
+        }).ToArray();
+    }
+
+    public async Task TypeKeysAsync(string text)
+    {
+        nint layout=GetKeyboardLayout(GetWindowThreadProcessId(Window,out _));
+        foreach(ushort key in KeysFor(text))await KeyAsync(key,(ushort)MapVirtualKeyExW(key,0,layout));
     }
     public async Task ClickAsync(int gameX,int gameY,int width,int height,CancellationToken ct)=>await MouseAsync(gameX,gameY,width,height,true,ct);
     [StructLayout(LayoutKind.Sequential)] private struct MemoryInfo {public nint BaseAddress,AllocationBase;public uint AllocationProtect;public ushort PartitionId;public nint RegionSize;public uint State,Protect,Type;}

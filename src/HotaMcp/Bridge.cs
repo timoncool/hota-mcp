@@ -1089,6 +1089,9 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             RequireOwnTurn(before);
             var field=before.Elements.SingleOrDefault(e=>e.Key==request.Element)
                 ??throw new ActionRefused(ActionRefused.UnknownControl,"Unknown edit control; observe again");
+            // A name field types key by key: what cannot be typed is refused before the field is erased.
+            bool byKeys=reader.ControlClass(field.Id)==0x640220;
+            if(byKeys)game.KeysFor(request.Text);
             // Focus the ordinary edit control with a window mouse event, then type characters.
             await game.MouseAsync(field.X+field.Width/2,field.Y+field.Height/2,before.Width,before.Height,true,CancellationToken.None);
             await Task.Delay(200,CancellationToken.None);
@@ -1102,7 +1105,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
                 await Task.Delay(150,CancellationToken.None);
             }
             // The hotseat name fields read key presses; the other edit fields read characters.
-            if(reader.ControlClass(field.Id)==0x640220)await game.TypeKeysAsync(request.Text);
+            if(byKeys)await game.TypeKeysAsync(request.Text);
             else await game.TextAsync(request.Text);
             await Task.Delay(200,CancellationToken.None);
             var after=reader.Observe();
