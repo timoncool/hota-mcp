@@ -1116,7 +1116,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             var route=attack?new RouteReader(game,player).Read(before,target):null;
             // The table may be stale after a hero switch or a step: the attack points at the stack
             // first, as the player's click does, and judges the route the game then lays.
-            if(route is not null&&route.State!="reachable_today")
+            if(route is {State:"not_available"})
             {
                 before=await PlanRouteTo(before,target.X,target.Y,target.Z);
                 if(before.Hero is null||before.Screen!="adventure")throw new InvalidOperationException("State changed while planning the attack; observe again");

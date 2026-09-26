@@ -207,6 +207,7 @@ internal sealed class GameReader(WindowsGame game,int player)
     // The game's own «all your enemies are defeated» (or defeat) message was the last window: the
     // window-less score screen that follows is told from a mere transition by it.
     private bool endMessage;
+    private string? outcome;
 
     /// The table the high-score window paints, from the file it paints it from: Data\HiScore.dat
     /// holds 22 records of 100 bytes — eleven campaigns, then eleven scenarios — with the player's
@@ -841,7 +842,7 @@ internal sealed class GameReader(WindowsGame game,int player)
         uint manager=game.U32(0x6992d0),dlg=game.U32(manager+0x54);
         // The score screen after the last enemy falls is the game's own modal loop over a video:
         // no window is on top, and the message before it said how the game ended.
-        if(dlg==0&&endMessage&&GameOutcome() is string outcome)return GameOverScreen(manager,outcome);
+        if(dlg==0&&endMessage&&(outcome??=GameOutcome()) is string ended)return GameOverScreen(manager,ended);
         if(dlg==0)throw new InvalidOperationException("UI transition in progress");
         uint vtable=game.U32(dlg);
         // A popup over the scenario screen — a town grid, the options window, the team agreements —
@@ -1026,8 +1027,9 @@ internal sealed class GameReader(WindowsGame game,int player)
         // question on his own turn.
         if(waiting&&screen=="message"&&midFight)waiting=false;
         if(screen is "adventure" or "battle_result")midFight=false;
-        if(screen=="message")endMessage=items.Any(i=>i.Text is {} t&&(t.Contains("враги побеждены",StringComparison.OrdinalIgnoreCase)||t.Contains("потерпели поражение",StringComparison.OrdinalIgnoreCase)));
-        else if(screen is not "game_over")endMessage=false;
+        // Victory and defeat are worded several ways; the score screen is still confirmed by who is left.
+        endMessage=screen=="message"&&items.Any(i=>i.Text is {} t&&(t.Contains("побежден",StringComparison.OrdinalIgnoreCase)||t.Contains("поражени",StringComparison.OrdinalIgnoreCase)));
+        outcome=null;
         var combat=Remember(fight);
         // A message on another player's turn — «Ходит КЛОДИК.» at the hand-over — is read by everyone
         // at the table; its words stay, its buttons do not.

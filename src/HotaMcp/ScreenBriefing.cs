@@ -127,11 +127,11 @@ internal static class ScreenBriefing
                 lines.Add($"Найм: {title}. Числа «Доступно»/«Нанять» не прочитаны («{Txt(521)}», «{Txt(526)}») — observe ещё раз.");
             else
             {
-            int available=left+chosen;
-            lines.Add($"Найм: {title}. Доступно всего {available}. Цена за одного: {price}. Выбрано к найму {chosen}, итого {Txt(530)} золота. "
-                +(available==0?"Нанимать некого: прирост придёт в первый день новой недели. Закрыть — recruit:cancel."
-                    :chosen==0?"recruit:max выбирает сколько хватает денег, recruit:buy нанимает; recruit:cancel — закрыть."
-                    :"recruit:buy нанимает выбранных; recruit:cancel — закрыть."));
+                int available=left+chosen;
+                lines.Add($"Найм: {title}. Доступно всего {available}. Цена за одного: {price}. Выбрано к найму {chosen}, итого {Txt(530)} золота. "
+                    +(available==0?"Нанимать некого: прирост придёт в первый день новой недели. Закрыть — recruit:cancel."
+                        :chosen==0?"recruit:max выбирает сколько хватает денег, recruit:buy нанимает; recruit:cancel — закрыть."
+                        :"recruit:buy нанимает выбранных; recruit:cancel — закрыть."));
             }
         }
         if(screen=="level_up")

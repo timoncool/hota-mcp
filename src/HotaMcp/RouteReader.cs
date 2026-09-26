@@ -83,13 +83,13 @@ internal sealed class RouteReader(WindowsGame game,int player)
         return new("reachable_today",cost,remaining,steps);
     }
 
-    /// Underground the game fills no whole-map table: the route to the destination it has just
-    /// planned lives only in the short list at +0x3C..+0x40, whose nodes carry the level as bit
-    /// 10 of y. The destination's own node there gives the cost and what is left.
     /// A route longer than today: its cost and the days of movement it takes, today counted.
     private static RouteView Later(int cost,int? steps,HeroView hero)=>
         new("needs_more_days",cost,null,steps){Days=hero.MaxMovement>0?1+(int)Math.Ceiling((cost-hero.Movement)/(double)hero.MaxMovement):null};
 
+    /// Underground the game fills no whole-map table: the route to the destination it has just
+    /// planned lives only in the short list at +0x3C..+0x40, whose nodes carry the level as bit
+    /// 10 of y. The destination's own node there gives the cost and what is left.
     private RouteView? Planned(uint finder,int x,int y,int level,HeroView hero)
     {
         // The list keeps the nodes of whatever was searched last; only the destination planned
