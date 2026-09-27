@@ -44,7 +44,7 @@ internal sealed class TownReader(WindowsGame game,int player)
             }
         }
         if(best<3||game.U32(dlg+0x50)!=mask)throw new InvalidOperationException("Building hit region unavailable");
-        return (bx,by);
+        return (game.I32(dlg+0x18)+bx,game.I32(dlg+0x1c)+by);
     }
     /// Name and owner of any town on the map, by its index. The owner is what the flag over the
     /// town shows every player; 255 is a town nobody holds.

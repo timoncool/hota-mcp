@@ -116,7 +116,7 @@ internal sealed class GameSession(int? requestedPid,int player,string directory,
                 if(result is OperationResult operation)
                     result=(T)(object)CompetitiveObservation.AfterHandoff(operation,player);
                 else if(result is Observation)
-                    result=(T)(object)CompetitiveObservation.Waiting(player);
+                    result=(T)(object)WaitingObservation();
                 else if(call is not (nameof(Journal) or nameof(Plan) or nameof(AllyLog)))
                     throw new ActionRefused(ActionRefused.NotYourTurn,"Another player's turn is private; wait for your own turn");
             }
@@ -136,7 +136,43 @@ internal sealed class GameSession(int? requestedPid,int player,string directory,
     {
         if(game is null||GameReader.InFrontend(game)||game.U32(0x699538)==0)return false;
         int active=game.I32(0x69ccf4);
-        return active is >=0 and <8&&active!=player&&!new CombatReader(game,player).OwnActiveStack();
+        return active is >=0 and <8&&active!=player&&!GameReader.OwnTurnPrompt(game,player)
+            &&!new CombatReader(game,player).OwnActiveStack();
+    }
+
+    private bool PublicHandover()=>game is not null
+        &&GameReader.OwnTurnPrompt(game,game.I32(0x69ccf4));
+
+    private Observation WaitingObservation()
+    {
+        var waiting=CompetitiveObservation.Waiting(player);
+        return PublicHandover()?waiting with
+        {
+            Revision=$"handover:{game!.Process.Id}",
+            Actions=[new("session:restart","Перезапустить игру без сохранения: только для восстановления из сохранения; текущий ход будет потерян")]
+        }:waiting;
+    }
+
+    private readonly Dictionary<string,OperationResult> restarts=[];
+    private async Task<OperationResult> Restart(OperationRequest request,CancellationToken ct)
+    {
+        await gate.WaitAsync(ct);
+        try
+        {
+            if(string.IsNullOrWhiteSpace(request.OperationId))throw new InvalidOperationException("Operation id required");
+            if(restarts.TryGetValue(request.OperationId,out var previous))return previous;
+            Refresh();
+            if(launcherPid is null||!PublicHandover()||request.Revision!=$"handover:{game!.Process.Id}")
+                throw new ActionRefused(ActionRefused.StaleRevision,"Restart is available only at the observed public hotseat handover");
+            restarts[request.OperationId]=new("uncertain","Restart requested; do not repeat with a new operation id",null);
+            game!.Process.Kill();
+            await game.Process.WaitForExitAsync(CancellationToken.None);
+            Refresh();
+            LauncherActions.Play(launcherPid.Value);
+            launchRequested=DateTime.UtcNow;
+            return restarts[request.OperationId]=new("completed","Game restarted through the launcher; load a save from the main menu",null);
+        }
+        finally{gate.Release();}
     }
     /// The controller's model spend from its telemetry, filed under the current game on the day
     /// the bridge last saw.
@@ -193,6 +229,7 @@ internal sealed class GameSession(int? requestedPid,int player,string directory,
                 Refresh();
                 if(game is not null&&GameReader.InFrontend(game))return new(false,"menu");
                 if(game is not null&&(GameReader.ActiveHuman(game)==own
+                   ||GameReader.OwnTurnPrompt(game,own)
                    ||competitive&&new CombatReader(game,own).OwnActiveStack()))
                     return new(true,"your_turn");
                 current=game is null?"waiting_for_game":"waiting";
@@ -216,10 +253,10 @@ internal sealed class GameSession(int? requestedPid,int player,string directory,
     }
     public Task<Observation> Observe(CancellationToken ct)=>WithGame(async b=>
     {
-        if(competitive&&AnotherTurn())return CompetitiveObservation.Waiting(player);
+        if(competitive&&AnotherTurn())return WaitingObservation();
         var observed=await b.Observe(ct);
         // A hand-over can happen while the bridge reads the UI. Never publish that frame.
-        return competitive&&AnotherTurn()?CompetitiveObservation.Waiting(player):observed;
+        return competitive&&AnotherTurn()?WaitingObservation():observed;
     },ct);
     public Task<OperationResult> Move(MoveRequest request,CancellationToken ct)=>WithGame(async b=>{await EnsureAdapter(ct);return await b.Move(request,ct);},ct);
     public Task<OperationResult> Attack(MoveRequest request,CancellationToken ct)=>WithGame(async b=>{await EnsureAdapter(ct);return await b.Attack(request,ct);},ct);
@@ -227,7 +264,8 @@ internal sealed class GameSession(int? requestedPid,int player,string directory,
     public Task<OperationResult> MoveToTile(TileMoveRequest request,CancellationToken ct)=>WithGame(async b=>{await EnsureAdapter(ct);return await b.MoveToTile(request,ct);},ct);
     public Task<DebugSnapshot> Snapshot(CancellationToken ct)=>WithGame(b=>b.Snapshot(ct),ct);
     public Task<CaptureResult> Capture(CancellationToken ct)=>WithGame(b=>b.Capture(ct),ct);
-    public Task<OperationResult> Click(OperationRequest request,CancellationToken ct)=>WithGame(async b=>{await EnsureAdapter(ct);return await b.Click(request,ct);},ct);
+    public Task<OperationResult> Click(OperationRequest request,CancellationToken ct)=>request.Element=="session:restart"
+        ?Restart(request,ct):WithGame(async b=>{await EnsureAdapter(ct);return await b.Click(request,ct);},ct);
     public Task<OperationResult> EnterText(TextRequest request,CancellationToken ct)=>WithGame(b=>b.EnterText(request,ct),ct);
     public Task<ElementCard> InspectElement(InspectRequest request,CancellationToken ct)=>WithGame(b=>b.InspectElement(request,ct),ct);
     public Task<CellCard> InspectCell(CellRequest request,CancellationToken ct)=>WithGame(b=>b.InspectCell(request,ct),ct);

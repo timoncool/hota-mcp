@@ -925,6 +925,24 @@ internal sealed class GameReader(WindowsGame game,int player)
         return top!=0&&(IsFrontend(game.U32(top))||UnderMenu(game,top));
     }
 
+    // Hotseat asks the incoming player to confirm before changing the active colour.
+    public static bool OwnTurnPrompt(WindowsGame game,int player)
+    {
+        uint manager=game.U32(0x6992d0);
+        uint dialog=manager==0?0:game.U32(manager+0x54);
+        if(dialog==0||game.U32(dialog)!=0x63db40)return false;
+        var seen=new HashSet<uint>();
+        for(uint item=game.U32(dialog+0x2c);item!=0&&seen.Add(item)&&seen.Count<2048;item=game.U32(item+8))
+        {
+            byte[] control=game.Read(item,0x38);
+            if(BitConverter.ToUInt32(control,4)!=dialog)return false;
+            if((BitConverter.ToUInt16(control,0x16)&4)==0)continue;
+            if(BitConverter.ToUInt32(control) is not (0x642dc0 or 0x642df8 or 0x642d50))continue;
+            if(game.Text(BitConverter.ToUInt32(control,0x34))?.Trim()==Colour(player))return true;
+        }
+        return false;
+    }
+
     private static bool UnderMenu(WindowsGame game,uint top)
     {
         var seen=new HashSet<uint>();
@@ -1145,7 +1163,9 @@ internal sealed class GameReader(WindowsGame game,int player)
             towns=towns.Select(t=>
             {
                 int place=Array.IndexOf(order,t.Id);
-                var icon=place<0?null:items.FirstOrDefault(i=>i.Id==iconBase+place);
+                var icon=place<0?null:screen=="adventure"
+                    ?items.Where(i=>i.Asset=="itpa.def").OrderBy(i=>i.Y).ElementAtOrDefault(place)
+                    :items.FirstOrDefault(i=>i.Id==iconBase+place);
                 return icon is null?t:t with{IconCross=icon.Frame%2==1};
             }).ToList();
         }

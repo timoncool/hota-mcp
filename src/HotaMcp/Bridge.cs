@@ -142,7 +142,8 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
 
     public int Player=>player;
     public bool InFrontend=>GameReader.InFrontend(game);
-    public bool OwnTurn=>!InFrontend&&(GameReader.ActiveHuman(game)==player||new CombatReader(game,player).OwnActiveStack());
+    public bool OwnTurn=>!InFrontend&&(GameReader.ActiveHuman(game)==player||GameReader.OwnTurnPrompt(game,player)
+        ||new CombatReader(game,player).OwnActiveStack());
 
     /// The game belongs to whoever attached it; several bridges may share one.
     public void Dispose()=>gate.Dispose();
@@ -780,7 +781,8 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
                 // «:<name>» takes a short name of letters (latin or cyrillic), digits and dashes.
                 ??before.Actions.Where(a=>a.Key.EndsWith(":<name>")&&request.Element.StartsWith(a.Key[..^6],StringComparison.Ordinal)
                         &&request.Element.Length>a.Key.Length-6&&request.Element.Length-(a.Key.Length-6)<=32
-                        &&request.Element[(a.Key.Length-6)..].All(c=>char.IsAsciiLetterOrDigit(c)||c=='-'||c is >='а' and <='я'||c is >='А' and <='Я'||c is 'ё' or 'Ё'))
+                        &&request.Element[(a.Key.Length-6)..].All(c=>char.IsAsciiLetterOrDigit(c)||c=='-'||c is >='а' and <='я'||c is >='А' and <='Я'||c is 'ё' or 'Ё'
+                            ||c==' '&&a.Key.StartsWith("hotseat:name:",StringComparison.Ordinal)))
                     .Select(a=>new AvailableAction(request.Element,a.Label)).FirstOrDefault();
             var command=action is not null
                 ?GameCommands.ForAction(action,before)

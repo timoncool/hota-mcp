@@ -213,13 +213,20 @@ internal sealed class CombatReader(WindowsGame game,int player)
         uint square=game.U32(0x699420)+0x1c4+(uint)hex*0x70;
         byte[] b=game.Read(square,12);
         int left=BitConverter.ToInt16(b,4),top=BitConverter.ToInt16(b,6),right=BitConverter.ToInt16(b,8),bottom=BitConverter.ToInt16(b,10);
-        return ((left+right)/2,(top+bottom)/2);
+        return ToSurface((left+right)/2,(top+bottom)/2);
     }
 
     public (int X,int Y) Point(int hex)
     {
         if(hex<0||hex>=187)throw new InvalidOperationException("Invalid combat hex");
         uint square=game.U32(0x699420)+0x1c4+(uint)hex*0x70;
-        return (BitConverter.ToInt16(game.Read(square,2)),BitConverter.ToInt16(game.Read(square+2,2)));
+        return ToSurface(BitConverter.ToInt16(game.Read(square,2)),BitConverter.ToInt16(game.Read(square+2,2)));
+    }
+
+    private (int X,int Y) ToSurface(int x,int y)
+    {
+        uint dialog=game.U32(game.U32(0x6992d0)+0x54);
+        if(game.U32(dialog)!=0x63d528)throw new InvalidOperationException("Combat screen required for battlefield coordinates");
+        return (game.I32(dialog+0x18)+x,game.I32(dialog+0x1c)+y);
     }
 }

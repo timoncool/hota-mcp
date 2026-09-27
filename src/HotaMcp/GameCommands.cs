@@ -375,6 +375,7 @@ internal static class GameCommands
         // The same window opens before a new hotseat game and before loading one.
         "hotseat:accept" => new("scenario_selection,load_game,message,popup_choice", Deliveries.Control(519,"mubchck.def")),
         "hotseat:cancel" => new("multiplayer", Deliveries.Control(520,"muBcanc.def")),
+        _ when action.Key.StartsWith("hotseat:name:",StringComparison.Ordinal) => new("hotseat_names", HotseatName),
         "menu:campaign" => new("game_type,scenario_selection", Deliveries.Control(101,"gtcampn.def")),
         "menu:tutorial" => new("game_type,scenario_selection", Deliveries.Control(103,"gttutor.def")),
         "menu:single" => new("scenario_selection,load_game,save_game", Deliveries.Control(100)),
@@ -776,8 +777,7 @@ internal static class GameCommands
         var owned = GameReader.SidebarTowns(context.Game, context.Player);
         int slot = Array.FindIndex(owned, id => context.Before.Towns.FirstOrDefault(t => t.Id == id)?.Name == name);
         if (slot < 0) throw new InvalidOperationException($"Города {name} нет в списке твоих городов");
-        if (slot >= 5) throw new InvalidOperationException($"Город {name} ниже видимой части списка; прокрути список городов");
-        var portrait = context.Before.Elements.FirstOrDefault(e => e.Id == 32 + slot && e.Asset == "itpa.def")
+        var portrait = context.Before.Elements.Where(e => e.Asset == "itpa.def").OrderBy(e=>e.Y).ElementAtOrDefault(slot)
             ?? throw new InvalidOperationException($"Место города {name} в списке справа не найдено");
         await Deliveries.PressUntilOpened(context, portrait, "town", ct);
     };
@@ -1123,8 +1123,27 @@ internal static class GameCommands
         await PressControl(toBase + target);
     };
 
-    /// The save name field takes key presses, not typed characters: the old name is erased with
-    /// Backspace and the digits are pressed one by one, then the field is read back.
+    /// Type into the hotseat name field and verify the game's displayed text.
+    private static readonly Deliver HotseatName = async (context, ct) =>
+    {
+        string[] parts=context.Element.Split(':',4);
+        if(context.Before.Screen!="hotseat_names"||parts.Length!=4
+            ||!int.TryParse(parts[2],out int slot)||slot is <1 or >8)
+            throw new ActionRefused(ActionRefused.BadText,"Choose a hotseat player from 1 to 8");
+        string name=parts[3];
+        context.Game.KeysFor(name);
+        var field=context.Before.Elements.Single(e=>e.Id==508+slot);
+        await context.Game.MouseAsync(field.X+field.Width/2,field.Y+field.Height/2,
+            context.Before.Width,context.Before.Height,true,ct);
+        await context.Game.KeyAsync(0x23,0x4f);
+        for(int i=0;i<(field.Text?.Length??0);i++)await context.Game.KeyAsync(0x08,0x0e);
+        await context.Game.TypeKeysAsync(name);
+        await Task.Delay(200,ct);
+        string? actual=context.Reader.Peek().Elements.FirstOrDefault(e=>e.Id==field.Id)?.Text;
+        if(actual!=name)throw new InvalidOperationException($"Имя в поле «{actual}», ожидалось «{name}». Не подтверждай список игроков.");
+    };
+
+    /// The save name field takes key presses, then its displayed text is read back.
     private static readonly Deliver SaveName = async (context, ct) =>
     {
         string name = context.Element["save:name:".Length..];

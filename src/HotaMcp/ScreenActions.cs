@@ -330,7 +330,9 @@ internal static class ScreenActions
         if(screen=="hotseat_names")
         {
             // «Горячий Стул»: one name per person at the keyboard; the number of names filled in is
-            // the number of human players. The names are edit fields 509-516, typed with enter_text.
+            // the number of human players. The names are edit fields 509-516.
+            foreach(var field in items.Where(i=>i.Id is >=509 and <=516))
+                actions.Add(new($"hotseat:name:{field.Id-508}:<name>",$"Имя игрока {field.Id-508}: строчные буквы и пробелы; сейчас «{field.Text}»"));
             if(items.Any(i=>i.Id==519&&i.Interactive))actions.Add(new("hotseat:accept","Готово: играть с этими именами (сколько имён — столько людей)"));
             if(items.Any(i=>i.Id==520&&i.Interactive))actions.Add(new("hotseat:cancel","Отмена — назад к выбору сетевой игры"));
         }
@@ -481,10 +483,11 @@ internal static class ScreenActions
             // The town list works like the hero list: each place holds the town the player's own
             // list puts there, and the town is asked for by its name.
             var owned=GameReader.SidebarTowns(game,player);
-            for(int slot=0;slot<owned.Length&&slot<5;slot++)
+            var portraits=items.Where(i=>i.Asset=="itpa.def").OrderBy(i=>i.Y).ToArray();
+            for(int slot=0;slot<owned.Length&&slot<portraits.Length;slot++)
             {
                 var town=towns.FirstOrDefault(t=>t.Id==owned[slot]);
-                if(town is null||items.All(i=>i.Id!=32+slot))continue;
+                if(town is null||!portraits[slot].Interactive)continue;
                 actions.Add(new($"town:open:{town.Name}",$"Открыть город {town.Name} (место {slot+1} в списке городов справа)"));
             }
         }
