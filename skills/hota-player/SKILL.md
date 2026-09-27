@@ -47,6 +47,8 @@ the full text of every description; this is the map.
   and `state`, without reading the opponent's actions. Call it again if the result is `waiting`,
   then call `observe` when `yourTurn` is true. With `Privacy=competitive`, an opponent's turn
   makes `observe` return only a `waiting` marker. Allied turns remain available through `ally_log`.
+  `menu` means no active party; `waiting_for_game` means no attached game. Neither means an
+  opponent is playing. Your colour's hotseat handover also counts as your turn: accept its message.
 - `nearby_targets` — recognised visible objects near the selected hero, by stable id.
 - `inspect_target` — makes the game compute the route to one destination and returns cost, steps and
   a state with a reason. Route data in `nearby_targets` is a stale cache; this is the live answer.
@@ -95,7 +97,8 @@ yesterday.
    say so in the plan and replace it — an active task nobody can finish is how a game stalls.
 3. **Town first.** One building per day per town, and with two towns the screen shows one of them
    — the briefing names which. On the first day of a week also recruit: growth appears that morning
-   and is lost if the week turns without it. Recruit from the **fort** (`town:building:7`, or `:8` / `:9` once it is rebuilt into a citadel or castle — the town briefing names the key →
+   and adds to the unbought town stock, which remains available on later days and weeks.
+   Recruit from the **fort** (`town:building:7`, or `:8` / `:9` once it is rebuilt into a citadel or castle — the town briefing names the key →
    `fort:recruit:<уровень>`), never dwelling by dwelling: the fort screen lists every tier at once
    with what each dwelling has in stock, and says which dwellings are still missing — so one screen
    answers what to hire and what to build next. In the hall, **green is what can be built now**,
@@ -221,8 +224,8 @@ three things to do tomorrow. Keep it short enough to read in one glance.
 1. **Roster.** Who do I have, where, with how much movement, and what is idle. Troops sitting in a
    garrison are an army you are not using.
 2. **Town.** One building per day per town — decide which, and buy it early so the day is not lost.
-   Creature growth arrives on the first day of a week, so that is the day to recruit; on other days
-   the dwellings answer "Доступно 0" and that is normal, not a failure.
+   Creature growth arrives on the first day of a week. Unbought town stock stays available;
+   "Доступно 0" means the stock was exhausted, not simply that today is not the first day.
 3. **Main hero.** Spend movement on what grows strength: guarded objects worth the loss, unguarded
    bonuses on the way, terrain that opens new map.
 4. **Secondary hero.** A hero with a token army is not useless — he collects resources, flags mines,
@@ -347,6 +350,12 @@ candidates, structured content of world view / puzzle / thieves guild, town sieg
 - **Loading.** From the main menu: `menu:load` → `menu:single` → `load:open:<folder>` →
   `load:select:<row>` → `load:confirm`. Verify the loaded party by date, hero and resources — never
   by "the screen changed", because loading the current state looks like nothing happened.
+- **Hotseat names.** On `hotseat_names`, set each human slot with `hotseat:name:<slot>:<name>`
+  before `hotseat:accept`. Names support the game's keyboard layout, lowercase letters and spaces;
+  the bridge verifies the displayed text before reporting success.
+- **Recovery only.** `session:restart`, when offered on a public hotseat handover, forcibly closes
+  the game without saving and launches it again. Unsaved progress is lost. Use only for recovery
+  the user authorized, never as a routine response to waiting, a stale revision or a missing action.
 - **Dialog buttons** are ordinary dialog controls, activated by an addressed window mouse event
   inside the control's own reported bounds, computed by the adapter from UI structures. Do not use
   vtable substitution for them (it closes HD Mod dialogs without running the action, and crashed map
