@@ -29,6 +29,12 @@ public sealed class GameTools(IGameEndpoint endpoint)
         +"For the reference rules use hota_docs; for one control's card use inspect_element.")]
     public Task<Observation> Observe(CancellationToken cancellationToken)=>endpoint.Observe(cancellationToken);
 
+    [McpServerTool(Title="Wait for your turn",ReadOnly=true,Destructive=false,Idempotent=true,OpenWorld=false),
+     Description("Waits for the configured player's human turn, checking only the active colour. Returns yourTurn and state; no opponent actions, map, resources or summary are read or returned. Each call waits at most 60 seconds and can be cancelled. Use observe after yourTurn becomes true.")]
+    public Task<TurnWaitResult> WaitForTurn(
+        [Description("Maximum wait in seconds, 0 to 60; default 30.")] int timeoutSeconds=30,
+        CancellationToken cancellationToken=default)=>endpoint.WaitForTurn(timeoutSeconds,cancellationToken);
+
     [McpServerTool(Title="List this bridge's tools",ReadOnly=true,Destructive=false,Idempotent=true,OpenWorld=false),
      Description("Lists every tool this server offers with its group and its safety class, built from the registered tools "
         +"themselves so it cannot drift from reality. Groups: state (what you have and where), look (the cards a player reads "
@@ -389,7 +395,7 @@ public sealed class GameTools(IGameEndpoint endpoint)
     /// what the server actually offers the way a hand-written list does.
     private static readonly (string Prefix,string Group)[] Groups=
     [
-        ("hota_tools","state"),("game_status","state"),("observe","state"),("nearby_targets","state"),("inspect_target","state"),("inspect_path","state"),
+        ("hota_tools","state"),("game_status","state"),("observe","state"),("wait_for_turn","state"),("nearby_targets","state"),("inspect_target","state"),("inspect_path","state"),
         ("read_map","state"),("read_journal","state"),("ally_log","state"),("plan","state"),("mark","state"),
         ("inspect_cell","look"),("inspect_element","look"),("inspect_tile","look"),
         ("act","act"),("click_ui","act"),("move_to","act"),("move_to_tile","act"),

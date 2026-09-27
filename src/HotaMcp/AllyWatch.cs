@@ -25,6 +25,7 @@ internal sealed class AllyWatch(WindowsGame game,int player,string root)
     private State? committed;
     private int lastActive=-1;
     private int[]? turnResources;
+    private int[]? latestResources;
     private int[] turnDate=[];
     /// Objects seen around the ally's heroes, by cell, so a hero arriving on a cell can be said to
     /// have reached what stood there, and an object gone from the map can be named.
@@ -45,18 +46,20 @@ internal sealed class AllyWatch(WindowsGame game,int player,string root)
         var allies=Allies(main);
         if(active!=lastActive)
         {
-            if(lastActive>=0)TurnEnded(main,lastActive,allies,screen);
+            if(lastActive>=0)TurnEnded(main,lastActive,allies,active);
             // A restart of the service in the middle of the ally's turn must not open it twice.
             if(allies.Contains(active)&&!(lastActive<0&&LastTurnMark()==$"— ход {Of[active]} начался"))
             {
                 Append(active,Date(main),"turn",$"— ход {Of[active]} начался");
                 turnResources=Resources(main,active);
+                latestResources=turnResources;
                 turnDate=Date(main);
             }
             if(allies.Contains(active)){turnResources??=Resources(main,active);if(turnDate.Length==0)turnDate=Date(main);}
             lastActive=active;pendingKey=committedKey=null;committed=null;seen.Clear();
         }
         if(!allies.Contains(active))return;
+        latestResources=Resources(main,active);
         var now=Read(main,allies,screen==0x63d528);
         string key=JsonSerializer.Serialize(now);
         // A hero on the move is read between two steps; only a state that held for two reads in a
@@ -69,14 +72,17 @@ internal sealed class AllyWatch(WindowsGame game,int player,string root)
         committed=now;committedKey=key;
     }
 
-    private void TurnEnded(uint main,int colour,List<int> allies,uint screen)
+    private void TurnEnded(uint main,int colour,List<int> allies,int nextColour)
     {
         if(colour==player){Append(colour,Date(main),"own_end","— твой ход закончен");return;}
         if(!allies.Contains(colour))return;
         int[] date=turnDate.Length==3?turnDate:Date(main);
         // The last step of the turn may not have held for two reads before the turn passed; the
         // state at hand-over is final, so it is taken as it is.
-        if(committed is not null)
+        // A delayed poll can arrive after the opponent has already acted. In that case use only
+        // snapshots taken on the ally's turn, not state read during the opponent's turn.
+        bool friendlyHandoff=nextColour==player||allies.Contains(nextColour);
+        if(friendlyHandoff&&committed is not null)
         {
             var last=Read(main,allies,false);
             foreach(string line in Diff(committed,last))Append(colour,date,"event",line);
@@ -84,23 +90,22 @@ internal sealed class AllyWatch(WindowsGame game,int player,string root)
         }
         if(turnResources is not null)
         {
-            int[] after=Resources(main,colour);
+            int[] after=friendlyHandoff?Resources(main,colour):latestResources??turnResources;
             var change=Enumerable.Range(0,7).Where(i=>after[i]!=turnResources[i])
                 .Select(i=>$"{ResourceNames[i]} {after[i]-turnResources[i]:+#;-#}").ToList();
             if(change.Count>0)Append(colour,date,"event",$"ресурсы за ход: {string.Join(", ",change)}");
         }
         Append(colour,date,"turn",$"— ход {Of[colour]} окончен");
-        turnResources=null;turnDate=[];
+        turnResources=latestResources=null;turnDate=[];
     }
 
     private List<int> Allies(uint main)
     {
         byte[] header=game.Read(main+0x1f86c+0xc,0x14);
         var allies=new List<int>();
-        if(header[0] is 0 or >8||header[1+player]>7)return allies;
         for(int colour=0;colour<8;colour++)
         {
-            if(colour==player||header[1+colour]!=header[1+player])continue;
+            if(!TeamRelations.AreAllies(header,player,colour))continue;
             byte[] record=game.Read(main+0x20ad0+(uint)colour*0x168,0x40);
             if(record[1]==0&&record[0x3e]==0)continue;
             allies.Add(colour);
@@ -302,6 +307,6 @@ internal sealed class AllyWatch(WindowsGame game,int player,string root)
     public void Archive(string stamp)
     {
         if(File.Exists(LogFile))File.Move(LogFile,Path.Combine(root,$"ally-log-player{player}-{stamp}.jsonl"));
-        lastActive=-1;committed=null;pendingKey=committedKey=null;seen.Clear();turnResources=null;
+        lastActive=-1;committed=null;pendingKey=committedKey=null;seen.Clear();turnResources=latestResources=null;
     }
 }

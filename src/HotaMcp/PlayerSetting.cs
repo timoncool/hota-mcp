@@ -31,4 +31,18 @@ internal static class PlayerSetting
         var line=File.ReadAllLines(file).Select(l=>l.Trim()).FirstOrDefault(l=>l.StartsWith("Player=",StringComparison.OrdinalIgnoreCase));
         return line is null?0:Parse(line["Player=".Length..]);
     }
+
+    public static bool Competitive(string directory)
+    {
+        string file=Path.Combine(directory,"settings.ini");
+        if(!File.Exists(file))return false;
+        var line=File.ReadAllLines(file).Select(l=>l.Trim())
+            .FirstOrDefault(l=>l.StartsWith("Privacy=",StringComparison.OrdinalIgnoreCase));
+        return line?["Privacy=".Length..].Trim().ToLowerInvariant() switch
+        {
+            null or "standard" => false,
+            "competitive" => true,
+            var value => throw new InvalidOperationException($"Unknown Privacy setting «{value}»: use standard or competitive")
+        };
+    }
 }

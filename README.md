@@ -48,7 +48,7 @@ MCP-сервер, который подключается к **установл�
 
 ## Инструменты MCP
 
-`observe`, `look`, `state`, `read_map`, `read_journal`, `nearby_targets`, `inspect_tile`, `inspect_target`, `inspect_element`, `move_to`, `move_to_tile`, `map_click`, `click_ui`, `attack_target`, `plan`, `mark`, `inspect_path`, `start_game`, `game_status`, `hota_docs`, `hota_reference`, `debug_snapshot`, `diagnostic`.
+Основные инструменты: `observe`, `wait_for_turn`, `nearby_targets`, `inspect_target`, `read_map`, `act`, `move_to`, `move_to_tile`, `attack_target`, `ally_log`, `plan`, `hota_docs`, `hota_reference`. Полный список даёт `hota_tools`.
 
 Навык для агента — [skills/hota-player/SKILL.md](skills/hota-player/SKILL.md).
 
@@ -76,6 +76,11 @@ MCP-сервер, который подключается к **установл�
    план, метки и журнал (тест хотсита одним контроллером). Два контроллера на одной службе —
    каждый называет свой цвет заголовком `X-Hota-Player: 1` (или `blue`; для `--stdio` —
    переменная окружения `HOTA_PLAYER`) и действует только за него: в чужой ход — «не твой ход».
+   Для игры против человека добавьте `Privacy=competitive` и укажите один цвет в `Player=`:
+   во время чужого хода `observe` возвращает только `waiting`, а прямые отладочные чтения
+   отключены. Ходы игроков своей команды по-прежнему доступны через `ally_log`. Инструмент
+   `wait_for_turn` ждёт свой ход до 60 секунд за вызов и возвращает только признак перехода;
+   при ответе `waiting` вызывайте его снова.
 6. Сколько стоила партия: `HotaMcp.exe --usage [--game <id>]` — стоимость в долларах, запросы к
    модели, токены и вызовы моста по дням игры. Стоимость присылает сам Claude Code своей
    телеметрией (OpenTelemetry, событие `api_request` с `cost_usd`); мост принимает её на

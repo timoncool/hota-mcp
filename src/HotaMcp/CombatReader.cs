@@ -50,6 +50,24 @@ public record CombatLogEntry(int Index,string Text);
 
 internal sealed class CombatReader(WindowsGame game,int player)
 {
+    /// A defender can be the current combat actor during an opponent's strategic turn.
+    /// Check ownership before reading the battle, so an enemy stack's turn stays private.
+    public bool OwnActiveStack()
+    {
+        try
+        {
+            uint ui=game.U32(0x6992d0),dialog=ui==0?0:game.U32(ui+0x54);
+            if(dialog==0||game.U32(dialog)!=0x63d528)return false;
+            uint manager=game.U32(0x699420);
+            if(manager==0||game.U32(manager)!=0x63d3e8)return false;
+            int first=game.I32(manager+0x54a8),second=game.I32(manager+0x54ac);
+            int activeSide=game.I32(manager+0x132c0);
+            if(!CombatTurnRules.OwnActor(player,first,second,activeSide))return false;
+            return Read().OwnTurn;
+        }
+        catch(InvalidOperationException){return false;}
+    }
+
     /// Whether this side is one of the two in the battle the game holds — still true while the
     /// result window of that battle is open.
     public bool Participant()

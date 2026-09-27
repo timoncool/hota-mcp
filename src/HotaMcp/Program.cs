@@ -29,7 +29,7 @@ if(stdio)
     // its MCP tab raise the service, instead of requiring a hand-started stack.
     Console.Error.WriteLine(await ServiceBootstrap.EnsureRunning(endpoint,directory,CancellationToken.None));
     string token=File.ReadAllText(tokenFile).Trim();
-    var http=new HttpClient{BaseAddress=new Uri(endpoint.TrimEnd('/')+"/"),Timeout=TimeSpan.FromSeconds(15)};
+    var http=new HttpClient{BaseAddress=new Uri(endpoint.TrimEnd('/')+"/"),Timeout=TimeSpan.FromSeconds(75)};
     http.DefaultRequestHeaders.Authorization=new AuthenticationHeaderValue("Bearer",token);
     // A client playing one colour of a hotseat names it: HOTA_PLAYER=1 or blue.
     if(Environment.GetEnvironmentVariable("HOTA_PLAYER") is {Length:>0} colour)http.DefaultRequestHeaders.Add("X-Hota-Player",colour);
@@ -43,8 +43,12 @@ if(stdio)
 
 int? pid=int.TryParse(Value("--game-pid"),out int configuredPid)?configuredPid:null;
 int player=PlayerSetting.Read(directory,Value("--player"));
+bool competitive=PlayerSetting.Competitive(directory);
+if(competitive&&player==PlayerSetting.EverySide)
+    throw new InvalidOperationException("Privacy=competitive requires Player=one colour, not Player=все");
 if(diagnostic)
 {
+    if(competitive)throw new InvalidOperationException("Diagnostic memory and UI access is disabled in competitive mode");
     using var game=new WindowsGame(pid??Process.GetProcessesByName("h3hota HD").Single().Id);
     using var bridge=new Bridge(game,Math.Max(player,0),Path.Combine(directory,"diagnostic"));
     if(args.Contains("--center-hero"))await game.KeyAsync(0x48,0x23);
@@ -92,7 +96,7 @@ if(launch)
 using var serviceLock=new FileStream(Path.Combine(directory,"service.lock"),FileMode.OpenOrCreate,FileAccess.ReadWrite,FileShare.None);
 int? hostLauncherPid=launch?ServiceBootstrap.OpenLauncher(directory)
     :int.TryParse(Value("--launcher-pid"),out int parsedLauncherPid)?parsedLauncherPid:null;
-using var session=new GameSession(pid,player,directory,hostLauncherPid);
+using var session=new GameSession(pid,player,directory,hostLauncherPid,competitive);
 // Remember where the launcher lives so a later cold start can raise this same service again.
 if(hostLauncherPid is int knownLauncher)
     try{ServiceBootstrap.RememberLauncher(directory,Process.GetProcessById(knownLauncher).MainModule!.FileName);}
@@ -152,6 +156,7 @@ app.MapPost("/bridge/status",(CancellationToken ct)=>session.Status(ct));
 app.MapPost("/bridge/start",(CancellationToken ct)=>session.Start(ct));
 app.MapPost("/bridge/graphics",(GraphicsRequest request,CancellationToken ct)=>session.Graphics(request.Renderer,ct));
 app.MapPost("/bridge/observe",(CancellationToken ct)=>session.Observe(ct));
+app.MapPost("/bridge/wait-turn",(TurnWaitRequest request,CancellationToken ct)=>session.WaitForTurn(request.TimeoutSeconds,ct));
 app.MapPost("/bridge/debug-capture",(CancellationToken ct)=>session.Capture(ct));
 app.MapPost("/bridge/debug-snapshot",(CancellationToken ct)=>session.Snapshot(ct));
 app.MapPost("/bridge/click",(OperationRequest request,CancellationToken ct)=>session.Click(request,ct));
@@ -220,6 +225,7 @@ record DocsReadRequest(string Path,string? Heading,int Offset,int MaxChars);
 record DocsCatalogRequest(string? Path);
 record MapRequest(int X,int Y,int Z,int Radius);
 record MiniMapRequest(int Z);
+record TurnWaitRequest(int TimeoutSeconds);
 record TileRequest(int X,int Y,int Z,string Revision);
 
 /// Tool answers are read by a model: Cyrillic escaped as \uXXXX costs six characters a letter and

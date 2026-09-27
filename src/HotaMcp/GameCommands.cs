@@ -270,7 +270,7 @@ internal static class Deliveries
             var overlays = context.Reader.Overlays();
             var pick = free.Where(p => !overlays.Any(o => p.X >= o.X && p.X < o.X + o.W && p.Y >= o.Y && p.Y < o.Y + o.H))
                 .OrderByDescending(p => (p.X - centre.X) * (toward.X - centre.X) + (p.Y - centre.Y) * (toward.Y - centre.Y))
-                .Cast<(int X, int Y)?>().FirstOrDefault()
+                .Select(p => ((int X, int Y)?)p).FirstOrDefault()
                 ?? throw new InvalidOperationException("Цель целиком закрыта панелью характеристик — щелчок по ней не дойдёт");
             to = pick;
             await context.Game.MouseAsync(to.X, to.Y, context.Before.Width, context.Before.Height, false, ct);

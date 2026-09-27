@@ -35,7 +35,7 @@ wrong.
 
 ## Everything the bridge gives you
 
-Twenty-three tools, in four groups. `docs/knowledge/agent/01-tools.md` holds the generated list with
+Tools in four groups. `docs/knowledge/agent/01-tools.md` holds the generated list with
 the full text of every description; this is the map.
 
 **Knowing the state**
@@ -43,6 +43,10 @@ the full text of every description; this is the map.
 - `observe` — the whole state of your side plus the revision every action needs: date, resources,
   every hero you own, every town with its garrison and whether today's building is spent, the active
   screen, its controls and the legal actions. This is the one call you cannot skip.
+- `wait_for_turn` — wait up to 60 seconds for your configured colour. It returns only `yourTurn`
+  and `state`, without reading the opponent's actions. Call it again if the result is `waiting`,
+  then call `observe` when `yourTurn` is true. With `Privacy=competitive`, an opponent's turn
+  makes `observe` return only a `waiting` marker. Allied turns remain available through `ally_log`.
 - `nearby_targets` — recognised visible objects near the selected hero, by stable id.
 - `inspect_target` — makes the game compute the route to one destination and returns cost, steps and
   a state with a reason. Route data in `nearby_targets` is a stale cache; this is the live answer.
@@ -110,7 +114,8 @@ yesterday.
    a hero who should be walking toward tomorrow's target.
 7. **Close the day.** Rewrite the plan — state, roles, active task with its deadline, queue, one
    compressed line of what was done — then `turn:end`. The game asks for confirmation while
-   movement remains; that question is a reminder, not an error.
+   movement remains; that question is a reminder, not an error. While another side plays,
+   use `wait_for_turn` and keep waiting until your colour becomes active.
 
 ## What to do with what breaks
 

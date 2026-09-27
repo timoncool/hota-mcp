@@ -38,6 +38,7 @@ public sealed record KeyRequest(int Key,int Scan,bool Control);
 public sealed record PressRequest(int X,int Y);
 public sealed record CellCard(int X,int Y,int Z,string[] Card,Observation Observation);
 public sealed record ElementCard(string Element,string? Hint,string[] Card,Observation Observation);
+public sealed record TurnWaitResult(bool YourTurn,string State);
 
 internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) : IDisposable
 {
@@ -136,6 +137,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
         Directory.GetParent(stateDirectory)?.Parent?.FullName??stateDirectory,$"plan-player{player}.txt");
 
     public int Player=>player;
+    public bool OwnTurn=>GameReader.ActiveHuman(game)==player||new CombatReader(game,player).OwnActiveStack();
 
     /// The game belongs to whoever attached it; several bridges may share one.
     public void Dispose()=>gate.Dispose();
@@ -1707,6 +1709,7 @@ public interface IGameEndpoint
     Task<object> Graphics(string? renderer,CancellationToken ct);
     Task<CaptureResult> Capture(CancellationToken ct);
     Task<object> Status(CancellationToken ct);
+    Task<TurnWaitResult> WaitForTurn(int timeoutSeconds,CancellationToken ct);
     Task<Observation> Observe(CancellationToken ct);
     Task<OperationResult> Click(OperationRequest request,CancellationToken ct);
     Task<OperationResult> EnterText(TextRequest request,CancellationToken ct);
@@ -1745,6 +1748,18 @@ internal sealed class LocalEndpoint(Bridge bridge) : IGameEndpoint
     public Task<object> Graphics(string? renderer,CancellationToken ct)=>throw new InvalidOperationException("Launcher host required");
     public Task<CaptureResult> Capture(CancellationToken ct)=>bridge.Capture(ct);
     public Task<object> Status(CancellationToken ct)=>Task.FromResult(bridge.Status());
+    public async Task<TurnWaitResult> WaitForTurn(int timeoutSeconds,CancellationToken ct)
+    {
+        if(timeoutSeconds is <0 or >60)throw new InvalidOperationException("Use 0 to 60 seconds");
+        var deadline=System.Diagnostics.Stopwatch.StartNew();
+        do
+        {
+            if(bridge.OwnTurn)return new(true,"your_turn");
+            var remaining=TimeSpan.FromSeconds(timeoutSeconds)-deadline.Elapsed;
+            if(remaining<=TimeSpan.Zero)return new(false,"waiting");
+            await Task.Delay(remaining<TimeSpan.FromMilliseconds(500)?remaining:TimeSpan.FromMilliseconds(500),ct);
+        }while(true);
+    }
     public Task<Observation> Observe(CancellationToken ct)=>bridge.Observe(ct);
     public Task<OperationResult> Click(OperationRequest request,CancellationToken ct)=>bridge.Click(request,ct);
     public Task<OperationResult> EnterText(TextRequest request,CancellationToken ct)=>bridge.EnterText(request,ct);
@@ -1803,6 +1818,7 @@ internal sealed class RemoteEndpoint(HttpClient client) : IGameEndpoint
     public Task<object> Graphics(string? renderer,CancellationToken ct)=>Call<object>("bridge/graphics",new{renderer},ct);
     public Task<CaptureResult> Capture(CancellationToken ct)=>Call<CaptureResult>("bridge/debug-capture",new{},ct);
     public Task<object> Status(CancellationToken ct)=>Call<object>("bridge/status",new{},ct);
+    public Task<TurnWaitResult> WaitForTurn(int timeoutSeconds,CancellationToken ct)=>Call<TurnWaitResult>("bridge/wait-turn",new{timeoutSeconds},ct);
     public Task<Observation> Observe(CancellationToken ct)=>Call<Observation>("bridge/observe",new{},ct);
     public Task<OperationResult> Click(OperationRequest request,CancellationToken ct)=>Call<OperationResult>("bridge/click",request,ct);
     public Task<OperationResult> EnterText(TextRequest request,CancellationToken ct)=>Call<OperationResult>("bridge/text",request,ct);
