@@ -14,6 +14,37 @@ namespace HotaMcp;
 /// </summary>
 internal static class ServiceBootstrap
 {
+    // Launch through the desktop shell so service lifetime is independent of the MCP host's job.
+    internal static void StartDetached(string executable,string arguments,string directory)
+    {
+        Exception? failure=null;
+        var thread=new Thread(()=>
+        {
+            object? windows=null,desktop=null,view=null,shell=null;
+            try
+            {
+                windows=Activator.CreateInstance(Type.GetTypeFromCLSID(new Guid("9BA05972-F6A8-11CF-A442-00A0C90A8F39"),true)!);
+                object location=0,unused=null!;
+                int window;
+                desktop=((dynamic)windows!).FindWindowSW(ref location,ref unused,8,out window,1);
+                if(desktop is null)throw new InvalidOperationException("The Windows desktop shell is not available");
+                view=((dynamic)desktop).Document;
+                shell=((dynamic)view!).Application;
+                ((dynamic)shell!).ShellExecute(executable,arguments,directory,"open",0);
+            }
+            catch(Exception e){failure=e;}
+            finally
+            {
+                foreach(var value in new[]{shell,view,desktop,windows})
+                    if(value is not null&&Marshal.IsComObject(value))Marshal.ReleaseComObject(value);
+            }
+        });
+        thread.SetApartmentState(ApartmentState.STA);
+        thread.Start();
+        thread.Join();
+        if(failure is not null)throw new InvalidOperationException("Could not launch HotA through the Windows desktop shell",failure);
+    }
+
     private static string InstallFile(string stateDirectory)=>Path.Combine(stateDirectory,"install.ini");
 
     /// Records where the launcher lives, so a cold start does not have to guess.
@@ -81,11 +112,7 @@ internal static class ServiceBootstrap
     {
         string tokenFile=Path.Combine(stateDirectory,"connection.token");
         if(await Answers(endpoint,tokenFile,ct))return "already_running";
-        var start=new ProcessStartInfo(Path.Combine(AppContext.BaseDirectory,"HotaMcp.exe"))
-            {UseShellExecute=false,CreateNoWindow=true,WorkingDirectory=AppContext.BaseDirectory};
-        start.ArgumentList.Add("--launch");
-        using(var started=Process.Start(start))
-            if(started is null)throw new InvalidOperationException("Could not start HotaMcp --launch");
+        StartDetached(Path.Combine(AppContext.BaseDirectory,"HotaMcp.exe"),"--launch",AppContext.BaseDirectory);
         for(int attempt=0;attempt<120;attempt++)
         {
             await Task.Delay(500,ct);

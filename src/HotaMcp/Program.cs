@@ -28,14 +28,14 @@ if(stdio)
     // A client may connect before anything is running. Bring the player's own launcher up and let
     // its MCP tab raise the service, instead of requiring a hand-started stack.
     Console.Error.WriteLine(await ServiceBootstrap.EnsureRunning(endpoint,directory,CancellationToken.None));
-    string token=File.ReadAllText(tokenFile).Trim();
     var http=new HttpClient{BaseAddress=new Uri(endpoint.TrimEnd('/')+"/"),Timeout=TimeSpan.FromSeconds(75)};
-    http.DefaultRequestHeaders.Authorization=new AuthenticationHeaderValue("Bearer",token);
     // A client playing one colour of a hotseat names it: HOTA_PLAYER=1 or blue.
     if(Environment.GetEnvironmentVariable("HOTA_PLAYER") is {Length:>0} colour)http.DefaultRequestHeaders.Add("X-Hota-Player",colour);
     var host=Host.CreateApplicationBuilder();
     host.Logging.ClearProviders();host.Logging.AddConsole(o=>o.LogToStandardErrorThreshold=LogLevel.Trace);
-    host.Services.AddSingleton<IGameEndpoint>(new RemoteEndpoint(http));
+    host.Services.AddSingleton<IGameEndpoint>(new RemoteEndpoint(http,
+        ()=>File.ReadAllText(tokenFile).Trim(),
+        async ct=>{await ServiceBootstrap.EnsureRunning(endpoint,directory,ct);}));
     host.Services.AddMcpServer(o=>o.ServerInstructions=ServerInstructions.Text).WithStdioServerTransport().WithTools<GameTools>(ToolJson.Options)
         .WithRequestFilters(f=>f.AddCallToolFilter(ToolErrors.Filter));
     await host.Build().RunAsync();return;
@@ -101,7 +101,10 @@ using var session=new GameSession(pid,player,directory,hostLauncherPid,competiti
 if(hostLauncherPid is int knownLauncher)
     try{ServiceBootstrap.RememberLauncher(directory,Process.GetProcessById(knownLauncher).MainModule!.FileName);}
     catch(Exception e)when(e is InvalidOperationException or System.ComponentModel.Win32Exception or ArgumentException){}
-string secret=Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
+// The local connection credential survives service restarts, including connected older clients.
+string secret=File.Exists(tokenFile)?File.ReadAllText(tokenFile).Trim():Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
+if(secret.Length!=64||!secret.All(Uri.IsHexDigit))
+    throw new InvalidOperationException("Invalid local connection.token; expected a 32-byte hexadecimal credential");
 // Starts as an owner-local development service; per-player credentials are added with hotseat.
 var builder=WebApplication.CreateBuilder();
 builder.Configuration["AllowedHosts"]="127.0.0.1;localhost;[::1]";
@@ -110,7 +113,7 @@ builder.Services.AddSingleton<IGameEndpoint>(session);
 builder.Services.AddMcpServer(o=>o.ServerInstructions=ServerInstructions.Text).WithHttpTransport(o=>o.SessionMode=HttpServerSessionMode.StatefulForInitializeClients).WithTools<GameTools>(ToolJson.Options).WithResources<GameResources>()
     .WithRequestFilters(f=>f.AddCallToolFilter(ToolErrors.Filter));
 var app=builder.Build();
-// Claude Code's own telemetry (OTLP/HTTP JSON logs) cannot carry the per-start secret; it only
+// Claude Code's own telemetry (OTLP/HTTP JSON logs) cannot carry the local secret; it only
 // files costs, and the service listens on loopback alone.
 app.MapPost("/v1/logs",async(HttpContext context)=>
 {

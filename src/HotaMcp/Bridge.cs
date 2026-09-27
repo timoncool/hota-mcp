@@ -1,4 +1,6 @@
 using System.Text.Json;
+using System.Net.Http.Headers;
+using System.Net.Http.Json;
 
 namespace HotaMcp;
 
@@ -1802,11 +1804,63 @@ internal sealed class LocalEndpoint(Bridge bridge) : IGameEndpoint
     public Task<RouteView> InspectPath(int x,int y,int z,string revision,CancellationToken ct)=>bridge.InspectPath(x,y,z,revision,ct);
 }
 
-internal sealed class RemoteEndpoint(HttpClient client) : IGameEndpoint
+internal sealed class RemoteEndpoint(HttpClient client,Func<string> readToken,Func<CancellationToken,Task> restoreService) : IGameEndpoint
 {
-    private async Task<T> Call<T>(string route,object body,CancellationToken ct)
+    private static readonly HashSet<string> ReadOnlyRoutes=[
+        "bridge/status","bridge/wait-turn","bridge/observe","bridge/inspect-element","bridge/inspect-cell",
+        "bridge/journal","bridge/ally-log","bridge/map","bridge/minimap","bridge/inspect",
+        "bridge/nearby","bridge/docs","bridge/docs-catalog","bridge/docs-read","bridge/reference",
+        "bridge/target","bridge/path"];
+
+    private string Token()
     {
-        using var response=await client.PostAsJsonAsync(route,body,ct);
+        string token;
+        try{token=readToken();}
+        catch(IOException e){throw new InvalidOperationException("HotA connection token is unavailable; reconnect the local HotA service",e);}
+        if(string.IsNullOrWhiteSpace(token))throw new InvalidOperationException("HotA connection token is empty; reconnect the local HotA service");
+        return token;
+    }
+
+    private async Task<HttpResponseMessage> Send(string route,object body,string token,CancellationToken ct)
+    {
+        using var request=new HttpRequestMessage(HttpMethod.Post,route){Content=JsonContent.Create(body)};
+        request.Headers.Authorization=new AuthenticationHeaderValue("Bearer",token);
+        return await client.SendAsync(request,ct);
+    }
+
+    private async Task<T> Call<T>(string route,object body,CancellationToken ct,bool safeRetry=false)
+    {
+        bool readOnly=ReadOnlyRoutes.Contains(route)||safeRetry;
+        string token=Token();
+        HttpResponseMessage response;
+        try{response=await Send(route,body,token,ct);}
+        catch(HttpRequestException) when(readOnly)
+        {
+            await restoreService(ct);
+            response=await Send(route,body,Token(),ct);
+        }
+        catch(HttpRequestException e)
+        {
+            throw new InvalidOperationException("HotA service connection failed. Action outcome is unknown; observe before retrying with the same operationId.",e);
+        }
+        using(response)
+        {
+            if(response.StatusCode==System.Net.HttpStatusCode.Unauthorized)
+            {
+                string latest=Token();
+                if(readOnly&&latest!=token)
+                {
+                    using var retried=await Send(route,body,latest,ct);
+                    return await Read<T>(retried,ct);
+                }
+                throw new InvalidOperationException("HotA service rejected its connection token. Reconnect the local HotA service; do not repeat an action with a new operationId.");
+            }
+            return await Read<T>(response,ct);
+        }
+    }
+
+    private static async Task<T> Read<T>(HttpResponseMessage response,CancellationToken ct)
+    {
         if(!response.IsSuccessStatusCode)
         {
             string reply=await response.Content.ReadAsStringAsync(ct);
@@ -1821,6 +1875,7 @@ internal sealed class RemoteEndpoint(HttpClient client) : IGameEndpoint
                 }
             }
             catch(JsonException){}
+            if(string.IsNullOrWhiteSpace(message))message=$"HotA service returned HTTP {(int)response.StatusCode} ({response.ReasonPhrase})";
             throw code is null?new InvalidOperationException(message):new ActionRefused(code,message);
         }
         return (await response.Content.ReadFromJsonAsync<T>(cancellationToken:ct))!;
@@ -1846,7 +1901,7 @@ internal sealed class RemoteEndpoint(HttpClient client) : IGameEndpoint
     public Task<object> PressRight(PressRequest request,CancellationToken ct)=>Call<object>("bridge/press-right",request,ct);
     public Task<object> Journal(int limit,CancellationToken ct)=>Call<object>("bridge/journal",new{limit},ct);
     public Task<object> AllyLog(int limit,CancellationToken ct)=>Call<object>("bridge/ally-log",new{limit},ct);
-    public Task<object> Plan(string? value,CancellationToken ct)=>Call<object>("bridge/plan",new{value},ct);
+    public Task<object> Plan(string? value,CancellationToken ct)=>Call<object>("bridge/plan",new{value},ct,safeRetry:value is null);
     public Task<object> Mark(int x,int y,int z,string? note,CancellationToken ct)=>Call<object>("bridge/mark",new{x,y,z,note},ct);
     public Task<MapView> ReadMap(int x,int y,int z,int radius,CancellationToken ct)=>Call<MapView>("bridge/map",new{x,y,z,radius},ct);
     public Task<MiniMapView> ReadMiniMap(int z,CancellationToken ct)=>Call<MiniMapView>("bridge/minimap",new{z},ct);
