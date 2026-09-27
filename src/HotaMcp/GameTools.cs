@@ -77,6 +77,9 @@ public sealed class GameTools(IGameEndpoint endpoint)
         +"lays no path, the reason names what shuts the way — a wandering stack with its cell, a garrison, a border gate, "
         +"another hero — or says there is no explored land way; LockedBehind groups the targets one fight opens. "
         +"A mine carries the colour of its flag (yours, an ally's — leave it, an enemy's or nobody's — take it). "
+        +"For visitable objects, VisitState is visited or not_visited only when the game's hint explicitly marks it "
+        +"for the selected hero. Unknown means the object is off screen or its hint has no visit marker: use inspect_tile "
+        +"on that cell before spending movement. The list does not move the camera. "
         +"Does NOT choose targets or move the hero. Object coverage is not exhaustive and hidden objects are never reported, "
         +"so an absent target is not proof of an empty map.")]
     public Task<NearbyTargets> NearbyTargets(CancellationToken cancellationToken)=>endpoint.Nearby(cancellationToken);

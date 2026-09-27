@@ -109,7 +109,9 @@ yesterday.
    already discovered, including what lies outside the hero's sight — `nearby_targets` only covers
    what he can see now. Before sending him anywhere, `inspect_tile` the target: the game's hint
    ends in «(Посещено)» for a shrine, a warehouse or a weekly object already taken, and a walk
-   there is a wasted day. `nearby_targets` does not carry that mark.
+   there is a wasted day. `nearby_targets` carries `VisitState` for visitable objects: `visited` and
+   `not_visited` come from the game's exact hint; `unknown` means use `inspect_tile` on that cell
+   before spending movement. The list does not move the camera to inspect off-screen objects.
 6. **Spend what is left.** Movement does not carry over. A hero with movement and nothing to do is
    a hero who should be walking toward tomorrow's target.
 7. **Close the day.** Rewrite the plan — state, roles, active task with its deadline, queue, one

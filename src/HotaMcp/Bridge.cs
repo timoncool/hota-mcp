@@ -10,6 +10,8 @@ public sealed record TargetView(string Id,string Kind,RouteView Route,int X=0,in
     /// What stands there in the words the game uses: «Троглодит (бродячий отряд)», «Рудник»,
     /// «Тайник Бесов», «ресурс: сера» — the same name the map reader gives the cell.
     public string? Name {get;init;}
+    /// Per selected hero: visited, not_visited, unknown; null for objects without a visit mark.
+    public string? VisitState {get;init;}
 }
 public sealed record NearbyTargets(string Revision,int HeroId,int Movement,List<TargetView> Targets,string Coverage)
 {
@@ -480,15 +482,21 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
                 // Stacks, piles, heroes and towns carry no visited mark; everything else says it
                 // in the status line when pointed at, and that is what a player reads.
                 if(target.Type is 34 or 54 or 79 or 98 or 5)continue;
-                if(await VisitedMark(target.X,target.Y,target.Z) is string mark)
-                    list[i]=list[i] with{Kind=$"{list[i].Kind} ({mark})"};
+                string visit=await VisitedMark(target.X,target.Y,target.Z,hero.Id);
+                list[i]=list[i] with{VisitState=visit,Kind=visit switch
+                {
+                    "visited"=>$"{list[i].Kind} (посещено)",
+                    "not_visited"=>$"{list[i].Kind} (не посещено)",
+                    _=>list[i].Kind,
+                }};
             }
             var settled=reader.Observe();
-            if(settled.Hero is null||settled.Screen!="adventure")
+            if(settled.Hero?.Id!=hero.Id||settled.Screen!="adventure"||settled.Side?.Yours!=true)
                 throw new InvalidOperationException("State changed; request targets again");
             return new(settled.Revision,hero.Id,hero.Movement,list,
-                "Посещён ли объект выбранным сейчас героем — спроси inspect_cell по его клетке: игра сама пишет "
-                +"в карточке «(Посещено)», и статус этот свой у каждого героя. "
+                "VisitState относится к выбранному герою: visited/not_visited — точная пометка игры; "
+                +"unknown означает, что пометка не видна в текущем окне. Для такого объекта вызови inspect_tile "
+                +"по его клетке до планирования пути: он наведёт камеру и прочитает строку игры. "
                 +"Recognized visible objects near selected hero; list is not exhaustive. Routes are the game's own, "
                 +"rebuilt before reading when stale; a target the game lays no path to names what shuts the way.")
             {LockedBehind=locked.GroupBy(l=>l.By).Select(g=>$"за охраной {g.Key}: {string.Join(", ",g.Select(l=>l.What))}").ToList()};
@@ -498,24 +506,32 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
 
     /// «Посещено» / «Не посещено» from the status line while the pointer rests on an object the
     /// camera already shows, as the game writes it for the selected hero.
-    private async Task<string?> VisitedMark(int x,int y,int z)
+    private async Task<string> VisitedMark(int x,int y,int z,int heroId)
     {
+        if(GameReader.ActiveHuman(game)!=player)
+            throw new ActionRefused(ActionRefused.NotYourTurn,"Turn changed during target inspection");
         var now=reader.Observe();
+        if(now.Hero?.Id!=heroId||now.Screen!="adventure")
+            throw new InvalidOperationException("Selected hero changed during target inspection");
         var map=new MapReader(game,player);
-        if(!map.IsOnScreen(now,x,y,z))return null;
+        if(!map.IsOnScreen(now,x,y,z))return "unknown";
         var point=map.ScreenPoint(now,x,y,z);
         for(int attempt=0;attempt<5;attempt++)
         {
+            if(GameReader.ActiveHuman(game)!=player)
+                throw new ActionRefused(ActionRefused.NotYourTurn,"Turn changed during target inspection");
             await game.MouseAsync(point.X,point.Y,now.Width,now.Height,false,CancellationToken.None);
             await Task.Delay(120,CancellationToken.None);
             try{map.VerifyMouse(x,y,z);}catch(InvalidOperationException){continue;}
-            string? line=reader.Observe().Elements.FirstOrDefault(e=>e.Id==200)?.Text;
-            if(line is null)return null;
-            if(line.Contains("Не посещено",StringComparison.OrdinalIgnoreCase))return "не посещено";
-            if(line.Contains("Посещено",StringComparison.OrdinalIgnoreCase))return "посещено";
-            return null;
+            if(GameReader.ActiveHuman(game)!=player)
+                throw new ActionRefused(ActionRefused.NotYourTurn,"Turn changed during target inspection");
+            var after=reader.Observe();
+            if(after.Hero?.Id!=heroId||after.Screen!="adventure")
+                throw new InvalidOperationException("Selected hero changed during target inspection");
+            string? line=after.Elements.FirstOrDefault(e=>e.Id==200)?.Text;
+            return VisitStatus.FromHint(line);
         }
-        return null;
+        return "unknown";
     }
 
     /// The colour as it stands in the game's own «Принадлежит <цвет> игроку».

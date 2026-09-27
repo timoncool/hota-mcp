@@ -48,3 +48,11 @@ if(!CombatTurnRules.OwnActor(1,0,1,1)||CombatTurnRules.OwnActor(1,0,1,0)
    ||CombatTurnRules.OwnActor(1,0,2,1)||CombatTurnRules.OwnActor(1,0,1,-1))
     throw new Exception("Defender combat actor ownership is incorrect");
 Console.WriteLine("PASS defender is allowed only when its own combat side acts");
+
+if(VisitStatus.FromHint("Сад Откровения (Посещено)")!="visited"
+   ||VisitStatus.FromHint("Сад Откровения (Не посещено)")!="not_visited")
+    throw new Exception("Visit status did not follow the selected hero's exact game hint");
+if(VisitStatus.FromHint("Сад Откровения: даруется лишь единожды")!="unknown"
+   ||VisitStatus.FromHint(null)!="unknown")
+    throw new Exception("Unknown visit state was guessed from an object rule or missing hint");
+Console.WriteLine("PASS visit state is explicit only for exact game markers");
