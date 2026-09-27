@@ -141,7 +141,8 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
         Directory.GetParent(stateDirectory)?.Parent?.FullName??stateDirectory,$"plan-player{player}.txt");
 
     public int Player=>player;
-    public bool OwnTurn=>GameReader.ActiveHuman(game)==player||new CombatReader(game,player).OwnActiveStack();
+    public bool InFrontend=>GameReader.InFrontend(game);
+    public bool OwnTurn=>!InFrontend&&(GameReader.ActiveHuman(game)==player||new CombatReader(game,player).OwnActiveStack());
 
     /// The game belongs to whoever attached it; several bridges may share one.
     public void Dispose()=>gate.Dispose();
@@ -1772,6 +1773,7 @@ internal sealed class LocalEndpoint(Bridge bridge) : IGameEndpoint
         var deadline=System.Diagnostics.Stopwatch.StartNew();
         do
         {
+            if(bridge.InFrontend)return new(false,"menu");
             if(bridge.OwnTurn)return new(true,"your_turn");
             var remaining=TimeSpan.FromSeconds(timeoutSeconds)-deadline.Elapsed;
             if(remaining<=TimeSpan.Zero)return new(false,"waiting");

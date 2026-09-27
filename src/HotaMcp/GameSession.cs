@@ -134,7 +134,7 @@ internal sealed class GameSession(int? requestedPid,int player,string directory,
     }
     private bool AnotherTurn()
     {
-        if(game is null||game.U32(0x699538)==0)return false;
+        if(game is null||GameReader.InFrontend(game)||game.U32(0x699538)==0)return false;
         int active=game.I32(0x69ccf4);
         return active is >=0 and <8&&active!=player&&!new CombatReader(game,player).OwnActiveStack();
     }
@@ -191,6 +191,7 @@ internal sealed class GameSession(int? requestedPid,int player,string directory,
             try
             {
                 Refresh();
+                if(game is not null&&GameReader.InFrontend(game))return new(false,"menu");
                 if(game is not null&&(GameReader.ActiveHuman(game)==own
                    ||competitive&&new CombatReader(game,own).OwnActiveStack()))
                     return new(true,"your_turn");

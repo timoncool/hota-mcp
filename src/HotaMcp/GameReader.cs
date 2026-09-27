@@ -468,6 +468,7 @@ internal sealed class GameReader(WindowsGame game,int player)
     /// turn and outside a game.
     public static int? ActiveHuman(WindowsGame game)
     {
+        if(InFrontend(game))return null;
         uint main=game.U32(0x699538);
         int active=game.I32(0x69ccf4);
         if(main==0||active is <0 or >7)return null;
@@ -916,7 +917,15 @@ internal sealed class GameReader(WindowsGame game,int player)
 
     public static bool IsFrontend(uint vtable)=>vtable is 0x63ff60 or 0x63e6d8 or 0x641cbc or 0x6400b0 or 0x6401e8;
 
-    private bool UnderMenu(uint top)
+    public static bool InFrontend(WindowsGame game)
+    {
+        uint manager=game.U32(0x6992d0);
+        if(manager==0)return false;
+        uint top=game.U32(manager+0x54);
+        return top!=0&&(IsFrontend(game.U32(top))||UnderMenu(game,top));
+    }
+
+    private static bool UnderMenu(WindowsGame game,uint top)
     {
         var seen=new HashSet<uint>();
         foreach(int link in new[]{0x8,0xc})
@@ -936,7 +945,7 @@ internal sealed class GameReader(WindowsGame game,int player)
         uint vtable=game.U32(dlg);
         // A popup over the scenario screen — a town grid, the options window, the team agreements —
         // is still before the game: whatever lies under it decides, not the popup's own class.
-        bool frontend=IsFrontend(vtable)||UnderMenu(dlg);
+        bool frontend=IsFrontend(vtable)||UnderMenu(game,dlg);
         int[] resources=[],date=[];HeroView? hero=null;
         // Another player's turn in a shared game: the screen is his, so none of its controls are
         // this side's to read or press, but this side's own state is still its own.
