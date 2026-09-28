@@ -45,7 +45,7 @@ Why: Heroes III is a long-horizon strategy game — economy, scouting, fights, a
 
 ## Quick Start
 
-1. **Install** — download [`HotaMcp-Setup-1.0.1.exe`](https://github.com/timoncool/hota-mcp/releases/latest) and run it (close the HD Launcher first). It finds the game by itself and puts a **«HotA MCP»** shortcut on the desktop.
+1. **Install** — download [`HotaMcp-Setup-1.0.2.exe`](https://github.com/timoncool/hota-mcp/releases/latest) and run it (close the HD Launcher first). It finds the game by itself and puts a **«HotA MCP»** shortcut on the desktop. After that HotA MCP updates itself: started from the shortcut, it offers a new release and installs it into the same folder.
 
 2. **Connect your MCP client** — for Claude Code:
    ```bash

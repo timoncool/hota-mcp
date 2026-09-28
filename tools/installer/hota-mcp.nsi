@@ -41,6 +41,8 @@ VIAddVersionKey /LANG=1049 "FileDescription" "Установщик ${APP}"
 VIAddVersionKey /LANG=1049 "LegalCopyright" "MIT, timoncool"
 
 Var GameDir
+; Set by /UPDATE: the service started this installer for a new release and is exiting.
+Var Updating
 
 !define MUI_ICON "${__FILEDIR__}\..\..\src\HotaMcp\hota-mcp.ico"
 !define MUI_UNICON "${__FILEDIR__}\..\..\src\HotaMcp\hota-mcp.ico"
@@ -100,6 +102,27 @@ FunctionEnd
 !insertmacro RequireClosed ""
 !insertmacro RequireClosed "un."
 
+; An update is started by the service itself, which exits right after; the launcher closes with it.
+Function WaitClosed
+  StrCpy $R2 0
+  wait:
+    nsExec::ExecToStack 'powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "if (Get-Process HD_Launcher,HotaMcp -ErrorAction SilentlyContinue) { exit 1 }"'
+    Pop $0
+    Pop $1
+    ${If} $0 == 0
+      Return
+    ${EndIf}
+    IntOp $R2 $R2 + 1
+    ${If} $R2 < 60
+      Sleep 1000
+      Goto wait
+    ${EndIf}
+  SetErrorLevel 2
+  ; No /SD: the update runs silently, and this is the only place the player learns it stopped.
+  MessageBox MB_OK|MB_ICONSTOP "HD Launcher или служба ${APP} не закрылись за минуту: обновление не установлено. Закройте HD Launcher и запустите ярлык «${APP}» снова."
+  Abort
+FunctionEnd
+
 Function IsGameDir
   ; $R0 = folder; returns 1 in $R1 when the three files of a supported installation are there.
   StrCpy $R1 0
@@ -135,6 +158,12 @@ Function FindOnDrive
 FunctionEnd
 
 Function .onInit
+  ${GetParameters} $0
+  ClearErrors
+  ${GetOptions} $0 "/UPDATE" $1
+  ${IfNot} ${Errors}
+    StrCpy $Updating 1
+  ${EndIf}
   ; Earlier choice, then GOG's own record, then the usual folders on every fixed drive.
   ReadRegStr $GameDir HKCU "${SETTINGS_KEY}" "GameDir"
   StrCpy $R0 $GameDir
@@ -174,7 +203,11 @@ Section "${APP}" SecMain
       SetErrorLevel 2
       Abort "Папка игры не найдена: укажите её при обычной установке."
     ${EndIf}
-    Call RequireClosed
+    ${If} $Updating == 1
+      Call WaitClosed
+    ${Else}
+      Call RequireClosed
+    ${EndIf}
   ${EndIf}
 
   ; The service, its native game adapter and the launcher tab live side by side: the tab starts
@@ -218,6 +251,11 @@ Section "${APP}" SecMain
   WriteRegDWORD HKCU "${UNINSTALL_KEY}" "NoRepair" 1
   ${GetSize} "$INSTDIR" "/S=0K" $0 $1 $2
   WriteRegDWORD HKCU "${UNINSTALL_KEY}" "EstimatedSize" $0
+
+  ; The update replaced the service that asked for it: bring the chain back up as the shortcut would.
+  ${If} $Updating == 1
+    Exec '"$INSTDIR\app\HotaMcp.exe" --launch'
+  ${EndIf}
 SectionEnd
 
 Function un.onInit

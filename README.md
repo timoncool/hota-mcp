@@ -45,7 +45,7 @@ HotA MCP подключает ИИ-агента (Claude, DeepSeek или люб�
 
 ## Быстрый старт
 
-1. **Установить** — скачать [`HotaMcp-Setup-1.0.1.exe`](https://github.com/timoncool/hota-mcp/releases/latest) и запустить (сначала закройте HD Launcher). Игру он найдёт сам и положит ярлык **«HotA MCP»** на рабочий стол.
+1. **Установить** — скачать [`HotaMcp-Setup-1.0.2.exe`](https://github.com/timoncool/hota-mcp/releases/latest) и запустить (сначала закройте HD Launcher). Игру он найдёт сам и положит ярлык **«HotA MCP»** на рабочий стол. Дальше HotA MCP обновляется сама: при запуске ярлыком предлагает новую версию и ставит её в ту же папку.
 
 2. **Подключить MCP-клиент** — для Claude Code:
    ```bash

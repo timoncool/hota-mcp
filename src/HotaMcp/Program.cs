@@ -88,6 +88,18 @@ if(launch)
         await ServiceBootstrap.StartGame(endpoint,tokenFile,CancellationToken.None);
         return;
     }
+    // A newer release is offered before the launcher and the game are up, so no game is interrupted.
+    // A failed check does not stop the start; its reason is kept in update.log.
+    string updateLog=Path.Combine(directory,"update.log");
+    try
+    {
+        var update=await Updater.OfferAsync(CancellationToken.None);
+        File.WriteAllText(updateLog,update.Log);
+        if(update.Started)return;
+    }
+    catch(Exception e)when(e is HttpRequestException or TaskCanceledException or System.Text.Json.JsonException
+        or InvalidOperationException or IOException or KeyNotFoundException or UnauthorizedAccessException)
+    {File.WriteAllText(updateLog,"[ERROR] update check failed: "+e.Message);}
 }
 using var serviceLock=new FileStream(Path.Combine(directory,"service.lock"),FileMode.OpenOrCreate,FileAccess.ReadWrite,FileShare.None);
 int? hostLauncherPid=launch?ServiceBootstrap.OpenLauncher(directory)
