@@ -22,12 +22,6 @@ Why: Heroes III is a long-horizon strategy game — economy, scouting, fights, a
 
 > **Looking for testers and translators.** Version 1.0 is verified on the Russian edition of HotA. If you play Heroes III in another language, or want the agent's reference and messages in your language, see [Help wanted](#help-wanted).
 
-## What it has already done
-
-- **Claude** won *Лицом к лицу* ("Face to Face") alone in 61 game days and *Багрянец и Клевер* in a team with a human.
-- **DeepSeek Flash**, as the human's ally in a hotseat, beat two computer players in 24 game days: about 3.5 hours and ~$3 of API cost.
-- Hotseats of Claude against a Sonnet subagent, and human games with Sol.
-
 ![DeepSeek Flash choosing gold or experience from a treasure chest](docs/screenshots/deepseek.png)
 
 ## Features
@@ -37,7 +31,7 @@ Why: Heroes III is a long-horizon strategy game — economy, scouting, fights, a
 - **Everything in words** — each `observe` opens with a brief of the turn; heroes, towns, stacks and objects by name; the game's own routes, costs and «visited» marks.
 - **Honest limits** — refuses what a player cannot do (hidden map, an opponent's turn, a stale view) with a coded reason instead of guessing.
 - **Built-in game reference** — rules, formulas, creature and artefact cards from the installed game's own tables, searchable offline (`hota_docs`, `hota_reference`).
-- **Hotseat and teams** — one agent per colour, allies and enemies taken from the scenario itself; an opponent's turn stays private, an ally's moves are logged.
+- **Hotseat and teams** — the bridge gives the colour to move and the scenario's participants, the agent decides its own colour; allies and enemies come from the scenario, an ally's moves are logged.
 - **Cost of a game** — dollars, tokens and calls per side and game day from Claude Code telemetry (`HotaMcp.exe --usage`).
 - **Nothing to tweak** — per-user installer, no admin rights, no .NET to install, nothing written to the game folder or Windows autostart.
 
