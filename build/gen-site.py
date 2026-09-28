@@ -43,7 +43,7 @@ T = {
             ("Встроенный справочник", "Правила, формулы, карточки существ и артефактов из таблиц установленной игры. Поиск офлайн — агенту не нужно полагаться на память."),
             ("Хотсит и команды", "Мост передаёт цвет хода и участников сценария, свой цвет агент выбирает сам. Играйте против агента, с ним в команде или столкните двух агентов."),
             ("Стоимость партии", "Доллары, токены и вызовы по сторонам и дням игры из телеметрии Claude Code — видно, во что обходится стратегия каждой модели."),
-            ("Ничего настраивать", "Один установщик, один ярлык. В папку игры и в автозагрузку ничего не пишется, служба слушает только 127.0.0.1."),
+            ("Итог подтверждает игра", "Одно действие — один вызов по ревизии наблюдения: устаревший взгляд отклоняется, повтор безопасен. Итог подтверждает сама игра — сменой экрана, ресурсов, журнала боя."),
         ],
         "look_h": "Партия глазами агента",
         "look_sub": "Агент получает экран структурой: сводку хода, ресурсы, героев, отряды, доступные действия и их подписи. Решает он сам — мост только показывает и нажимает.",
@@ -82,9 +82,7 @@ T = {
         "faq": [
             ("Что нужно для игры?", "Windows 10/11 x64 и ваша легальная копия Heroes of Might and Magic III Complete (GOG) с Horn of the Abyss 1.8.0 и HD Mod — сборка сверяется по хешам файлов. Файлов игры в проекте нет."),
             ("Какие агенты подходят?", "Любой MCP-клиент через stdio или HTTP: Claude Code, Claude Desktop, Codex и другие. Проверено с Claude и DeepSeek. Автобой идёт до 3 минут — поднимите таймаут вызова инструмента в клиенте (у Codex — tool_timeout_sec = 200)."),
-            ("Агент подсматривает туман или ходы противника?", "Нет. Мост отдаёт только то, что видит игрок на экране: туман, чужие армии и планы компьютера закрыты. В хотсите журнал ходов передаётся только союзнику, ходы противника — нет."),
-            ("Можно играть против агента или вместе с ним?", "Да. В хотсите мост в каждом observe сообщает, чей ход, и перечисляет участников сценария с командами. Свой цвет агент выбирает при создании или загрузке партии; скажете «поиграй за меня» — возьмёт ваш. Можно посадить за одну карту двух разных агентов."),
-            ("Это бесплатно? Куда уходят данные?", "Проект бесплатный, лицензия MIT. Служба работает на вашем компьютере и слушает только 127.0.0.1; телеметрия стоимости партии, если включить, тоже уходит только в локальный мост."),
+                                    ("Это бесплатно? Куда уходят данные?", "Проект бесплатный, лицензия MIT. Служба работает на вашем компьютере и слушает только 127.0.0.1; телеметрия стоимости партии, если включить, тоже уходит только в локальный мост."),
             ("Работает ли с игрой не на русском?", "Версия 1.0 проверена на русской HotA 1.8.0: около двух десятков фраз игры мост сверяет по тексту. Если ваша игра на другом языке — расскажите, что не читается, это одна из главных задач следующих версий."),
         ],
         "help_h": "Нужна помощь",
@@ -125,7 +123,7 @@ T = {
             ("Built-in reference", "Rules, formulas, creature and artifact cards from the installed game's own tables. Offline search, so the agent need not rely on memory."),
             ("Hotseat and teams", "The bridge passes the colour to move and the scenario's participants; the agent picks its own colour. Play against an agent, with one on your team, or pit two agents against each other."),
             ("Cost of a game", "Dollars, tokens and calls per side and game day from Claude Code telemetry — see what each model's strategy costs."),
-            ("Nothing to configure", "One installer, one shortcut. Nothing is written to the game folder or to autostart; the service listens on 127.0.0.1 only."),
+            ("The game confirms it", "One action per call, tied to the observation revision: a stale view is refused, a retry is safe. The game itself confirms the outcome — a new screen, resources, battle log."),
         ],
         "look_h": "The game through the agent's eyes",
         "look_sub": "The agent gets the screen as structure: a turn summary, resources, heroes, troops, the actions available and their labels. It makes the decisions — the bridge only shows and presses.",
@@ -164,9 +162,7 @@ T = {
         "faq": [
             ("What do I need?", "Windows 10/11 x64 and your own legal copy of Heroes of Might and Magic III Complete (GOG) with Horn of the Abyss 1.8.0 and HD Mod — the build is checked by file hashes. The project contains no game files."),
             ("Which agents work?", "Any MCP client over stdio or HTTP: Claude Code, Claude Desktop, Codex and others. Tested with Claude and DeepSeek. Auto-combat takes up to 3 minutes — raise the client's tool call timeout (Codex: tool_timeout_sec = 200)."),
-            ("Does the agent peek through the fog or at the opponent's moves?", "No. The bridge gives only what a player sees on the screen: fog, foreign armies and the computer's plans stay hidden. In hotseat the turn log goes to allies only, never to opponents."),
-            ("Can I play against the agent or with it?", "Yes. In hotseat every observe says whose turn it is and lists the scenario's participants with their teams. The agent picks its colour when the game is created or loaded; say “play for me” and it takes yours. Two different agents can share one map."),
-            ("Is it free? Where does my data go?", "The project is free, MIT-licensed. The service runs on your computer and listens on 127.0.0.1 only; game cost telemetry, if you turn it on, also goes only to the local bridge."),
+                                    ("Is it free? Where does my data go?", "The project is free, MIT-licensed. The service runs on your computer and listens on 127.0.0.1 only; game cost telemetry, if you turn it on, also goes only to the local bridge."),
             ("Does it work with a non-Russian game?", "Version 1.0 is verified on the Russian HotA 1.8.0: the bridge matches about twenty game phrases by text. If your game is in another language, tell us what it fails to read — that is one of the main goals of the next versions."),
         ],
         "help_h": "Help wanted",
@@ -196,7 +192,7 @@ EXTRA = {
             ("ti-book-2", "Встроенный справочник", ""),
             ("ti-users-group", "Хотсит и команды", ""),
             ("ti-coins", "Стоимость партии", ""),
-            ("ti-package", "Ничего настраивать", ""),
+            ("ti-circle-check", "Итог подтверждает игра", ""),
         ],
         "log_head": "Журнал Claude · месяц 1, неделя 2, день 4",
         "log": [
@@ -220,7 +216,7 @@ EXTRA = {
             ("ti-book-2", "Built-in reference", ""),
             ("ti-users-group", "Hotseat and teams", ""),
             ("ti-coins", "Cost of a game", ""),
-            ("ti-package", "Nothing to configure", ""),
+            ("ti-circle-check", "The game confirms it", ""),
         ],
         "log_head": "Claude's log · month 1, week 2, day 4",
         "log": [
@@ -236,6 +232,39 @@ EXTRA = {
 }
 for code in T:
     T[code].update(EXTRA[code])
+
+T["ru"].update({
+    "ideas_h": "Идеи и принципы",
+    "ideas_sub": "Всё началось с идеи матчей между разными нейросетями. Цель выросла шире: программный игрок, который занимает место живого — против агента, против человека, в союзе с ним, по просьбе «поиграй за меня» или «развивайся до Капитолия», в полностью автономной партии.",
+    "ideas": [
+        ("Настоящая игра", "Агент играет в установленную у вас HotA, а не в копию или симулятор. Человек смотрит, участвует и в любой момент забирает управление."),
+        ("Как живой игрок", "Действия идут через штатные обработчики интерфейса. Героя не переносят записью координат, покупку не делают правкой ресурсов, исход боя не пишут в память."),
+        ("Без картинок", "Игра читается структурой, без скриншотов и OCR: так партия остаётся точной и недорогой."),
+        ("Честная граница", "Агент знает ровно то, что узнал бы человек за этой стороной. Туман, чужие армии и планы компьютера закрыты; неизвестное — явный статус, а не выдумка."),
+        ("Мост не советчик", "Он передаёт состояние и выполняет решения. Цели, маршрут, бой и свой цвет выбирает агент; справка — отдельный инструмент и в ответы не подмешивается."),
+        ("Команды по смыслу", "Агент называет цель — город, сундук, шахту, отряд — а не пиксели. Геометрия и нажатия — забота моста."),
+        ("Надёжные операции", "Каждое действие привязано к ревизии наблюдения: повтор не купит войска дважды, при неизвестном итоге сначала сверка, а не слепой повтор."),
+        ("Экономия", "Короткая сводка и подробности по запросу; ожидание анимаций и чужих ходов не тратит вызовы модели. Стоимость партии считается по фактическим данным."),
+        ("Любая модель", "Мост не привязан к поставщику: Claude, DeepSeek или любой другой агент с MCP."),
+        ("Весь цикл без подготовки", "От закрытой игры до экрана итогов: запуск, меню, сценарий или случайная карта, партия, сохранение и загрузка — без ручной подготовки."),
+    ],
+})
+T["en"].update({
+    "ideas_h": "Ideas and principles",
+    "ideas_sub": "It started as an idea for matches between different AI models. The goal grew wider: a programmatic player that takes a human's seat — against an agent, against a human, as an ally, on “play for me” or “build up to the Capitol”, or in a fully autonomous game.",
+    "ideas": [
+        ("The real game", "The agent plays your installed HotA, not a copy or a simulator. A human watches, joins in and can take control at any moment."),
+        ("Like a human player", "Actions go through the interface's own handlers. A hero is not moved by writing coordinates, a purchase is not a resource edit, a battle result is not written to memory."),
+        ("No pictures", "The game is read as structure, without screenshots or OCR, which keeps a game exact and cheap."),
+        ("An honest boundary", "The agent knows exactly what a human on that side would. Fog, foreign armies and the computer's plans stay closed; the unknown is an explicit status, not a guess."),
+        ("The bridge is no advisor", "It passes the state and carries out decisions. Goals, routes, battles and its own colour are the agent's call; the reference is a separate tool and never mixed into answers."),
+        ("Commands by meaning", "The agent names a target — a town, a chest, a mine, a stack — not pixels. Geometry and clicks are the bridge's job."),
+        ("Reliable operations", "Every action is tied to an observation revision: a retry never buys troops twice, and an unknown outcome is checked first, never blindly repeated."),
+        ("Economy", "A short summary with details on request; waiting for animations and other turns costs no model calls. The cost of a game is measured from real data."),
+        ("Any model", "The bridge is not tied to a provider: Claude, DeepSeek or any other agent with MCP."),
+        ("The whole cycle, no setup", "From a closed game to the score screen: launch, menus, a scenario or a random map, the game, save and load — with no manual preparation."),
+    ],
+})
 
 FONTS = "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=PT+Sans:ital,wght@0,400;0,700;1,400&display=swap"
 TABLER = "https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.48.0/dist/tabler-icons.min.css"
@@ -337,16 +366,8 @@ h1 { font-family: "Cormorant Garamond", Georgia, serif; font-weight: 700; font-s
 .res b { display: block; font-family: "Cormorant Garamond", Georgia, serif; font-size: 34px; line-height: 1; color: var(--gold); text-shadow: 0 2px 0 #000; }
 .res span { font-size: 13px; color: #d9e0f3; text-shadow: 0 1px 0 #000; }
 
-.frame {
-  position: relative; padding: 7px; margin: 0;
-  background: linear-gradient(135deg, #f6e39a 0%, #b49c48 22%, #6b5a2a 48%, #e4cc6c 72%, #8f7a3a 100%);
-  box-shadow: 0 0 0 1px #0a0603, 0 22px 50px rgba(0,0,0,.65);
-}
-.frame img { display: block; width: 100%; height: auto; border: 1px solid #0a0603; cursor: zoom-in; }
-.gem { position: absolute; width: 18px; height: 18px; border-radius: 50%; z-index: 1;
-  background: radial-gradient(circle at 35% 32%, #d9e8ff 0%, #6f9cf0 22%, #2a4fb8 55%, #0d1e55 100%);
-  box-shadow: 0 0 0 2px #c0a848, 0 0 0 3px #0a0603, 0 2px 4px rgba(0,0,0,.6); }
-.gem.tl { top: -6px; left: -6px; } .gem.tr { top: -6px; right: -6px; } .gem.bl { bottom: -6px; left: -6px; } .gem.br { bottom: -6px; right: -6px; }
+.frame { margin: 0; }
+.frame img { display: block; width: 100%; height: auto; border: 1px solid rgba(228,204,108,.28); box-shadow: 0 18px 44px rgba(0,0,0,.55); cursor: zoom-in; }
 .hero-shot { margin: 40px auto 0; max-width: 1100px; }
 
 section { padding: 76px 0 0; }
@@ -362,8 +383,8 @@ h2 { font-family: "Cormorant Garamond", Georgia, serif; font-weight: 700; font-s
 .panel {
   position: relative;
   background: var(--noise), radial-gradient(130% 100% at 25% 0%, #5a3a1c 0%, #3a2210 52%, #25130a 100%);
-  border: 2px solid; border-color: var(--bevel); border-radius: 2px;
-  box-shadow: 0 0 0 1px #0a0603, inset 0 0 0 1px rgba(10,6,3,.7), inset 0 0 34px rgba(0,0,0,.45), 0 10px 26px rgba(0,0,0,.45);
+  border: 1px solid rgba(228,204,108,.26); border-radius: 2px;
+  box-shadow: inset 0 0 34px rgba(0,0,0,.4), 0 10px 26px rgba(0,0,0,.4);
 }
 
 .bento { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
@@ -379,7 +400,7 @@ h2 { font-family: "Cormorant Garamond", Georgia, serif; font-weight: 700; font-s
   border: 2px solid; border-color: var(--bevel); box-shadow: 0 0 0 1px #0a0603, inset 0 2px 6px rgba(0,0,0,.45), 0 3px 8px rgba(0,0,0,.5);
   text-shadow: 0 1px 0 #000; }
 
-.look { display: grid; grid-template-columns: minmax(0, 11fr) minmax(0, 9fr); gap: 30px; align-items: start; }
+.agent-shot { max-width: 640px; margin: 0 auto; }
 .log { padding: 0; overflow: hidden; }
 .log-head { padding: 10px 16px; font-family: "Cormorant Garamond", Georgia, serif; font-size: 20px; font-weight: 700; color: var(--gold);
   background: var(--noise), linear-gradient(180deg, #a11212, var(--crimson-dark)); border-bottom: 2px solid var(--gold-3); text-shadow: 0 1px 0 #000; }
@@ -587,7 +608,7 @@ def json_ld(lang, t):
             "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"},
             "image": SITE + f"og-{lang}.jpg",
             "logo": SITE + "icon-512.png",
-            "screenshot": SITE + "screenshots/deepseek.webp",
+            "screenshot": SITE + "screenshots/deepseek.png",
             "codeRepository": REPO,
             "sameAs": [REPO],
             "about": {"@type": "VideoGame", "name": "Heroes of Might and Magic III: Horn of the Abyss"},
@@ -609,10 +630,6 @@ def json_ld(lang, t):
 def head_section(title, sub=""):
     extra = f'\n      <p class="sub">{sub}</p>' if sub else ""
     return f'<div class="sec-head"><h2 class="gold-text">{title}</h2><div class="rule"></div>{extra}</div>'
-
-
-def gems():
-    return '<i class="gem tl"></i><i class="gem tr"></i><i class="gem bl"></i><i class="gem br"></i>'
 
 
 def page(lang):
@@ -638,8 +655,7 @@ def page(lang):
             body = f'<div class="row"><span class="medal"><i class="ti {kind}" aria-hidden="true"></i></span><h3>{title}</h3></div><p>{texts[title]}</p>'
         tiles.append(f'      <article class="tile panel{wide}">{body}</article>')
     tiles = "\n".join(tiles)
-    log = "\n".join(f'          <li><code class="call">{call}</code>{text}</li>' for call, text in t["log"])
-    points = "\n".join(f'      <li class="panel">{p}</li>' for p in t["look_points"])
+    ideas = "\n".join(f'      <li class="panel"><b>{h}.</b> {p}</li>' for h, p in t["ideas"])
     tools = "\n".join(
         "          <tr><td>{}</td><td>{}</td></tr>".format(", ".join(f"<code>{n.strip()}</code>" for n in names.split(",")), what)
         for names, what in t["tools"]
@@ -701,7 +717,7 @@ def page(lang):
 
 <section class="hero">
   <div class="wrap">
-    <div class="brand"><img src="icon-512.png" alt="HotA MCP" width="118" height="118" /><div class="brand-name"><span class="gold-text">HotA MCP</span><span class="brand-sub">{t['brand_sub']}</span></div></div>
+    <div class="brand"><img src="icon-512.png" alt="HotA MCP" width="118" height="118" /><div class="brand-name"><span class="gold-text">HotA MCP</span></div></div>
     <h1>{t['h1']}</h1>
     <p class="lead">{t['lead']}</p>
     <div class="cta">
@@ -714,10 +730,17 @@ def page(lang):
 </section>
 
 <main class="wrap">
-  <figure class="frame hero-shot">{gems()}<img src="screenshots/deepseek.webp" alt="{esc(t['hero_alt'])}" width="1800" height="783" /></figure>
+  <figure class="frame hero-shot"><img src="screenshots/deepseek.png" alt="{esc(t['hero_alt'])}" width="1800" height="783" /></figure>
 
   <section id="why">
     {head_section(t['why_h'], t['why'])}
+  </section>
+
+  <section id="ideas">
+    {head_section(t['ideas_h'], t['ideas_sub'])}
+    <ul class="points">
+{ideas}
+    </ul>
   </section>
 
   <section id="features">
@@ -729,18 +752,7 @@ def page(lang):
 
   <section id="agent">
     {head_section(t['look_h'], t['look_sub'])}
-    <div class="look">
-      <figure class="frame">{gems()}<img src="site/town.webp" alt="{esc(t['town_alt'])}" loading="lazy" width="800" height="600" /></figure>
-      <div class="panel log">
-        <div class="log-head">{t['log_head']}</div>
-        <ol>
-{log}
-        </ol>
-      </div>
-    </div>
-    <ul class="points">
-{points}
-    </ul>
+    <figure class="frame agent-shot"><img src="screenshots/hero.png" alt="{esc(t['look_alt'])}" loading="lazy" width="815" height="1252" /></figure>
   </section>
 
   <section id="tools">
