@@ -93,7 +93,8 @@ same intent — repeating an `uncertain` action under a fresh id is how a hero g
 Decide it once, when the game is created or loaded: the scenario window shows every side, who is
 human, the names and the teams. Write it at the top of your plan. Every `observe` gives the
 interface colour — «Ходит <цвет>»; a colour that is not yours you do not play: wait with
-`wait_for_turn` and your colour.
+`wait_for_turn` and your colour. When the user asks you to play for them («поиграй за меня»), their
+colour is yours until they take it back — note it in the plan. The bridge binds you to nothing.
 
 ## The loop of one turn
 

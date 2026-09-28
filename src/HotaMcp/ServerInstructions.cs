@@ -18,7 +18,8 @@ internal static class ServerInstructions
         + "Rules of the game: ask hota_docs and hota_reference, do not guess.\n"
         + "Your colour: decide it when the game is created or loaded — the scenario window shows every side, who is human, "
         + "the names and the teams — and write it in your plan. Every observe gives the interface colour, «Ходит <цвет>»; "
-        + "a colour that is not yours you do not play — wait with wait_for_turn and your colour.\n"
+        + "a colour that is not yours you do not play — wait with wait_for_turn and your colour. When the user asks you to "
+        + "play another colour («поиграй за меня»), that colour is yours until they take it back; note it in the plan.\n"
         + "A screen the bridge reads wrongly or not at all: debug_snapshot (frame plus everything the bridge knows, on any "
         + "screen) is the tool to look with; report the gap instead of working around it.";
 }
