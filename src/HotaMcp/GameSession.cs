@@ -137,7 +137,21 @@ internal sealed class GameSession(int? requestedPid,int player,string directory,
         if(game is null||GameReader.InFrontend(game)||game.U32(0x699538)==0)return false;
         int active=game.I32(0x69ccf4);
         return active is >=0 and <8&&active!=player&&!GameReader.OwnTurnPrompt(game,player)
-            &&!new CombatReader(game,player).LiveParticipant();
+            &&!new CombatReader(game,player).LiveParticipant()
+            &&!OwnBattleEvent(player);
+    }
+
+    /// The result window of a fight this side took part in is its own to accept, whoever's
+    /// strategic turn it is — the same rule GameReader applies when it clears `waiting`.
+    /// Without it the attacker's still-active colour hides the button the game waits for.
+    private bool OwnBattleEvent(int observer)
+    {
+        uint ui=game!.U32(0x6992d0),dialog=ui==0?0:game.U32(ui+0x54);
+        if(dialog==0)return false;
+        string? screen=GameReader.NameOf(game.U32(dialog));
+        var combat=new CombatReader(game,observer);
+        return screen=="battle_result"&&combat.Participant()
+            ||screen=="spellbook"&&combat.LiveParticipant();
     }
 
     private bool PublicHandover()=>game is not null
@@ -230,7 +244,8 @@ internal sealed class GameSession(int? requestedPid,int player,string directory,
                 if(game is not null&&GameReader.InFrontend(game))return new(false,"menu");
                 if(game is not null&&(GameReader.ActiveHuman(game)==own
                    ||GameReader.OwnTurnPrompt(game,own)
-                   ||competitive&&new CombatReader(game,own).LiveParticipant()))
+                   ||competitive&&new CombatReader(game,own).LiveParticipant()
+                   ||competitive&&OwnBattleEvent(own)))
                     return new(true,"your_turn");
                 current=game is null?"waiting_for_game":"waiting";
             }
