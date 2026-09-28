@@ -1271,7 +1271,12 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             int[] destination=[request.X,request.Y,request.Z];
             RefuseCreatureCell(before,destination);
             var map=new MapReader(game,player);
-            int standing=map.TypeAt(before,request.X,request.Y,request.Z);
+            int standing;
+            // A cell nobody has seen has no path the game would lay; say so the way the route
+            // refusal does, with the reason, rather than as a bare hidden tile.
+            try{standing=map.TypeAt(before,request.X,request.Y,request.Z);}
+            catch(ActionRefused hidden)when(hidden.Code==ActionRefused.TileHidden)
+            {throw new ActionRefused(ActionRefused.NoPath,NoRouteReason(before,destination));}
             // A press on the hero's own cell opens his screen; there is nowhere to walk.
             if(before.Hero!.Position.SequenceEqual(destination))
                 throw new ActionRefused(ActionRefused.AlreadySet,$"{before.Hero.Name} уже стоит на ({request.X},{request.Y}): идти некуда, ничего не нажато.");

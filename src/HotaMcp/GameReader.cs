@@ -1265,11 +1265,14 @@ internal sealed class GameReader(WindowsGame game,int player)
         if(iconBase>0&&!frontend&&!waiting)
         {
             var order=SidebarTowns(game,player);
+            var places=items.Where(i=>i.Asset=="itpa.def").OrderBy(i=>i.Y).ToArray();
+            // A list longer than its places may be scrolled; its offset is not read.
+            if(screen=="adventure"&&order.Length>places.Length)order=[];
             towns=towns.Select(t=>
             {
                 int place=Array.IndexOf(order,t.Id);
                 var icon=place<0?null:screen=="adventure"
-                    ?items.Where(i=>i.Asset=="itpa.def").OrderBy(i=>i.Y).ElementAtOrDefault(place)
+                    ?places.ElementAtOrDefault(place)
                     :items.FirstOrDefault(i=>i.Id==iconBase+place);
                 return icon is null?t:t with{IconCross=icon.Frame%2==1};
             }).ToList();

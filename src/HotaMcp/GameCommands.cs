@@ -783,7 +783,10 @@ internal static class GameCommands
         var owned = GameReader.SidebarTowns(context.Game, context.Player);
         int slot = Array.FindIndex(owned, id => context.Before.Towns.FirstOrDefault(t => t.Id == id)?.Name == name);
         if (slot < 0) throw new InvalidOperationException($"Города {name} нет в списке твоих городов");
-        var portrait = context.Before.Elements.Where(e => e.Asset == "itpa.def").OrderBy(e=>e.Y).ElementAtOrDefault(slot)
+        var places = context.Before.Elements.Where(e => e.Asset == "itpa.def").OrderBy(e=>e.Y).ToArray();
+        if (owned.Length > places.Length)
+            throw new InvalidOperationException($"Городов ({owned.Length}) больше, чем мест в списке справа ({places.Length}): прокрутка списка не читается, место города {name} не определить. Открой его через героя в городе или town:switch из другого города");
+        var portrait = places.ElementAtOrDefault(slot)
             ?? throw new InvalidOperationException($"Место города {name} в списке справа не найдено");
         await Deliveries.PressUntilOpened(context, portrait, "town", ct);
     };

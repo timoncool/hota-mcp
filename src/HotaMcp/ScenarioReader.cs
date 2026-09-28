@@ -142,6 +142,8 @@ internal sealed class ScenarioReader(WindowsGame game)
         string? difficulty=piece<0?null:$"{pieces[piece]} ({percents[piece]}% очков)";
         string? timer=items.FirstOrDefault(i=>i.Id==2705)?.Text?.Trim();
         var summary=new List<string>();
+        if(map is null&&panel!="random")
+            summary.Add("Выбранная карта справа не прочитана: запись списка сценариев не совпала с известной раскладкой (debug_snapshot покажет окно).");
         if(map is not null)
             summary.Add($"Сценарий «{map.Name}»: {map.Size}×{map.Size}, рейтинг карты «{map.Rating}», игроков {map.Players} (людьми {map.Humans}); победа — {map.Victory}; поражение — {map.Loss}. {map.Description.Replace('\n',' ').Trim()}");
         var allies=Flags(112);var enemies=Flags(120);

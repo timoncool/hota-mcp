@@ -152,17 +152,22 @@ internal sealed class MapReader(WindowsGame game,int player)
             throw new InvalidOperationException($"Map object {index} names description {described} outside the list");
         int kind=game.I32(attributes+(uint)described*0x44+0x38);
         for(int dy=0;dy<6;dy++)
-            for(int dx=0;dx<8;dx++)
+        {
+            int cy=ay-dy,right=Math.Min(ax,context.Size-1),left=Math.Max(ax-7,0);
+            if(cy<0||cy>=context.Size||right<left)continue;
+            // The span's cells of one row lie side by side in the tile array: one read per row.
+            uint first=checked((uint)((z*context.Size+cy)*context.Size+left));
+            byte[] row=game.Read(checked(context.Tiles+first*0x26),(right-left+1)*0x26);
+            for(int cx=right;cx>=left;cx--)
             {
-                int cx=ax-dx,cy=ay-dy;
-                if(cx<0||cy<0||cx>=context.Size||cy>=context.Size)continue;
-                uint cell=checked((uint)((z*context.Size+cy)*context.Size+cx));
-                uint tile=checked(context.Tiles+cell*0x26);
-                if((game.Read(tile+0xd,1)[0]&16)==0||BitConverter.ToInt16(game.Read(tile+0x1e,2))!=kind
-                   ||!DrawnObjects(tile).Contains(index))continue;
+                int at=(cx-left)*0x26;
+                if((row[at+0xd]&16)==0||BitConverter.ToInt16(row,at+0x1e)!=kind)continue;
+                uint cell=first+(uint)(cx-left),tile=checked(context.Tiles+cell*0x26);
+                if(!DrawnObjects(tile).Contains(index))continue;
                 bool visible=(game.Read(context.Vision+cell*2,1)[0]&(1<<player))!=0;
                 return visible?null:(cx,cy,tile);
             }
+        }
         return null;
     }
 

@@ -484,7 +484,9 @@ internal static class ScreenActions
             // list puts there, and the town is asked for by its name.
             var owned=GameReader.SidebarTowns(game,player);
             var portraits=items.Where(i=>i.Asset=="itpa.def").OrderBy(i=>i.Y).ToArray();
-            for(int slot=0;slot<owned.Length&&slot<portraits.Length;slot++)
+            // More towns than places: the list may be scrolled, and its offset is not read, so no
+            // place is trusted to hold the town the list order puts there.
+            for(int slot=0;owned.Length<=portraits.Length&&slot<owned.Length;slot++)
             {
                 var town=towns.FirstOrDefault(t=>t.Id==owned[slot]);
                 if(town is null||!portraits[slot].Interactive)continue;

@@ -26,7 +26,8 @@ if(args.Contains("--usage"))
 if(stdio)
 {
     // Codex starts stdio MCP servers on startup. Connecting must never launch the game.
-    var http=new HttpClient{BaseAddress=new Uri(endpoint.TrimEnd('/')+"/"),Timeout=TimeSpan.FromSeconds(75)};
+    // The timeout outlasts the longest wait of the service: an autobattle, up to 180 seconds.
+    var http=new HttpClient{BaseAddress=new Uri(endpoint.TrimEnd('/')+"/"),Timeout=TimeSpan.FromSeconds(200)};
     // A client playing one colour of a hotseat names it: HOTA_PLAYER=1 or blue.
     if(Environment.GetEnvironmentVariable("HOTA_PLAYER") is {Length:>0} colour)http.DefaultRequestHeaders.Add("X-Hota-Player",colour);
     var host=Host.CreateApplicationBuilder();
