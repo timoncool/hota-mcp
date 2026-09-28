@@ -119,6 +119,7 @@ The bridge reads the game in the language it is installed in, and it is verified
 - [CHANGELOG.md](CHANGELOG.md) — what is in each release
 - [skills/hota-player/SKILL.md](skills/hota-player/SKILL.md) — how the agent plays
 - [docs/knowledge/](docs/knowledge/) — the game reference served by the bridge
+- [docs/DEVELOPING.md](docs/DEVELOPING.md) — how to map new screens and extend the bridge (in Russian)
 
 Build from source: `native\launcher\build.cmd` (Visual Studio Build Tools, x86), then `tools\install.ps1` for a development install or `tools\build-installer.ps1` for the installer (NSIS 3).
 

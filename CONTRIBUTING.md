@@ -50,6 +50,8 @@
 
 ### Код
 
+Как устроен мост и как разметить новый экран — [docs/DEVELOPING.md](docs/DEVELOPING.md).
+
 Сборка: `native\launcher\build.cmd` (Visual Studio Build Tools, x86), затем `tools\install.ps1` (установка для разработки) или `tools\build-installer.ps1` (установщик, NSIS 3). Тесты: `dotnet run --project tests/HotaMcp.TeamRules`. Правила моста: никакого перехвата мыши, никаких внутренних команд игры, одно действие за вызов, ничего сверх того, что видит игрок. Сообщение коммита — что изменилось и зачем.
 
 ## English
@@ -99,5 +101,7 @@ The bridge's briefs, action labels and refusals, the agent skill and the game re
 The bridge's own messages live in the C# sources (`ScreenBriefing.cs`, `ScreenActions.cs`, `Bridge.cs`) and are not yet separated into resource files — that is planned; say in an issue which language you would like to take, so the extraction can be done with you.
 
 ### Code
+
+How the bridge is built and how to map a new screen — [docs/DEVELOPING.md](docs/DEVELOPING.md) (in Russian).
 
 Build: `native\launcher\build.cmd` (Visual Studio Build Tools, x86), then `tools\install.ps1` (development install) or `tools\build-installer.ps1` (installer, NSIS 3). Tests: `dotnet run --project tests/HotaMcp.TeamRules`. Rules the bridge keeps: no mouse takeover, no internal game commands, one action per call, nothing a player cannot see. Commit messages say what changed and why.

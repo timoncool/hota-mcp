@@ -119,6 +119,7 @@ HotA MCP подключает ИИ-агента (Claude, DeepSeek или люб�
 - [CHANGELOG.md](CHANGELOG.md) — что вошло в каждый выпуск
 - [skills/hota-player/SKILL.md](skills/hota-player/SKILL.md) — как играет агент
 - [docs/knowledge/](docs/knowledge/) — справочник, который отдаёт мост
+- [docs/DEVELOPING.md](docs/DEVELOPING.md) — как размечать новые экраны и дорабатывать мост
 
 Сборка из исходников: `native\launcher\build.cmd` (Visual Studio Build Tools, x86), затем `tools\install.ps1` — установка для разработки, или `tools\build-installer.ps1` — установщик (нужен NSIS 3).
 

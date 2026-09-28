@@ -334,8 +334,9 @@ marketplace, kingdom overview, world view, puzzle map, thieves guild, scenario i
 options, system options, combat, spellbook, battle result, level up, exchange, split stack, message,
 main menu, scenario setup, save and load browsers.
 
-Not yet mapped: trading at the marketplace, learning a spell in the mage guild, reading tavern
-candidates, structured content of world view / puzzle / thieves guild, town siege, surrender.
+Not yet mapped or not verified live: learning a spell in the mage guild, structured content of
+world view / puzzle / thieves guild, surrender, mass and area spells. The current list and how to
+map a screen: `docs/DEVELOPING.md`. Meet one of these — say so and use `debug_snapshot`.
 
 ## Verified specifics
 
