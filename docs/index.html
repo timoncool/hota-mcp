@@ -157,8 +157,8 @@ h2 { font-family: "Cormorant Garamond", Georgia, serif; font-weight: 700; font-s
   box-shadow: 0 0 0 1px #0a0603, inset 0 0 0 1px rgba(10,6,3,.7), inset 0 0 34px rgba(0,0,0,.45), 0 10px 26px rgba(0,0,0,.45);
 }
 
-.bento { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 16px; }
-.tile { grid-column: span 2; padding: 18px; display: flex; flex-direction: column; gap: 12px; }
+.bento { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+.tile { padding: 18px; display: flex; flex-direction: column; gap: 12px; }
 .tile.wide { grid-column: span 3; }
 .tile h3 { margin: 0; font-family: "Cormorant Garamond", Georgia, serif; font-size: 25px; line-height: 1.1; color: var(--gold); text-shadow: 0 2px 0 #000; }
 .tile p { margin: 0; color: #dccba3; font-size: 15px; line-height: 1.55; }
@@ -290,14 +290,14 @@ footer a { color: var(--gold-2); }
   <section id="features">
     <div class="sec-head"><h2 class="gold-text">Что умеет</h2><div class="rule"></div></div>
     <div class="bento">
-      <article class="tile panel"><figure class="pic"><img src="site/heropanel.webp" alt="Панель героя Ойданы в партии DeepSeek: отряды, первичные навыки, артефакты" loading="lazy" /></figure><h3>Вся партия</h3><p>Главное меню, настройка сценария и случайной карты, хотсит, сохранение и загрузка, карта приключений, города, найм, обмен, бои и осады, повышения, экран итогов.</p></article>
-      <article class="tile panel"><figure class="pic"><img src="site/chest.webp" alt="Окно сундука: игра предлагает золото или опыт" loading="lazy" /></figure><h3>Всё словами</h3><p>Каждый observe начинается со сводки хода. Герои, города, отряды и объекты — по именам; маршруты, стоимость и отметки «посещено» — от самой игры.</p></article>
-      <article class="tile panel"><figure class="pic"><img src="site/minimap.webp" alt="Мини-карта в тумане: агент видит только разведанное" loading="lazy" /></figure><h3>Честные границы</h3><p>Скрытая карта, чужой ход, устаревший взгляд — отказ с кодом причины. Агент видит ровно то, что видит игрок, и ничего сверх.</p></article>
+      <article class="tile panel"><div class="row"><span class="medal"><i class="ti ti-swords" aria-hidden="true"></i></span><h3>Вся партия</h3></div><p>Главное меню, настройка сценария и случайной карты, хотсит, сохранение и загрузка, карта приключений, города, найм, обмен, бои и осады, повышения, экран итогов.</p></article>
+      <article class="tile panel"><div class="row"><span class="medal"><i class="ti ti-message-2" aria-hidden="true"></i></span><h3>Всё словами</h3></div><p>Каждый observe начинается со сводки хода. Герои, города, отряды и объекты — по именам; маршруты, стоимость и отметки «посещено» — от самой игры.</p></article>
+      <article class="tile panel"><div class="row"><span class="medal"><i class="ti ti-eye-off" aria-hidden="true"></i></span><h3>Честные границы</h3></div><p>Скрытая карта, чужой ход, устаревший взгляд — отказ с кодом причины. Агент видит ровно то, что видит игрок, и ничего сверх.</p></article>
       <article class="tile panel"><div class="row"><span class="medal"><i class="ti ti-hand-click" aria-hidden="true"></i></span><h3>Играет как человек</h3></div><p>Читает то, что на экране, и жмёт кнопки самой игры оконными событиями. Без перехвата мыши, computer-use, OCR и внутренних команд игры.</p></article>
       <article class="tile panel"><div class="row"><span class="medal"><i class="ti ti-book-2" aria-hidden="true"></i></span><h3>Встроенный справочник</h3></div><p>Правила, формулы, карточки существ и артефактов из таблиц установленной игры. Поиск офлайн — агенту не нужно полагаться на память.</p></article>
       <article class="tile panel"><div class="row"><span class="medal"><i class="ti ti-users-group" aria-hidden="true"></i></span><h3>Хотсит и команды</h3></div><p>Мост передаёт цвет хода и участников сценария, свой цвет агент выбирает сам. Играйте против агента, с ним в команде или столкните двух агентов.</p></article>
-      <article class="tile panel wide"><div class="row"><span class="medal"><i class="ti ti-coins" aria-hidden="true"></i></span><h3>Стоимость партии</h3></div><p>Доллары, токены и вызовы по сторонам и дням игры из телеметрии Claude Code — видно, во что обходится стратегия каждой модели.</p></article>
-      <article class="tile panel wide"><div class="row"><span class="medal"><i class="ti ti-package" aria-hidden="true"></i></span><h3>Ничего настраивать</h3></div><p>Один установщик, один ярлык. В папку игры и в автозагрузку ничего не пишется, служба слушает только 127.0.0.1.</p></article>
+      <article class="tile panel"><div class="row"><span class="medal"><i class="ti ti-coins" aria-hidden="true"></i></span><h3>Стоимость партии</h3></div><p>Доллары, токены и вызовы по сторонам и дням игры из телеметрии Claude Code — видно, во что обходится стратегия каждой модели.</p></article>
+      <article class="tile panel"><div class="row"><span class="medal"><i class="ti ti-package" aria-hidden="true"></i></span><h3>Ничего настраивать</h3></div><p>Один установщик, один ярлык. В папку игры и в автозагрузку ничего не пишется, служба слушает только 127.0.0.1.</p></article>
     </div>
   </section>
 

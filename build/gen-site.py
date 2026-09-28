@@ -189,9 +189,9 @@ EXTRA = {
         "brand_sub": "ИИ-агент играет в Героев III",
         "stats": [("31", "инструмент"), ("8", "сторон в хотсите"), ("0", "OCR и скриншотов"), ("1", "установщик")],
         "tiles": [
-            ("img:heropanel", "Вся партия", "Панель героя Ойданы в партии DeepSeek: отряды, первичные навыки, артефакты"),
-            ("img:chest", "Всё словами", "Окно сундука: игра предлагает золото или опыт"),
-            ("img:minimap", "Честные границы", "Мини-карта в тумане: агент видит только разведанное"),
+            ("ti-swords", "Вся партия", ""),
+            ("ti-message-2", "Всё словами", ""),
+            ("ti-eye-off", "Честные границы", ""),
             ("ti-hand-click", "Играет как человек", ""),
             ("ti-book-2", "Встроенный справочник", ""),
             ("ti-users-group", "Хотсит и команды", ""),
@@ -213,9 +213,9 @@ EXTRA = {
         "brand_sub": "An AI agent plays Heroes III",
         "stats": [("31", "tools"), ("8", "hotseat sides"), ("0", "OCR or screenshots"), ("1", "installer")],
         "tiles": [
-            ("img:heropanel", "The whole game", "Hero panel from a DeepSeek game: troops, primary skills, artifacts"),
-            ("img:chest", "Everything in words", "A treasure chest dialog: the game offers gold or experience"),
-            ("img:minimap", "Honest limits", "The minimap under fog: the agent sees only what was explored"),
+            ("ti-swords", "The whole game", ""),
+            ("ti-message-2", "Everything in words", ""),
+            ("ti-eye-off", "Honest limits", ""),
             ("ti-hand-click", "Plays like a human", ""),
             ("ti-book-2", "Built-in reference", ""),
             ("ti-users-group", "Hotseat and teams", ""),
@@ -366,8 +366,8 @@ h2 { font-family: "Cormorant Garamond", Georgia, serif; font-weight: 700; font-s
   box-shadow: 0 0 0 1px #0a0603, inset 0 0 0 1px rgba(10,6,3,.7), inset 0 0 34px rgba(0,0,0,.45), 0 10px 26px rgba(0,0,0,.45);
 }
 
-.bento { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 16px; }
-.tile { grid-column: span 2; padding: 18px; display: flex; flex-direction: column; gap: 12px; }
+.bento { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+.tile { padding: 18px; display: flex; flex-direction: column; gap: 12px; }
 .tile.wide { grid-column: span 3; }
 .tile h3 { margin: 0; font-family: "Cormorant Garamond", Georgia, serif; font-size: 25px; line-height: 1.1; color: var(--gold); text-shadow: 0 2px 0 #000; }
 .tile p { margin: 0; color: #dccba3; font-size: 15px; line-height: 1.55; }
@@ -630,7 +630,7 @@ def page(lang):
     texts = {title: text for title, text in t["features"]}
     tiles = []
     for index, (kind, title, alt) in enumerate(t["tiles"]):
-        wide = " wide" if index >= 6 else ""
+        wide = ""
         if kind.startswith("img:"):
             name = kind[4:]
             body = f'<figure class="pic"><img src="site/{name}.webp" alt="{esc(alt)}" loading="lazy" /></figure><h3>{title}</h3><p>{texts[title]}</p>'

@@ -157,8 +157,8 @@ h2 { font-family: "Cormorant Garamond", Georgia, serif; font-weight: 700; font-s
   box-shadow: 0 0 0 1px #0a0603, inset 0 0 0 1px rgba(10,6,3,.7), inset 0 0 34px rgba(0,0,0,.45), 0 10px 26px rgba(0,0,0,.45);
 }
 
-.bento { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 16px; }
-.tile { grid-column: span 2; padding: 18px; display: flex; flex-direction: column; gap: 12px; }
+.bento { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+.tile { padding: 18px; display: flex; flex-direction: column; gap: 12px; }
 .tile.wide { grid-column: span 3; }
 .tile h3 { margin: 0; font-family: "Cormorant Garamond", Georgia, serif; font-size: 25px; line-height: 1.1; color: var(--gold); text-shadow: 0 2px 0 #000; }
 .tile p { margin: 0; color: #dccba3; font-size: 15px; line-height: 1.55; }
@@ -290,14 +290,14 @@ footer a { color: var(--gold-2); }
   <section id="features">
     <div class="sec-head"><h2 class="gold-text">What it does</h2><div class="rule"></div></div>
     <div class="bento">
-      <article class="tile panel"><figure class="pic"><img src="site/heropanel.webp" alt="Hero panel from a DeepSeek game: troops, primary skills, artifacts" loading="lazy" /></figure><h3>The whole game</h3><p>Main menu, scenario and random map setup, hotseat, save and load, the adventure map, towns, recruiting, trading, battles and sieges, level-ups, the score screen.</p></article>
-      <article class="tile panel"><figure class="pic"><img src="site/chest.webp" alt="A treasure chest dialog: the game offers gold or experience" loading="lazy" /></figure><h3>Everything in words</h3><p>Every observe opens with a turn summary. Heroes, towns, troops and objects by name; routes, costs and “visited” marks come from the game itself.</p></article>
-      <article class="tile panel"><figure class="pic"><img src="site/minimap.webp" alt="The minimap under fog: the agent sees only what was explored" loading="lazy" /></figure><h3>Honest limits</h3><p>Hidden map, another side's turn, a stale view — refused with a reason code. The agent sees exactly what a player sees and nothing more.</p></article>
+      <article class="tile panel"><div class="row"><span class="medal"><i class="ti ti-swords" aria-hidden="true"></i></span><h3>The whole game</h3></div><p>Main menu, scenario and random map setup, hotseat, save and load, the adventure map, towns, recruiting, trading, battles and sieges, level-ups, the score screen.</p></article>
+      <article class="tile panel"><div class="row"><span class="medal"><i class="ti ti-message-2" aria-hidden="true"></i></span><h3>Everything in words</h3></div><p>Every observe opens with a turn summary. Heroes, towns, troops and objects by name; routes, costs and “visited” marks come from the game itself.</p></article>
+      <article class="tile panel"><div class="row"><span class="medal"><i class="ti ti-eye-off" aria-hidden="true"></i></span><h3>Honest limits</h3></div><p>Hidden map, another side's turn, a stale view — refused with a reason code. The agent sees exactly what a player sees and nothing more.</p></article>
       <article class="tile panel"><div class="row"><span class="medal"><i class="ti ti-hand-click" aria-hidden="true"></i></span><h3>Plays like a human</h3></div><p>Reads what is on the screen and presses the game's own buttons with window events. No mouse hijacking, computer-use, OCR or internal game commands.</p></article>
       <article class="tile panel"><div class="row"><span class="medal"><i class="ti ti-book-2" aria-hidden="true"></i></span><h3>Built-in reference</h3></div><p>Rules, formulas, creature and artifact cards from the installed game's own tables. Offline search, so the agent need not rely on memory.</p></article>
       <article class="tile panel"><div class="row"><span class="medal"><i class="ti ti-users-group" aria-hidden="true"></i></span><h3>Hotseat and teams</h3></div><p>The bridge passes the colour to move and the scenario's participants; the agent picks its own colour. Play against an agent, with one on your team, or pit two agents against each other.</p></article>
-      <article class="tile panel wide"><div class="row"><span class="medal"><i class="ti ti-coins" aria-hidden="true"></i></span><h3>Cost of a game</h3></div><p>Dollars, tokens and calls per side and game day from Claude Code telemetry — see what each model's strategy costs.</p></article>
-      <article class="tile panel wide"><div class="row"><span class="medal"><i class="ti ti-package" aria-hidden="true"></i></span><h3>Nothing to configure</h3></div><p>One installer, one shortcut. Nothing is written to the game folder or to autostart; the service listens on 127.0.0.1 only.</p></article>
+      <article class="tile panel"><div class="row"><span class="medal"><i class="ti ti-coins" aria-hidden="true"></i></span><h3>Cost of a game</h3></div><p>Dollars, tokens and calls per side and game day from Claude Code telemetry — see what each model's strategy costs.</p></article>
+      <article class="tile panel"><div class="row"><span class="medal"><i class="ti ti-package" aria-hidden="true"></i></span><h3>Nothing to configure</h3></div><p>One installer, one shortcut. Nothing is written to the game folder or to autostart; the service listens on 127.0.0.1 only.</p></article>
     </div>
   </section>
 
