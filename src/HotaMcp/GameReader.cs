@@ -205,11 +205,8 @@ internal sealed class GameReader(WindowsGame game,int player)
         }).OfType<string>().ToArray();
     }
 
-    private bool midFight;
-    // The game's own «all your enemies are defeated» (or defeat) message was the last window: the
-    // window-less score screen that follows is told from a mere transition by it.
-    private bool endMessage;
-    private string? outcome;
+    /// This side's fight is on screen: a question now belongs to it.
+    public bool MidFight {get;private set;}
 
     /// The table the high-score window paints, from the file it paints it from: Data\HiScore.dat
     /// holds 22 records of 100 bytes — eleven campaigns, then eleven scenarios — with the player's
@@ -226,7 +223,9 @@ internal sealed class GameReader(WindowsGame game,int player)
         if(data.Length<2200)return [$"Таблица рекордов: файл HiScore.dat короче ожидаемого ({data.Length} байт)."];
         bool scenarios=items.FirstOrDefault(i=>i.Id==1002)?.Selected??true;
         var enc=Encoding.GetEncoding(1251);
-        string Text(int at,int length){int end=Array.IndexOf(data,(byte)0,at,length);return enc.GetString(data,at,(end<0?at+length:end)-at).Trim();}
+        // As the window paints it: control bytes are not drawn and braces only colour the text.
+        string Text(int at,int length){int end=Array.IndexOf(data,(byte)0,at,length);
+            return new string(enc.GetString(data,at,(end<0?at+length:end)-at).Where(c=>c>=' '&&c is not ('{' or '}')).ToArray()).Trim();}
         var rows=new List<string>();
         for(int k=0;k<11;k++)
         {
@@ -236,19 +235,38 @@ internal sealed class GameReader(WindowsGame game,int player)
         return [$"Таблица рекордов ({(scenarios?"сценарии":"кампании")}): "+string.Join("; ",rows)
             +". Другая таблица — scores:scenarios / scores:campaigns; выйти — scores:exit."];
     }
-    /// How the game has ended, read from the game itself: every rival team without a town or a
-    /// hero on the map is a won game, this side without either is a lost one; otherwise null.
-    private string? GameOutcome()
+    /// How the game has ended for this side, read from the game itself: every rival team without a
+    /// town or a hero on the map is a won game, this side's team without either a lost one;
+    /// otherwise null.
+    public static string? Outcome(WindowsGame game,int player)
+    {
+        if(Standing(game) is not var (owners,team)||team(player)>7)return null;
+        if(!owners.Any(o=>team(o)!=team(player)))return "победа, все враги разбиты";
+        if(!owners.Any(o=>team(o)==team(player)))return "поражение";
+        return null;
+    }
+
+    /// One team is left on the map: the game is over for everyone at the table, and its closing
+    /// windows — «Все ваши враги побеждены!», the score, the name for the hall of fame — are every
+    /// human's, whoever's turn the game still counts.
+    public static bool GameEnded(WindowsGame game)=>
+        Standing(game) is var (owners,team)&&owners.Select(team).Distinct().Count()<=1;
+
+    /// The colours that still hold a town or a hero on the map, and each colour's team. Without
+    /// teams every colour is a team of its own.
+    private static (List<int> Owners,Func<int,int> Team)? Standing(WindowsGame game)
     {
         uint main=game.U32(0x699538);
         if(main==0)return null;
         byte[] teams=game.Read(main+0x1f86c+0xc,9);
-        if(teams[0] is 0 or >8||teams[1+player]>7)return null;
-        var towns=new TownReader(game,player);
+        if(teams[0]>8)return null;
+        int Team(int colour)=>teams[0]==0?colour:teams[1+colour];
         var owners=new List<int>();
-        for(int id=0;id<48&&towns.Describe(id) is var (_,owner);id++)owners.Add(owner);
+        var towns=new TownReader(game,0);
+        for(int id=0;id<48&&towns.Describe(id) is var (_,owner);id++)if(owner<8)owners.Add(owner);
         byte[] code=game.Read(0x4317e1,19);
-        if(!code.AsSpan(0,13).SequenceEqual(Convert.FromHexString("8BC2C1E00603C28D04C08D8441")))return null;
+        if(!code.AsSpan(0,13).SequenceEqual(Convert.FromHexString("8BC2C1E00603C28D04C08D8441")))
+            throw new InvalidOperationException("Hero adapter signature mismatch");
         uint heroes=checked(main+BitConverter.ToUInt32(code,13));
         for(int id=0;id<256;id++)
         {
@@ -257,12 +275,7 @@ internal sealed class GameReader(WindowsGame game,int player)
             if(BitConverter.ToInt32(head,0x1a)!=id||head[0x22]>7)continue;
             if(BitConverter.ToInt16(head,0)>=0)owners.Add(head[0x22]);
         }
-        bool Rival(int o)=>o<8&&teams[1+o]<8&&teams[1+o]!=teams[1+player];
-        bool Friend(int o)=>o<8&&teams[1+o]==teams[1+player];
-        if(owners.Count==0)return null;
-        if(!owners.Any(Rival))return "победа, все враги разбиты";
-        if(!owners.Any(Friend))return "поражение";
-        return null;
+        return owners.Count==0?null:(owners,Team);
     }
 
     private Observation GameOverScreen(uint manager,string gameOver)
@@ -277,30 +290,35 @@ internal sealed class GameReader(WindowsGame game,int player)
         {
             Actions=[new("gameover:continue","Дальше: закрыть экран итогов игры (Enter)")],
             Brief=[$"Игра окончена: {gameOver}. Экран итогов игры: общее время {days} дн. (м{date[2]} н{date[1]} д{date[0]}); "
-                +(shown is var (score,percent,rank)
-                    ?$"счёт {score}, сложность «{DifficultyName(percent)}» ({percent}%), ранг «{rank}». "
+                +(shown is var (baseScore,score,percent,rank)
+                    ?$"базовый счёт {baseScore}, сложность «{DifficultyName(percent)}» ({percent}%), окончательный счёт {score}, ранг «{rank}». "
                     :"счёт, сложность и ранг на экране не найдены — их показывает debug_snapshot. ")
                 +"Дальше — gameover:continue."],
         };
         return Revise(result);
     }
 
-    /// What the score screen prints. The game shows it from one function it stays in while the
-    /// screen is up; on the main thread's stack sit its return address 0x004F48DB and after it the
-    /// arguments — score, days, difficulty in percent — and 0x24 on the rank as text. The days must
-    /// be the game's own, or the frame is not this screen's.
-    private (int Score,int Percent,string Rank)? ScoreScreen(int days)
+    /// What the score screen prints. The game draws it from 0x004F4140 and stays there while the
+    /// screen is up; on the main thread's stack sit the return address 0x004F48B7, the arguments
+    /// base score, final score and days, and just below them the caller's frame pointer: its
+    /// frame holds the difficulty in percent at -0x20 and the rank as text at -0x64. The days must
+    /// be the game's own and the final score the base one scaled by the difficulty, or the frame
+    /// is not this screen's. (0x004F48DB is the next call, the hall-of-fame name entry.)
+    private (int Base,int Score,int Percent,string Rank)? ScoreScreen(int days)
     {
         foreach(var (start,size) in game.WritableRegions(0x10000,0x800000))
         {
             byte[] stack=game.Read(start,(int)Math.Min(size,1048576u));
-            for(int at=0;at+0x44<=stack.Length;at+=4)
+            for(int at=4;at+0x10<=stack.Length;at+=4)
             {
-                if(BitConverter.ToUInt32(stack,at)!=0x004F48DB||BitConverter.ToInt32(stack,at+8)!=days)continue;
-                int score=BitConverter.ToInt32(stack,at+4),percent=BitConverter.ToInt32(stack,at+12);
-                if(score is <0 or >1000||percent is not (80 or 100 or 130 or 160 or 200))continue;
-                string rank=Encoding.GetEncoding(1251).GetString(stack,at+0x24,32).Split('\0')[0].Trim();
-                if(rank.Length>0)return(score,percent,rank);
+                if(BitConverter.ToUInt32(stack,at)!=0x004F48B7||BitConverter.ToInt32(stack,at+12)!=days)continue;
+                int baseScore=BitConverter.ToInt32(stack,at+4),score=BitConverter.ToInt32(stack,at+8);
+                uint frame=BitConverter.ToUInt32(stack,at-4);
+                byte[] caller=game.Read(frame-0x64,0x64);
+                int percent=BitConverter.ToInt32(caller,0x64-0x20);
+                if(percent is not (80 or 100 or 130 or 160 or 200)||baseScore<0||Math.Abs(score-baseScore*percent/100)>1)continue;
+                string rank=Encoding.GetEncoding(1251).GetString(caller,0,32).Split('\0')[0].Trim();
+                if(rank.Length>0)return(baseScore,score,percent,rank);
             }
         }
         return null;
@@ -926,21 +944,96 @@ internal sealed class GameReader(WindowsGame game,int player)
     }
 
     // Hotseat asks the incoming player to confirm before changing the active colour.
-    public static bool OwnTurnPrompt(WindowsGame game,int player)
+    /// Whether the window on screen while another colour moves is addressed to this side, which
+    /// then answers it as a player at the table does: the fight a computer opened against it, the
+    /// spellbook and the questions inside that fight, the result of that fight, its own hero's
+    /// level-up after it and the spoils the game hands the winner, and a hand-over or alarm drawn
+    /// with its own colour («Город под атакой!»). One rule for the privacy gate, the turn waiter
+    /// and the reader.
+    public static bool OwnsWindow(WindowsGame game,int player,bool midFight)
     {
-        uint manager=game.U32(0x6992d0);
-        uint dialog=manager==0?0:game.U32(manager+0x54);
-        if(dialog==0||game.U32(dialog)!=0x63db40)return false;
+        uint ui=game.U32(0x6992d0),dialog=ui==0?0:game.U32(ui+0x54);
+        if(GameEnded(game))return true;
+        if(dialog==0)return false;
+        var combat=new CombatReader(game,player);
+        return NameOf(game.U32(dialog)) switch
+        {
+            "combat" or "battle_result" => combat.Participant(),
+            "spellbook" => combat.LiveParticipant(),
+            // The combat manager keeps its owners after a battle, so a level-up is this side's only
+            // when the window names one of its heroes: the attacker's own level-up is his.
+            "level_up" => combat.Participant()&&LevelUpHero(game,dialog) is {} hero&&OwnHeroNames(game,player).Contains(hero),
+            // A message drawn with a flag is the flag's player's; one with the flag of the computer
+            // whose turn it is — «зелёный терпит поражение!» — is news for every human at the
+            // table, and any of them closes it (the revision keeps a second press from landing on
+            // the next window). Without a flag: a question in the
+            // middle of this side's fight («Вы действительно хотите отступить?») belongs to that
+            // fight, and on a computer's turn — which is never shown a window — a message is the
+            // human's of the fight that just ended: «Вы захватили вражеский артефакт!», raised
+            // undead. The combat manager keeps the owners of the last fight, so this holds after
+            // a restart of the service too.
+            "message" => MessageFlag(game,dialog) is {} flag?flag==Colour(player)
+                    ||ActiveHuman(game) is null&&flag==Colour(game.I32(0x69ccf4))
+                :combat.Participant()&&(midFight||ActiveHuman(game) is null),
+            _ => false,
+        };
+    }
+
+    /// The hero of a level-up window: its line 2003 reads «<герой> теперь на уровне N, <класс>.».
+    private static string? LevelUpHero(WindowsGame game,uint dialog)
+    {
         var seen=new HashSet<uint>();
         for(uint item=game.U32(dialog+0x2c);item!=0&&seen.Add(item)&&seen.Count<2048;item=game.U32(item+8))
         {
             byte[] control=game.Read(item,0x38);
-            if(BitConverter.ToUInt32(control,4)!=dialog)return false;
+            if(BitConverter.ToUInt16(control,0x10)!=2003)continue;
+            string? line=game.Text(BitConverter.ToUInt32(control,0x34));
+            int at=line?.IndexOf(" теперь на уровне",StringComparison.Ordinal)??-1;
+            return at>0?line![..at].Trim():null;
+        }
+        return null;
+    }
+
+    private static HashSet<string> OwnHeroNames(WindowsGame game,int player)
+    {
+        uint main=game.U32(0x699538);
+        byte[] code=game.Read(0x4317e1,19);
+        if(!code.AsSpan(0,13).SequenceEqual(Convert.FromHexString("8BC2C1E00603C28D04C08D8441")))
+            throw new InvalidOperationException("Hero adapter signature mismatch");
+        uint start=checked(main+BitConverter.ToUInt32(code,13));
+        var names=new HashSet<string>();
+        for(int id=0;id<256;id++)
+        {
+            byte[] h;
+            try{h=game.Read(checked(start+(uint)id*0x492),0x36);}catch(InvalidOperationException){break;}
+            if(BitConverter.ToInt32(h,0x1a)==id&&h[0x22]==player)
+                names.Add(Encoding.GetEncoding(1251).GetString(h,0x23,13).Split('\0')[0]);
+        }
+        return names;
+    }
+
+    public static bool OwnTurnPrompt(WindowsGame game,int player)
+    {
+        uint manager=game.U32(0x6992d0);
+        uint dialog=manager==0?0:game.U32(manager+0x54);
+        return dialog!=0&&game.U32(dialog)==0x63db40&&MessageFlag(game,dialog)==Colour(player);
+    }
+
+    /// The colour under the flag a message is drawn with — a hand-over, «Город под атакой!» —
+    /// or null for a message without one.
+    private static string? MessageFlag(WindowsGame game,uint dialog)
+    {
+        var seen=new HashSet<uint>();
+        for(uint item=game.U32(dialog+0x2c);item!=0&&seen.Add(item)&&seen.Count<2048;item=game.U32(item+8))
+        {
+            byte[] control=game.Read(item,0x38);
+            if(BitConverter.ToUInt32(control,4)!=dialog)return null;
             if((BitConverter.ToUInt16(control,0x16)&4)==0)continue;
             if(BitConverter.ToUInt32(control) is not (0x642dc0 or 0x642df8 or 0x642d50))continue;
-            if(game.Text(BitConverter.ToUInt32(control,0x34))?.Trim()==Colour(player))return true;
+            string? text=game.Text(BitConverter.ToUInt32(control,0x34))?.Trim();
+            if(Enumerable.Range(0,8).Any(c=>Colour(c)==text))return text;
         }
-        return false;
+        return null;
     }
 
     private static bool UnderMenu(WindowsGame game,uint top)
@@ -958,7 +1051,7 @@ internal sealed class GameReader(WindowsGame game,int player)
         uint manager=game.U32(0x6992d0),dlg=game.U32(manager+0x54);
         // The score screen after the last enemy falls is the game's own modal loop over a video:
         // no window is on top, and the message before it said how the game ended.
-        if(dlg==0&&endMessage&&(outcome??=GameOutcome()) is string ended)return GameOverScreen(manager,ended);
+        if(dlg==0&&GameEnded(game)&&Outcome(game,player) is string ended)return GameOverScreen(manager,ended);
         if(dlg==0)throw new InvalidOperationException("UI transition in progress");
         uint vtable=game.U32(dlg);
         // A popup over the scenario screen — a town grid, the options window, the team agreements —
@@ -1132,28 +1225,19 @@ internal sealed class GameReader(WindowsGame game,int player)
         if(screen=="combat")
         {
             // A computer attacking this side on its own turn opens a fight this side must answer.
-            try{fight=new CombatReader(game,player).Read();waiting=false;midFight=true;}
+            try{fight=new CombatReader(game,player).Read();waiting=false;MidFight=true;}
             catch(InvalidOperationException)when(waiting){}
         }
-        if(waiting&&screen=="spellbook"&&new CombatReader(game,player).LiveParticipant())waiting=false;
-        // The result of a fight this side took part in is its own to accept, whoever's turn it is.
-        if(waiting&&screen=="battle_result"&&new CombatReader(game,player).Participant())waiting=false;
-        // A question the game asks in the middle of this side's fight — «Вы действительно хотите
-        // отступить?» — belongs to that fight; the map or the result window ends it. The combat
-        // manager keeps its owners after a battle, so it cannot tell a live fight from an ally's
-        // question on his own turn.
-        if(waiting&&screen=="message"&&midFight)waiting=false;
-        if(screen is "adventure" or "battle_result")midFight=false;
+        if(waiting&&OwnsWindow(game,player,MidFight))waiting=false;
+        // A defender who beat this side's hero levels up on this side's own turn: that window names
+        // his hero and is his to answer.
+        if(!waiting&&!frontend&&screen=="level_up"&&LevelUpHero(game,dlg) is {} leveled&&!OwnHeroNames(game,player).Contains(leveled))
+            waiting=true;
+        if(screen is "adventure" or "battle_result")MidFight=false;
         // Victory and defeat are worded several ways; the score screen is still confirmed by who is left.
-        endMessage=screen=="message"&&items.Any(i=>i.Text is {} t&&(t.Contains("побежден",StringComparison.OrdinalIgnoreCase)||t.Contains("поражени",StringComparison.OrdinalIgnoreCase)));
-        outcome=null;
         var combat=Remember(fight);
         // A message on another player's turn — «Ходит КЛОДИК.» at the hand-over — is read by everyone
         // at the table; its words stay, its buttons do not.
-        // A hand-over drawn with this side's own flag and colour — «КЛОДИК: Город под атакой!» when a
-        // computer storms its town — is addressed to this side: it answers it, whoever's turn it is.
-        if(waiting&&screen=="message"&&items.Any(i=>i.Text?.Trim()==Colour(player)))
-            waiting=false;
         if(waiting)items=screen=="message"?items.Where(i=>!string.IsNullOrWhiteSpace(i.Text)).Select(i=>i with{Interactive=false}).ToList():[];
         // The side list of towns — on the map and in the town screen — draws each town's icon with
         // an odd frame once the town has built today: the cross the player sees over it.

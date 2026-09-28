@@ -303,6 +303,12 @@ internal sealed class GameReference
     /// The expansion's own objects — its banks, the resource warehouses and the rest — are named
     /// in HotA.dat, in the table the map editor shows as a hint: type, subtype (−1 for any), then
     /// the name on the first line of a quoted description.
+    /// A creature dwelling on the map by the name its hint shows: CRGEN1 rows are the subtypes of
+    /// the one-creature dwellings (type 17), CRGEN4 of the elemental and golem ones (type 20).
+    public static string Dwelling(int type,int subtype)=>
+        PlainRow(type==17?"CRGEN1.TXT":"CRGEN4.TXT",subtype) is {Length:>1} name?name
+        :HotaObject(type,subtype)??MapObject(type,subtype);
+
     public static string? HotaObject(int type,int subtype)
     {
         if(hotaObjects is null)

@@ -8,4 +8,9 @@ internal static class TeamRelations
         header.Length>=9&&player is >=0 and <8&&colour is >=0 and <8&&colour!=player
         &&header[0] is >0 and <=8&&header[1+player]<8&&header[1+colour]<8
         &&header[1+player]==header[1+colour];
+
+    /// Whether the running scenario puts two colours on one team, read from the map header the
+    /// game keeps in memory for a new game and a loaded one alike.
+    public static bool Allied(WindowsGame game,int player,int colour)=>
+        AreAllies(game.Read(game.U32(0x699538)+0x1f86c+0xc,0x14),player,colour);
 }

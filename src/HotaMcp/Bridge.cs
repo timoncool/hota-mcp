@@ -142,8 +142,22 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
 
     public int Player=>player;
     public bool InFrontend=>GameReader.InFrontend(game);
-    public bool OwnTurn=>!InFrontend&&(GameReader.ActiveHuman(game)==player||GameReader.OwnTurnPrompt(game,player)
-        ||new CombatReader(game,player).LiveParticipant());
+    public bool OwnTurn=>!InFrontend&&(GameReader.ActiveHuman(game)==player||OwnsWindow);
+    /// The window on screen during another colour's turn is this side's to answer.
+    public bool OwnsWindow=>GameReader.OwnsWindow(game,player,reader.MidFight);
+
+    /// After the game window was asked to close the game asks «Вы действительно хотите выйти?»; the
+    /// answer is its own OK button, pressed as any dialog button is. False while the question is
+    /// not on screen yet.
+    public async Task<bool> ConfirmQuit(CancellationToken ct)
+    {
+        Observation question;
+        try{question=reader.Peek();}catch(InvalidOperationException){return false;}
+        if(question.Screen!="message"||!question.Elements.Any(e=>e.Text?.Contains("хотите выйти",StringComparison.OrdinalIgnoreCase)==true))
+            return false;
+        await Deliveries.Control(30725,"iokay.def")(new CommandContext(game,reader,player,question,"quit:confirm"),ct);
+        return true;
+    }
 
     /// The game belongs to whoever attached it; several bridges may share one.
     public void Dispose()=>gate.Dispose();
@@ -415,7 +429,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
         {
             var initial=reader.Observe();
             RequireOwnTurn(initial);
-            if(initial.Hero is null)throw new InvalidOperationException("Select a hero first");
+            if(initial.Hero is null)throw new ActionRefused(ActionRefused.NoHeroOnMap,"Select a hero first");
             // The hover changes what the game reports under the cursor, so the consistency window
             // starts after it: otherwise this call always invalidates its own observation.
             var observation=initial;
@@ -557,7 +571,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             if(!targets.TryGetValue(targetId,out var target))
                 throw new InvalidOperationException("Unknown target; request nearby_targets first");
             var stale=reader.Observe();
-            if(stale.Revision!=revision)throw new InvalidOperationException("State changed; request nearby_targets again");
+            if(stale.Revision!=revision)throw new ActionRefused(ActionRefused.StaleTargets,"State changed; request nearby_targets again");
             RequireOwnTurn(stale);
             var map=new MapReader(game,player);
             map.ValidateTarget(stale,target);
@@ -643,7 +657,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             var before=reader.Observe();
             if(before.Revision!=request.Revision)throw new ActionRefused(ActionRefused.StaleRevision,"Observation is stale; observe again");
             RequireOwnTurn(before);
-            if(before.Screen!="adventure")throw new InvalidOperationException("Adventure map required");
+            if(before.Screen!="adventure")throw new ActionRefused(ActionRefused.WrongScreen,"Adventure map required");
             var map=new MapReader(game,player);
             before=await EnsureVisible(before,request.X,request.Y,request.Z);
             var point=map.ScreenPoint(before,request.X,request.Y,request.Z);
@@ -1153,7 +1167,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
         try
         {
             var before=reader.Observe();
-            if(before.Screen!="adventure")throw new InvalidOperationException("Adventure map required");
+            if(before.Screen!="adventure")throw new ActionRefused(ActionRefused.WrongScreen,"Adventure map required");
             if(request.X<0||request.Y<0||request.X>=before.Width||request.Y>=before.Height)
                 throw new InvalidOperationException("Point is outside the game surface");
             await game.MouseAsync(request.X,request.Y,before.Width,before.Height,true,CancellationToken.None);
@@ -1181,7 +1195,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             var map=new MapReader(game,player);
             map.ValidateTarget(before,target);
             if(!attack&&string.Equals(target.Kind,"creatures",StringComparison.OrdinalIgnoreCase))
-                throw new InvalidOperationException("Danger: this cell holds a creature stack, and moving onto it starts a battle. Approach a neighbouring cell with move_to_tile, or use attack_target to fight deliberately");
+                throw new ActionRefused(ActionRefused.GuardedCell,"Danger: this cell holds a creature stack, and moving onto it starts a battle. Approach a neighbouring cell with move_to_tile, or use attack_target to fight deliberately");
             // A fight is chosen, not stumbled into: when the game's own route does not reach the
             // stack today, the hero would spend the whole day walking a detour and arrive
             // tomorrow with nothing left. That is refused with the reason, so the detour is a
@@ -1296,7 +1310,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             // refusal with its reason, not an unknown outcome.
             Record(journal+"_preparation_unconfirmed",new{operationId,planned});
             operations.Remove(operationId);
-            throw new InvalidOperationException(NoRouteReason(before,destination));
+            throw new ActionRefused(ActionRefused.NoPath,NoRouteReason(before,destination));
         }
         verifyPlanned?.Invoke(planned);
         bool quiet=!new MapReader(game,player).CanOpenWindow(before,destination[0],destination[1],destination[2]);
@@ -1402,7 +1416,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             bool creature=look.Objects.Any(o=>o.X==cell[0]&&o.Y==cell[1]&&o.Z==cell[2]
                 &&string.Equals(o.Kind,"creatures",StringComparison.OrdinalIgnoreCase));
             if(creature)
-                throw new InvalidOperationException("Danger: this cell holds a creature stack, and stepping there starts a battle. Approach a neighbouring cell instead, or use attack_target when the fight is intended");
+                throw new ActionRefused(ActionRefused.GuardedCell,"Danger: this cell holds a creature stack, and stepping there starts a battle. Approach a neighbouring cell instead, or use attack_target when the fight is intended");
         }
         catch(InvalidOperationException e)when(!e.Message.StartsWith("Danger:")){}
     }
@@ -1588,10 +1602,10 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
     /// turn brought it.
     private static void RequireOwnTurn(Observation before)
     {
-        if(before.Side is null||before.Side.Yours||before.Combat is not null)return;
-        // A window addressed to this side on another's turn — its own flag on a hand-over, the result
-        // of a fight it took part in — is the reader's call: it offers actions only for those.
-        if(before.Screen is "message" or "battle_result" or "spellbook"&&before.Actions.Count>0)return;
+        // A window addressed to this side on another's turn — a fight against it, its result and
+        // spoils, its hero's level-up, news for the whole table, the end of the game — is the
+        // reader's call (GameReader.OwnsWindow): on anyone else's window it offers no actions.
+        if(before.Side is null||before.Side.Yours||before.Combat is not null||before.Actions.Count>0)return;
         throw new ActionRefused(ActionRefused.NotYourTurn,
             $"Сейчас ходит {before.Side.ActiveColour}, а ты играешь за {before.Side.Colour}: ничего не нажато. "
             +"Жди своего хода — observe покажет, когда он начнётся.");
@@ -1601,8 +1615,9 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
     {
         var before=reader.Observe();
         RequireOwnTurn(before);
-        if(before.Revision!=revision||before.Screen!="adventure"||before.Hero is null)
-            throw new InvalidOperationException("Fresh own-hero adventure observation required");
+        if(before.Revision!=revision)throw new ActionRefused(ActionRefused.StaleRevision,"Observation is stale; observe again");
+        if(before.Screen!="adventure"||before.Hero is null)
+            throw new ActionRefused(ActionRefused.NoHeroOnMap,"Own hero selected on the adventure map required");
         return before;
     }
 
@@ -1771,7 +1786,7 @@ internal sealed class LocalEndpoint(Bridge bridge) : IGameEndpoint
     public Task<object> Status(CancellationToken ct)=>Task.FromResult(bridge.Status());
     public async Task<TurnWaitResult> WaitForTurn(int timeoutSeconds,CancellationToken ct)
     {
-        if(timeoutSeconds is <0 or >60)throw new InvalidOperationException("Use 0 to 60 seconds");
+        if(timeoutSeconds is <0 or >60)throw new ActionRefused(ActionRefused.BadArgument,"Use 0 to 60 seconds");
         var deadline=System.Diagnostics.Stopwatch.StartNew();
         do
         {

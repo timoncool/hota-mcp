@@ -720,7 +720,7 @@ internal static class GameCommands
         var item = before.Elements.SingleOrDefault(e => e.Key == elementKey);
         bool freeform = before.Screen is "message" or "exchange";
         if (item is null || (!item.Interactive && !freeform))
-            throw new InvalidOperationException("Action unavailable");
+            throw new ActionRefused(ActionRefused.UnknownControl,"Action unavailable");
         return (before.Screen, item.Id, item.Asset) switch
         {
             ("adventure", 10, "iam009.def") => new("system_options", Deliveries.Control(10,"iam009.def")),
@@ -735,7 +735,7 @@ internal static class GameCommands
             // Any other control of a message or exchange dialog: the reward choice inside a
             // treasure chest, an army slot or an exchange arrow. The dialog owns the outcome.
             _ when freeform => new(before.Screen, Deliveries.Requested),
-            _ => throw new InvalidOperationException("Use an available semantic action"),
+            _ => throw new ActionRefused(ActionRefused.UnknownControl,"Use an available semantic action"),
         };
     }
 

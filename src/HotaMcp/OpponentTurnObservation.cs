@@ -1,6 +1,6 @@
 namespace HotaMcp;
 
-internal static class CompetitiveObservation
+internal static class OpponentTurnObservation
 {
     // Preserve the observe response shape without reading or revealing the other side's screen.
     public static Observation Waiting(int player)=>new("",player,[],[],null,"waiting",0,0,[])

@@ -33,7 +33,7 @@ Check(false,teams,-1,0,"invalid player is rejected");
 Check(false,teams,1,8,"invalid colour is rejected");
 Console.WriteLine("PASS team privacy: allies are logged, enemies and absent colours are excluded");
 
-var waiting=CompetitiveObservation.Waiting(1);
+var waiting=OpponentTurnObservation.Waiting(1);
 using var json=JsonDocument.Parse(JsonSerializer.Serialize(waiting));
 var root=json.RootElement;
 if(root.GetProperty("Screen").GetString()!="waiting"||root.GetProperty("Player").GetInt32()!=1
@@ -44,10 +44,10 @@ if(root.GetProperty("Screen").GetString()!="waiting"||root.GetProperty("Player")
    ||root.GetProperty("Actions").GetArrayLength()!=0||root.GetProperty("Elements").GetArrayLength()!=0
    ||root.GetProperty("Side").ValueKind!=JsonValueKind.Null||root.GetProperty("Width").GetInt32()!=0
    ||root.GetProperty("Height").GetInt32()!=0||root.GetProperty("Revision").GetString()!="")
-    throw new Exception("Competitive waiting observation exposed game state");
-Console.WriteLine("PASS competitive waiting observation contains no other-side state");
+    throw new Exception("Opponent-turn waiting observation exposed game state");
+Console.WriteLine("PASS opponent-turn waiting observation contains no other-side state");
 
-var handedOff=CompetitiveObservation.AfterHandoff(new OperationResult("completed","enemy hero moved",
+var handedOff=OpponentTurnObservation.AfterHandoff(new OperationResult("completed","enemy hero moved",
     new Observation("secret",1,[2,1,1],[100],null,"enemy_hero_card",800,600,[])
     {ForeignHero="opponent",ForeignArmy=["army"]}),1);
 if(handedOff.Status!="completed"||handedOff.Message.Contains("enemy",StringComparison.OrdinalIgnoreCase)

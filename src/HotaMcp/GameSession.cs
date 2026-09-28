@@ -4,7 +4,7 @@ using System.Diagnostics;
 namespace HotaMcp;
 
 // Owns attachment separately from the server: the launcher can start before the game.
-internal sealed class GameSession(int? requestedPid,int player,string directory,int? launcherPid=null,bool competitive=false) : IGameEndpoint, IDisposable
+internal sealed class GameSession(int? requestedPid,int player,string directory,int? launcherPid=null) : IGameEndpoint, IDisposable
 {
     private readonly SemaphoreSlim gate=new(1,1);
     private WindowsGame? game;
@@ -100,21 +100,14 @@ internal sealed class GameSession(int? requestedPid,int player,string directory,
         {
             Refresh();
             FollowTurn();
-            if(competitive)
-            {
-                if(call is nameof(Memory) or nameof(TileBytes) or nameof(SendKey) or nameof(Press) or nameof(PressRight))
-                    throw new ActionRefused(ActionRefused.NotYourTurn,"Raw game diagnostics are disabled in competitive mode");
-                if(call is not (nameof(Observe) or nameof(Journal) or nameof(Plan) or nameof(AllyLog))
-                   &&AnotherTurn())
-                    throw new ActionRefused(ActionRefused.NotYourTurn,
-                        "Another player's turn is private; wait for your own turn");
-            }
+            if(call is not (nameof(Observe) or nameof(Journal) or nameof(Plan) or nameof(AllyLog))&&OpponentTurn())
+                throw new ActionRefused(ActionRefused.NotYourTurn,"An opponent's turn is private; wait for your own turn");
             Mark();
             var result=await action(bridge??throw new InvalidOperationException(detail));
-            if(competitive&&AnotherTurn())
+            if(OpponentTurn())
             {
                 if(result is OperationResult operation)
-                    result=(T)(object)CompetitiveObservation.AfterHandoff(operation,player);
+                    result=(T)(object)OpponentTurnObservation.AfterHandoff(operation,Acting);
                 else if(result is Observation)
                     result=(T)(object)WaitingObservation();
                 else if(call is not (nameof(Journal) or nameof(Plan) or nameof(AllyLog)))
@@ -132,26 +125,16 @@ internal sealed class GameSession(int? requestedPid,int player,string directory,
         }
         finally{gate.Release();}
     }
-    private bool AnotherTurn()
+    /// Another colour moves and the scenario does not put it on this side's team: what is on the
+    /// screen is that player's, so nothing of it is read or published. An ally's turn stays open —
+    /// allies see each other's moves in the game too. Teams come from the map itself, so a new game
+    /// and a loaded one are treated alike.
+    private bool OpponentTurn()
     {
         if(game is null||GameReader.InFrontend(game)||game.U32(0x699538)==0)return false;
-        int active=game.I32(0x69ccf4);
-        return active is >=0 and <8&&active!=player&&!GameReader.OwnTurnPrompt(game,player)
-            &&!new CombatReader(game,player).LiveParticipant()
-            &&!OwnBattleEvent(player);
-    }
-
-    /// The result window of a fight this side took part in is its own to accept, whoever's
-    /// strategic turn it is — the same rule GameReader applies when it clears `waiting`.
-    /// Without it the attacker's still-active colour hides the button the game waits for.
-    private bool OwnBattleEvent(int observer)
-    {
-        uint ui=game!.U32(0x6992d0),dialog=ui==0?0:game.U32(ui+0x54);
-        if(dialog==0)return false;
-        string? screen=GameReader.NameOf(game.U32(dialog));
-        var combat=new CombatReader(game,observer);
-        return screen=="battle_result"&&combat.Participant()
-            ||screen=="spellbook"&&combat.LiveParticipant();
+        int active=game.I32(0x69ccf4),observer=Acting;
+        return active is >=0 and <8&&active!=observer&&!TeamRelations.Allied(game,observer,active)
+            &&bridge?.OwnsWindow!=true;
     }
 
     private bool PublicHandover()=>game is not null
@@ -159,7 +142,7 @@ internal sealed class GameSession(int? requestedPid,int player,string directory,
 
     private Observation WaitingObservation()
     {
-        var waiting=CompetitiveObservation.Waiting(player);
+        var waiting=OpponentTurnObservation.Waiting(Acting);
         return PublicHandover()?waiting with
         {
             Revision=$"handover:{game!.Process.Id}",
@@ -179,8 +162,25 @@ internal sealed class GameSession(int? requestedPid,int player,string directory,
             if(launcherPid is null||!PublicHandover()||request.Revision!=$"handover:{game!.Process.Id}")
                 throw new ActionRefused(ActionRefused.StaleRevision,"Restart is available only at the observed public hotseat handover");
             restarts[request.OperationId]=new("uncertain","Restart requested; do not repeat with a new operation id",null);
-            game!.Process.Kill();
-            await game.Process.WaitForExitAsync(CancellationToken.None);
+            // The window is asked to close, as its own close button does, and the game's own «Вы
+            // действительно хотите выйти?» is answered; a killed process can leave the sound device
+            // and the screen mode of the desktop broken.
+            game!.Process.CloseMainWindow();
+            bool confirmed=false;
+            for(int i=0;i<30&&!confirmed;i++)
+            {
+                await Task.Delay(100,CancellationToken.None);
+                confirmed=await bridge!.ConfirmQuit(CancellationToken.None);
+            }
+            using(var wait=new CancellationTokenSource(TimeSpan.FromSeconds(20)))
+                try{await game.Process.WaitForExitAsync(wait.Token);}
+                catch(OperationCanceledException)
+                {
+                    restarts.Remove(request.OperationId);
+                    throw new InvalidOperationException(confirmed
+                        ?"The game did not exit within 20 seconds after its quit question was confirmed; nothing else was done"
+                        :"The game did not ask «Вы действительно хотите выйти?» after its window was asked to close; nothing else was done");
+                }
             Refresh();
             LauncherActions.Play(launcherPid.Value);
             launchRequested=DateTime.UtcNow;
@@ -223,13 +223,13 @@ internal sealed class GameSession(int? requestedPid,int player,string directory,
     public async Task<object> Status(CancellationToken ct)
     {
         await gate.WaitAsync(ct);
-        try{Refresh();FollowTurn();return new{state,detail,gamePid=game?.Process.Id,player=Acting,everySide=player==PlayerSetting.EverySide,competitive,game=bridge?.Status()};}
+        try{Refresh();FollowTurn();return new{state,detail,gamePid=game?.Process.Id,player=Acting,everySide=player==PlayerSetting.EverySide,opponentTurn=OpponentTurn(),game=bridge?.Status()};}
         finally{gate.Release();}
     }
     public async Task<TurnWaitResult> WaitForTurn(int timeoutSeconds,CancellationToken ct)
     {
         if(timeoutSeconds is <0 or >60)
-            throw new InvalidOperationException("Use 0 to 60 seconds");
+            throw new ActionRefused(ActionRefused.BadArgument,"Use 0 to 60 seconds");
         int own=player==PlayerSetting.EverySide
             ?pinned.Value??throw new InvalidOperationException("X-Hota-Player is required to wait for one colour")
             :player;
@@ -241,11 +241,9 @@ internal sealed class GameSession(int? requestedPid,int player,string directory,
             try
             {
                 Refresh();
+                FollowTurn();
                 if(game is not null&&GameReader.InFrontend(game))return new(false,"menu");
-                if(game is not null&&(GameReader.ActiveHuman(game)==own
-                   ||GameReader.OwnTurnPrompt(game,own)
-                   ||competitive&&new CombatReader(game,own).LiveParticipant()
-                   ||competitive&&OwnBattleEvent(own)))
+                if(game is not null&&bridge?.Player==own&&bridge.OwnTurn)
                     return new(true,"your_turn");
                 current=game is null?"waiting_for_game":"waiting";
             }
@@ -268,10 +266,10 @@ internal sealed class GameSession(int? requestedPid,int player,string directory,
     }
     public Task<Observation> Observe(CancellationToken ct)=>WithGame(async b=>
     {
-        if(competitive&&AnotherTurn())return WaitingObservation();
+        if(OpponentTurn())return WaitingObservation();
         var observed=await b.Observe(ct);
         // A hand-over can happen while the bridge reads the UI. Never publish that frame.
-        return competitive&&AnotherTurn()?WaitingObservation():observed;
+        return OpponentTurn()?WaitingObservation():observed;
     },ct);
     public Task<OperationResult> Move(MoveRequest request,CancellationToken ct)=>WithGame(async b=>{await EnsureAdapter(ct);return await b.Move(request,ct);},ct);
     public Task<OperationResult> Attack(MoveRequest request,CancellationToken ct)=>WithGame(async b=>{await EnsureAdapter(ct);return await b.Attack(request,ct);},ct);

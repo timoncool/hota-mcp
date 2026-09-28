@@ -20,6 +20,13 @@ public sealed class ActionRefused(string code,string message):InvalidOperationEx
     public const string UnknownControl="UNKNOWN_CONTROL";
     public const string NotYourTurn="NOT_YOUR_TURN";
     public const string AlreadySet="ALREADY_SET";
+    public const string NoPath="NO_PATH";
+    public const string GuardedCell="GUARDED_CELL";
+    public const string NoHeroOnMap="NO_HERO_ON_MAP";
+    public const string WrongScreen="WRONG_SCREEN";
+    public const string TileHidden="TILE_HIDDEN";
+    public const string StaleTargets="STALE_TARGETS";
+    public const string BadArgument="BAD_ARGUMENT";
 }
 
 internal static class ToolErrors

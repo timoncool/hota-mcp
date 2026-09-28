@@ -33,7 +33,8 @@ internal static class ScreenBriefing
         if(side is not null)
             lines.Add(side.Yours
                 ?$"Ход твой, играешь за {side.Colour}. День {Part(date,0)}, неделя {Part(date,1)}, месяц {Part(date,2)}." + (Part(date,0)=="1"?" Первый день недели: в городах появился прирост существ, мельницы и водяные колёса снова дают ресурс.":"")
-                :$"Сейчас ходит {side.ActiveColour}, а ты играешь за {side.Colour} — не действуй за чужой цвет.");
+                :screen=="waiting"?$"Сейчас ходит {side.ActiveColour}, а ты играешь за {side.Colour} — не действуй за чужой цвет."
+                :$"Сейчас ходит {side.ActiveColour}, но это окно адресовано тебе ({side.Colour}): бой против тебя, его итог и трофеи, повышение твоего героя, новость для всех за столом или конец партии — ответь на него.");
         foreach(var enemy in foreignHeroes)
         {
             if(side?.Allies.Contains(enemy.Owner)==true)

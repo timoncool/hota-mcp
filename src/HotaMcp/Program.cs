@@ -41,12 +41,8 @@ if(stdio)
 
 int? pid=int.TryParse(Value("--game-pid"),out int configuredPid)?configuredPid:null;
 int player=PlayerSetting.Read(directory,Value("--player"));
-bool competitive=PlayerSetting.Competitive(directory);
-if(competitive&&player==PlayerSetting.EverySide)
-    throw new InvalidOperationException("Privacy=competitive requires Player=one colour, not Player=все");
 if(diagnostic)
 {
-    if(competitive)throw new InvalidOperationException("Diagnostic memory and UI access is disabled in competitive mode");
     using var game=new WindowsGame(pid??Process.GetProcessesByName("h3hota HD").Single().Id);
     using var bridge=new Bridge(game,Math.Max(player,0),Path.Combine(directory,"diagnostic"));
     if(args.Contains("--center-hero"))await game.KeyAsync(0x48,0x23);
@@ -94,7 +90,7 @@ if(launch)
 using var serviceLock=new FileStream(Path.Combine(directory,"service.lock"),FileMode.OpenOrCreate,FileAccess.ReadWrite,FileShare.None);
 int? hostLauncherPid=launch?ServiceBootstrap.OpenLauncher(directory)
     :int.TryParse(Value("--launcher-pid"),out int parsedLauncherPid)?parsedLauncherPid:null;
-using var session=new GameSession(pid,player,directory,hostLauncherPid,competitive);
+using var session=new GameSession(pid,player,directory,hostLauncherPid);
 // Remember where the launcher lives so a later cold start can raise this same service again.
 if(hostLauncherPid is int knownLauncher)
     try{ServiceBootstrap.RememberLauncher(directory,Process.GetProcessById(knownLauncher).MainModule!.FileName);}

@@ -25,7 +25,7 @@ internal sealed class MapReader(WindowsGame game,int player)
     private (int Size,uint Tiles,uint Vision) Context(Observation observation)
     {
         if(observation.Screen!="adventure"||observation.Player!=player||game.I32(0x69ccf4)!=player)
-            throw new InvalidOperationException("Map requires your active adventure screen");
+            throw new ActionRefused(ActionRefused.WrongScreen,"Map requires your active adventure screen");
         uint setup=game.U32(0x699538)+0x1fb70;
         if(game.U32(game.U32(0x6992b8)+0x5c)!=setup)throw new InvalidOperationException("Map layout mismatch");
         int size=game.I32(setup+0xd4);
@@ -40,7 +40,7 @@ internal sealed class MapReader(WindowsGame game,int player)
             throw new InvalidOperationException("Map coordinates out of bounds");
         uint index=checked((uint)((z*context.Size+y)*context.Size+x));
         if((game.Read(context.Vision+index*2,1)[0]&(1<<player))==0)
-            throw new InvalidOperationException("Tile is hidden from this player");
+            throw new ActionRefused(ActionRefused.TileHidden,"Tile is hidden from this player");
         return checked(context.Tiles+index*0x26);
     }
     /// Developer mapping only: the raw bytes of one tile record, so a field can be located by
@@ -245,6 +245,8 @@ internal sealed class MapReader(WindowsGame game,int player)
         79 when subtype is >=0 and <7 => $"ресурс: {Resources[subtype]}",
         53 => GameReference.Mine(subtype),
         16 => GameReference.Bank(subtype),
+        17 or 20 => GameReference.Dwelling(type,subtype),
+        5 when GameReference.Artifact(subtype) is {} artifact => $"артефакт «{artifact}»",
         _ => GameReference.MapObject(type,subtype),
     };
 
@@ -339,7 +341,7 @@ internal sealed class MapReader(WindowsGame game,int player)
     {
         uint tile=VisibleTile(observation,target.X,target.Y,target.Z);
         if(BitConverter.ToInt16(game.Read(tile+0x1e,2))!=target.Type||(game.Read(tile+0xd,1)[0]&16)==0)
-            throw new InvalidOperationException("Target changed; request nearby_targets again");
+            throw new ActionRefused(ActionRefused.StaleTargets,"Target changed; request nearby_targets again");
     }
     public bool IsTargetPresent(Observation observation,MapObject target)
     {
