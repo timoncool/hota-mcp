@@ -88,14 +88,11 @@ Every acting tool takes `operationId` and `revision`. The revision comes from th
 acted on; a stale one is refused. The operation id is yours and must stay the same on a retry of the
 same intent — repeating an `uncertain` action under a fresh id is how a hero gets moved twice.
 
-## Your colour — mandatory
+## Your colour
 
-The bridge does not decide whose side you play; it tells you. At the start of a game, and after
-loading one, find your colour: the only human in a game against computers; in a hotseat the colour
-whose row carries your name in the scenario window, or whose hand-over reads «Ходит <your name>»
-under its flag. Write it at the top of your plan.
-Before every action read the first line of `observe`: «Ходит <цвет>». Act only when that colour is
-yours or the window is addressed to your colour; otherwise do nothing and wait with
+Decide it once, when the game is created or loaded: the scenario window shows every side, who is
+human, the names and the teams. Write it at the top of your plan. Every `observe` gives the
+interface colour — «Ходит <цвет>»; a colour that is not yours you do not play: wait with
 `wait_for_turn` and your colour.
 
 ## The loop of one turn
