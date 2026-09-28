@@ -32,9 +32,9 @@ internal static class ScreenBriefing
         var lines=new List<string>();
         if(side is not null)
             lines.Add(side.Yours
-                ?$"Ход твой, играешь за {side.Colour}. День {Part(date,0)}, неделя {Part(date,1)}, месяц {Part(date,2)}." + (Part(date,0)=="1"?" Первый день недели: в городах появился прирост существ, мельницы и водяные колёса снова дают ресурс.":"")
+                ?$"Ходит {side.Colour}. День {Part(date,0)}, неделя {Part(date,1)}, месяц {Part(date,2)}. Если {side.Colour} — не твой цвет (участники ниже), ничего не делай и жди wait_for_turn со своим цветом." + (Part(date,0)=="1"?" Первый день недели: в городах появился прирост существ, мельницы и водяные колёса снова дают ресурс.":"")
                 :screen=="waiting"?$"Сейчас ходит {side.ActiveColour}, а ты играешь за {side.Colour} — не действуй за чужой цвет."
-                :$"Сейчас ходит {side.ActiveColour}, но это окно адресовано тебе ({side.Colour}): бой против тебя, его итог и трофеи, повышение твоего героя, новость для всех за столом или конец партии — ответь на него.");
+                :$"Сейчас ходит {side.ActiveColour}, но это окно адресовано игроку {side.Colour}: бой против него, его итог и трофеи, повышение его героя, новость для всех за столом или конец партии. Если {side.Colour} — твой цвет, ответь на него; если нет — не трогай.");
         foreach(var enemy in foreignHeroes)
         {
             if(side?.Allies.Contains(enemy.Owner)==true)
@@ -86,7 +86,7 @@ internal static class ScreenBriefing
                         &&Math.Abs(t.X+t.Width/2-centre)<45).OrderBy(t=>t.Y).FirstOrDefault();
                 string? named=colour?.Text?.Trim();
                 int? who=named is null?null:Enumerable.Range(0,8).Cast<int?>().FirstOrDefault(c=>GameReader.ColourName(c!.Value)==named);
-                string relation=side is null?"":who is null?" — цвет не опознан":who==side.Player?" — это ты":side.Allies.Contains(who.Value)?" — твой союзник":" — твой противник";
+                string relation=side is null?"":who is null?" — цвет не опознан":who==side.Player?" — сторона на экране":side.Allies.Contains(who.Value)?" — её союзник":" — её противник";
                 lines.Add(named is null?"На окне герб игрока, цвет под ним не прочитан."
                     :$"Событие о игроке {named} (его герб на окне){relation}.");
             }

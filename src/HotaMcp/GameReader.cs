@@ -249,6 +249,21 @@ internal sealed class GameReader(WindowsGame game,int player)
     public static bool GameEnded(WindowsGame game)=>
         Standing(game) is var (owners,team)&&owners.Select(team).Distinct().Count()<=1;
 
+    /// The colours people play in the running game, as the game's own record of each colour says:
+    /// in play (a town or a hero) and not a computer. Empty outside a game.
+    public static List<int> HumanColours(WindowsGame game)
+    {
+        var humans=new List<int>();
+        if(!InGame(game))return humans;
+        uint main=game.U32(0x699538);
+        for(int colour=0;colour<8;colour++)
+        {
+            byte[] record=game.Read(main+0x20ad0+(uint)colour*0x168,0xe2);
+            if((record[1]!=0||record[0x3e]!=0)&&record[0xe1]!=0)humans.Add(colour);
+        }
+        return humans;
+    }
+
     /// A game is loaded: the map object carries a real date. The object itself exists from the
     /// intro video on, zeroed, so its pointer alone says nothing.
     public static bool InGame(WindowsGame game)
@@ -1368,7 +1383,7 @@ internal sealed class GameReader(WindowsGame game,int player)
                 bool ally=colour!=player&&teams&&header[1+colour]==header[1+player];
                 if(ally)allies.Add(colour);
                 string who=record[0xe1]!=0?"человек":"компьютер";
-                string relation=colour==player?"это ты":ally?"союзник":"противник";
+                string relation=colour==player?"сторона на экране":ally?"её союзник":"её противник";
                 participants.Add($"{Colour(colour)} — {who}"+(teams?$", команда {header[1+colour]+1}":"")+$", {relation}");
             }
             side=side with{Allies=allies.ToArray(),Participants=participants,Underground=header[0x10]!=0};

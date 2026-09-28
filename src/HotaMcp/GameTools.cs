@@ -30,10 +30,11 @@ public sealed class GameTools(IGameEndpoint endpoint)
     public Task<Observation> Observe(CancellationToken cancellationToken)=>endpoint.Observe(cancellationToken);
 
     [McpServerTool(Title="Wait for your turn",ReadOnly=true,Destructive=false,Idempotent=true,OpenWorld=false),
-     Description("Waits for the configured player's turn, or for a window the game addresses to that player on someone else's turn: its hotseat handover, «Город под атакой!», a fight a computer opens against it, the result, spoils and level-up after that fight, news for the whole table, the end of the game. Returns yourTurn and state; no opponent actions, map, resources or summary are read or returned. Each call waits at most 60 seconds and can be cancelled. Use observe after yourTurn becomes true, answer the window, then wait again.")]
+     Description("Waits for your colour's turn, or for a window the game addresses to your colour on someone else's turn: its hotseat handover, «Город под атакой!», a fight a computer opens against it, the result, spoils and level-up after that fight, news for the whole table, the end of the game. Which colour is yours you know from observe: the side line and the participants with their names. Returns yourTurn and state; no opponent actions, map or resources are read. Without a colour it returns as soon as any human side can act and names that side in state (turn:<colour>). Each call waits at most 60 seconds. After yourTurn, observe, answer, then wait again.")]
     public Task<TurnWaitResult> WaitForTurn(
         [Description("Maximum wait in seconds, 0 to 60; default 30.")] int timeoutSeconds=30,
-        CancellationToken cancellationToken=default)=>endpoint.WaitForTurn(timeoutSeconds,cancellationToken);
+        [Description("Your colour: красный, синий, … or red, blue, … or 0-7.")] string? colour=null,
+        CancellationToken cancellationToken=default)=>endpoint.WaitForTurn(timeoutSeconds,colour,cancellationToken);
 
     [McpServerTool(Title="List this bridge's tools",ReadOnly=true,Destructive=false,Idempotent=true,OpenWorld=false),
      Description("Lists every tool this server offers with its group and its safety class, built from the registered tools "

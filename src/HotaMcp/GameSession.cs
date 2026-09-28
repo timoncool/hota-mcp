@@ -231,16 +231,16 @@ internal sealed class GameSession(int? requestedPid,int player,string directory,
     public async Task<object> Status(CancellationToken ct)
     {
         await gate.WaitAsync(ct);
-        try{Refresh();FollowTurn();return new{state,detail,gamePid=game?.Process.Id,player=Acting,everySide=player==PlayerSetting.EverySide,opponentTurn=OpponentTurn(),game=bridge?.Status()};}
+        try{Refresh();FollowTurn();return new{state,detail,gamePid=game?.Process.Id,side=GameReader.ColourName(Acting),opponentTurn=OpponentTurn(),game=bridge?.Status()};}
         finally{gate.Release();}
     }
-    public async Task<TurnWaitResult> WaitForTurn(int timeoutSeconds,CancellationToken ct)
+    /// Waits for the given colour's turn or a window addressed to it; without a colour, for any
+    /// human side to be able to act, and names that side.
+    public async Task<TurnWaitResult> WaitForTurn(int timeoutSeconds,string? colour,CancellationToken ct)
     {
         if(timeoutSeconds is <0 or >60)
             throw new ActionRefused(ActionRefused.BadArgument,"Use 0 to 60 seconds");
-        int own=player==PlayerSetting.EverySide
-            ?pinned.Value??throw new ActionRefused(ActionRefused.BadArgument,"X-Hota-Player (HOTA_PLAYER) is required to wait for one colour when the service plays every side")
-            :player;
+        if(!string.IsNullOrWhiteSpace(colour))pinned.Value=ParseColour(colour);
         var deadline=Stopwatch.StartNew();
         while(true)
         {
@@ -249,9 +249,11 @@ internal sealed class GameSession(int? requestedPid,int player,string directory,
             try
             {
                 Refresh();
-                FollowTurn();
                 if(game is not null&&GameReader.InFrontend(game))return new(false,"menu");
-                if(game is not null&&bridge?.Player==own&&bridge.OwnTurn)
+                if(game is not null&&pinned.Value is null&&ShownSide() is int side)
+                    return new(false,$"turn:{GameReader.ColourName(side)}");
+                FollowTurn();
+                if(game is not null&&pinned.Value is not null&&bridge is not null&&bridge.OwnTurn)
                     return new(true,"your_turn");
                 current=game is null?"waiting_for_game":"waiting";
             }
@@ -356,30 +358,44 @@ internal sealed class GameSession(int? requestedPid,int player,string directory,
         return made;
     }
 
-    /// Every side played: the bridge of the human colour to move. On a computer's turn and in the
-    /// menus the last one stays.
-    // A controller that plays one colour of a hotseat names it on every call (header
-    // X-Hota-Player): it then acts only for that colour, whoever's turn it is.
+    // The bridge decides nothing about sides: it shows the side whose turn it is — on a computer's
+    // turn, the human a window on screen is addressed to — and the observation says whose turn and
+    // who plays what; the agent reads that and does not play a side that is not its own. A script
+    // or a controller may name its colour per request (X-Hota-Player) to see only that side.
     private static readonly AsyncLocal<int?> pinned=new();
 
     public void Pin(string? colour)
     {
-        pinned.Value=string.IsNullOrWhiteSpace(colour)?null:PlayerSetting.Parse(colour);
+        pinned.Value=string.IsNullOrWhiteSpace(colour)?null:ParseColour(colour);
         if(pinned.Value is int wanted&&player!=PlayerSetting.EverySide&&wanted!=player)
-            throw new ActionRefused(ActionRefused.BadArgument,$"This service plays colour {player}; set Player=все in settings.ini to serve colour {wanted} too");
-        if(pinned.Value==PlayerSetting.EverySide)throw new ActionRefused(ActionRefused.BadArgument,"X-Hota-Player names one colour: 0-7 or red, blue, …");
+            throw new ActionRefused(ActionRefused.BadArgument,$"This service was started for colour {player} (--player)");
     }
 
+    private static int ParseColour(string colour)
+    {
+        int parsed;
+        try{parsed=PlayerSetting.Parse(colour);}
+        catch(InvalidOperationException e)when(e is not ActionRefused){throw new ActionRefused(ActionRefused.BadArgument,e.Message);}
+        if(parsed==PlayerSetting.EverySide)throw new ActionRefused(ActionRefused.BadArgument,"Name one colour: 0-7, красный, синий, … or red, blue, …");
+        return parsed;
+    }
+
+    /// The human whose side is on screen: the one whose turn it is, or on a computer's turn the
+    /// one a window is addressed to — a fight against him, its spoils, the end of the game.
+    private int? ShownSide()
+    {
+        if(GameReader.ActiveHuman(game!) is int active)return active;
+        if(GameReader.InFrontend(game!))return null;
+        return GameReader.HumanColours(game!).Cast<int?>().FirstOrDefault(c=>GameReader.OwnsWindow(game!,c!.Value));
+    }
+
+    /// The bridge of the side this request sees; in the menus and on a computer's quiet turn the
+    /// last one stays.
     private void FollowTurn()
     {
         if(player!=PlayerSetting.EverySide||game is null)return;
-        if(pinned.Value is int own)
-        {
-            if(bridge?.Player!=own)bridge=sides.TryGetValue(own,out var mine)?mine:NewBridge(own);
-            return;
-        }
-        if(GameReader.ActiveHuman(game) is not int colour||colour==bridge?.Player)return;
-        bridge=sides.TryGetValue(colour,out var known)?known:NewBridge(colour);
+        if((pinned.Value??ShownSide()) is not int side||side==bridge?.Player)return;
+        bridge=sides.TryGetValue(side,out var known)?known:NewBridge(side);
     }
 
     private void DisposeBridges()

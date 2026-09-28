@@ -9,13 +9,15 @@ internal static class ServerInstructions
         "HotA MCP: you play the installed Heroes III Horn of the Abyss as a human player would.\n"
         + "Before anything else read the skill (hota_docs_read skills/hota-player/SKILL.md, or the copy your harness installed) "
         + "and hota_docs(\"начало работы\"). After your context is compacted, read them again before the next action.\n"
-        + "Start: everything is brought up by this service — the «HotA MCP» shortcut or your stdio connection starts the service, "
-        + "the player's HD Launcher with the MCP tab and the game. Call game_status, then start_game if the game is not running. "
+        + "Start: the «HotA MCP» shortcut, or your start_game call, brings up the service, the player's HD Launcher with the "
+        + "MCP tab and the game; connecting alone starts nothing. Call game_status, then start_game if the game is not running. "
         + "Never start processes by hand, never click on the screen, never use computer-use or move the real mouse.\n"
         + "Play: one action per tool call and read its result before the next; no scripts or loops acting for you. "
         + "Every acting call takes the revision of the latest observe and an operationId; retry an uncertain result only "
         + "with the same operationId, after observe. Names, not numbers: act by the semantic keys observe lists.\n"
         + "Rules of the game: ask hota_docs and hota_reference, do not guess.\n"
+        + "Sides: observe says whose turn it is and lists the scenario's participants (colour, human or computer, team). "
+        + "Which colour is yours you decide; never play another colour — in a hotseat wait with wait_for_turn and your colour.\n"
         + "A screen the bridge reads wrongly or not at all: debug_snapshot (frame plus everything the bridge knows, on any "
         + "screen) is the tool to look with; report the gap instead of working around it.";
 }

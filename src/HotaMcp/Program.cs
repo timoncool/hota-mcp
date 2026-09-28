@@ -27,8 +27,8 @@ if(stdio)
 {
     // Codex starts stdio MCP servers on startup. Connecting must never launch the game.
     // The timeout outlasts the longest wait of the service: an autobattle, up to 180 seconds.
+    // A controller that plays one colour may name it for every request: HOTA_PLAYER=blue.
     var http=new HttpClient{BaseAddress=new Uri(endpoint.TrimEnd('/')+"/"),Timeout=TimeSpan.FromSeconds(200)};
-    // A client playing one colour of a hotseat names it: HOTA_PLAYER=1 or blue.
     if(Environment.GetEnvironmentVariable("HOTA_PLAYER") is {Length:>0} colour)http.DefaultRequestHeaders.Add("X-Hota-Player",colour);
     var host=Host.CreateApplicationBuilder();
     host.Logging.ClearProviders();host.Logging.AddConsole(o=>o.LogToStandardErrorThreshold=LogLevel.Trace);
@@ -41,7 +41,8 @@ if(stdio)
 }
 
 int? pid=int.TryParse(Value("--game-pid"),out int configuredPid)?configuredPid:null;
-int player=PlayerSetting.Read(directory,Value("--player"));
+// The colour of each request comes from the game and the controller, never from a file.
+int player=Value("--player") is string fixedColour?PlayerSetting.Parse(fixedColour):PlayerSetting.EverySide;
 if(diagnostic)
 {
     using var game=new WindowsGame(pid??Process.GetProcessesByName("h3hota HD").Single().Id);
@@ -154,7 +155,7 @@ app.MapPost("/bridge/status",(CancellationToken ct)=>session.Status(ct));
 app.MapPost("/bridge/start",(CancellationToken ct)=>session.Start(ct));
 app.MapPost("/bridge/graphics",(GraphicsRequest request,CancellationToken ct)=>session.Graphics(request.Renderer,ct));
 app.MapPost("/bridge/observe",(CancellationToken ct)=>session.Observe(ct));
-app.MapPost("/bridge/wait-turn",(TurnWaitRequest request,CancellationToken ct)=>session.WaitForTurn(request.TimeoutSeconds,ct));
+app.MapPost("/bridge/wait-turn",(TurnWaitRequest request,CancellationToken ct)=>session.WaitForTurn(request.TimeoutSeconds,request.Colour,ct));
 app.MapPost("/bridge/debug-capture",(CancellationToken ct)=>session.Capture(ct));
 app.MapPost("/bridge/debug-snapshot",(CancellationToken ct)=>session.Snapshot(ct));
 app.MapPost("/bridge/click",(OperationRequest request,CancellationToken ct)=>session.Click(request,ct));
@@ -223,7 +224,7 @@ record DocsReadRequest(string Path,string? Heading,int Offset,int MaxChars);
 record DocsCatalogRequest(string? Path);
 record MapRequest(int X,int Y,int Z,int Radius);
 record MiniMapRequest(int Z);
-record TurnWaitRequest(int TimeoutSeconds);
+record TurnWaitRequest(int TimeoutSeconds,string? Colour=null);
 record TileRequest(int X,int Y,int Z,string Revision);
 
 /// Tool answers are read by a model: Cyrillic escaped as \uXXXX costs six characters a letter and

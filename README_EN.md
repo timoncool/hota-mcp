@@ -90,12 +90,9 @@ Every action takes an `operationId` and the `revision` of the observation it was
 
 ## Configuration
 
-`%LOCALAPPDATA%\HotaMcp\settings.ini`:
+There are no sides to configure: everything comes from the game itself. Every `observe` says whose turn it is ("Ходит синий") and lists the scenario's participants — colour, human or computer, team. Which colour is its own the agent decides: in a hotseat it simply does not play another colour and waits with `wait_for_turn` and its own colour. On a computer's turn the bridge shows the human a window on screen is addressed to: a fight against them, its result, spoils, a level-up, the end of the game.
 
-- `Player=blue` (or `синий`, or 0–7) — the colour the bridge plays in a hotseat. On another colour's turn it only reads its own side.
-- `Player=all` (`все`) — one service for every human colour; each controller names its colour per request with the `X-Hota-Player` header (`HOTA_PLAYER` environment variable for `--stdio`).
-
-Who is an ally and who is an opponent comes from the scenario's teams. An opponent's turn is private (`observe` returns only `waiting`); windows the game addresses to you on someone else's turn — a fight a computer starts against you, its result, spoils, your hero's level-up, the end of the game — stay yours.
+Allies and opponents come from the scenario's teams: an ally's moves are logged in `ally_log`, an opponent's are not. When the agent names its colour (`wait_for_turn` with a colour, or `HOTA_PLAYER` for `--stdio`), an opponent's turn shows it only `waiting`.
 
 **Cost of a game.** Add to `~/.claude/settings.json` (from the next session):
 ```json

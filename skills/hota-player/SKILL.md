@@ -43,7 +43,9 @@ the full text of every description; this is the map.
 - `observe` — the whole state of your side plus the revision every action needs: date, resources,
   every hero you own, every town with its garrison and whether today's building is spent, the active
   screen, its controls and the legal actions. This is the one call you cannot skip.
-- `wait_for_turn` — wait up to 60 seconds for your configured colour. It returns only `yourTurn`
+- `wait_for_turn` — wait up to 60 seconds for your colour; pass it (`colour: синий`). Which colour is
+  yours you decide from `observe`: it says whose turn it is ("Ходит синий") and lists the
+  participants; never play a colour that is not yours. It returns only `yourTurn`
   and `state`, without reading the opponent's actions. Call it again if the result is `waiting`,
   then call `observe` when `yourTurn` is true. Who is an ally comes from the scenario's teams: on
   an opponent's turn `observe` returns only a `waiting` marker; on an ally's turn it shows your own

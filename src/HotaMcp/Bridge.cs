@@ -1761,7 +1761,7 @@ public interface IGameEndpoint
     Task<object> Graphics(string? renderer,CancellationToken ct);
     Task<CaptureResult> Capture(CancellationToken ct);
     Task<object> Status(CancellationToken ct);
-    Task<TurnWaitResult> WaitForTurn(int timeoutSeconds,CancellationToken ct);
+    Task<TurnWaitResult> WaitForTurn(int timeoutSeconds,string? colour,CancellationToken ct);
     Task<Observation> Observe(CancellationToken ct);
     Task<OperationResult> Click(OperationRequest request,CancellationToken ct);
     Task<OperationResult> EnterText(TextRequest request,CancellationToken ct);
@@ -1800,7 +1800,7 @@ internal sealed class LocalEndpoint(Bridge bridge) : IGameEndpoint
     public Task<object> Graphics(string? renderer,CancellationToken ct)=>throw new InvalidOperationException("Launcher host required");
     public Task<CaptureResult> Capture(CancellationToken ct)=>bridge.Capture(ct);
     public Task<object> Status(CancellationToken ct)=>Task.FromResult(bridge.Status());
-    public async Task<TurnWaitResult> WaitForTurn(int timeoutSeconds,CancellationToken ct)
+    public async Task<TurnWaitResult> WaitForTurn(int timeoutSeconds,string? colour,CancellationToken ct)
     {
         if(timeoutSeconds is <0 or >60)throw new ActionRefused(ActionRefused.BadArgument,"Use 0 to 60 seconds");
         var deadline=System.Diagnostics.Stopwatch.StartNew();
@@ -1927,7 +1927,7 @@ internal sealed class RemoteEndpoint(HttpClient client,Func<string> readToken,Fu
     public Task<object> Graphics(string? renderer,CancellationToken ct)=>Call<object>("bridge/graphics",new{renderer},ct);
     public Task<CaptureResult> Capture(CancellationToken ct)=>Call<CaptureResult>("bridge/debug-capture",new{},ct);
     public Task<object> Status(CancellationToken ct)=>Call<object>("bridge/status",new{},ct);
-    public Task<TurnWaitResult> WaitForTurn(int timeoutSeconds,CancellationToken ct)=>Call<TurnWaitResult>("bridge/wait-turn",new{timeoutSeconds},ct);
+    public Task<TurnWaitResult> WaitForTurn(int timeoutSeconds,string? colour,CancellationToken ct)=>Call<TurnWaitResult>("bridge/wait-turn",new{timeoutSeconds,colour},ct);
     public Task<Observation> Observe(CancellationToken ct)=>Call<Observation>("bridge/observe",new{},ct);
     public Task<OperationResult> Click(OperationRequest request,CancellationToken ct)=>Call<OperationResult>("bridge/click",request,ct);
     public Task<OperationResult> EnterText(TextRequest request,CancellationToken ct)=>Call<OperationResult>("bridge/text",request,ct);
