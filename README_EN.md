@@ -40,12 +40,12 @@ Why: Heroes III is a long-horizon strategy game — economy, scouting, fights, a
 ## Requirements
 
 - Windows 10/11 x64.
-- Your own **Heroes of Might and Magic III Complete** (GOG) with **Horn of the Abyss 1.8.0** and **HD Mod** — the build is checked by file hashes.
+- Your own **Heroes of Might and Magic III Complete** (GOG) with **Horn of the Abyss 1.8.1** and **HD Mod** — on attach the bridge checks that everything it relies on is in place in this build.
 - An MCP client: Claude Code, Claude Desktop, Codex, or anything that speaks MCP over stdio or HTTP.
 
 ## Quick Start
 
-1. **Install** — download [`HotaMcp-Setup-1.0.0.exe`](https://github.com/timoncool/hota-mcp/releases/latest) and run it (close the HD Launcher first). It finds the game by itself and puts a **«HotA MCP»** shortcut on the desktop.
+1. **Install** — download [`HotaMcp-Setup-1.0.1.exe`](https://github.com/timoncool/hota-mcp/releases/latest) and run it (close the HD Launcher first). It finds the game by itself and puts a **«HotA MCP»** shortcut on the desktop.
 
 2. **Connect your MCP client** — for Claude Code:
    ```bash
@@ -110,7 +110,7 @@ Then `HotaMcp.exe --usage`. The data goes nowhere but the local bridge.
 
 ## Help wanted
 
-The bridge reads the game in the language it is installed in, and it is verified on the **Russian** edition of HotA 1.8.0. Its own briefs, the agent skill and the game reference are in Russian too. That is where you can help:
+The bridge reads the game in the language it is installed in, and it is verified on the **Russian** edition of HotA 1.8.1. Its own briefs, the agent skill and the game reference are in Russian too. That is where you can help:
 
 - **Play and report.** Install, let an agent play, and open an issue with what went wrong — [`CONTRIBUTING.md`](CONTRIBUTING.md) lists what to attach (a `debug_snapshot`, the journal, `errors.log`).
 - **Other game languages.** If your HotA is English, Polish, German, Chinese… tell us what the bridge fails to read. About two dozen game phrases are matched by text; the list is in [`CONTRIBUTING.md`](CONTRIBUTING.md).

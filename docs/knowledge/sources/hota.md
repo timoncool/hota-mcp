@@ -1,7 +1,7 @@
 ---
 id: hota.sources
 title: "HotA knowledge source registry"
-game_scope: "Heroes III Complete/SoD + installed HotA 1.8.0; online HotA 1.8.1; checked 2026-09-19"
+game_scope: "Heroes III Complete/SoD + installed HotA 1.8.1; checked 2026-09-29"
 topics: [sources, provenance, verification]
 sources: [hota.download, hota.documentation, hota.changelog, hota.faq, hdmod.community, local.complete.readme, local.hota.templates, local.installed.build, TZ]
 verification_status: "registry checked 2026-09-19"
@@ -22,7 +22,7 @@ updated: "2026-09-20"
 | `hdmod.community` | [HD Mod extended functionality tips](https://heroes3wog.net/homm3-hd-mod-extended-functionality-tips/) | hotkeys и Quick Menu | HD Mod; secondary | вторичный, явно помечен |
 | `local.complete.readme` | `G:\HoMM 3 Complete\README.TXT` | базовая Complete, старые hotseat/TCP-IP сведения | Complete 4.0 readme, локальный read-only | локальный исторический, не HotA |
 | `local.hota.templates` | `G:\HoMM 3 Complete\HotA_RMGTemplates\1deaL\rmg.txt`, `_HD3_Data\Templates\*\rmg.txt` | реальный формат и пользовательские RMG templates | локальная коллекция | локальный read-only; версия не доказана |
-| `local.installed.build` | UI ID3001 после перезапуска + EXE/DLL SHA-256 | установленная сборка | HotA 1.8.0 | локальный runtime, подтверждено 2026-09-19 |
+| `local.installed.build` | HotA_Setup.ini, дата HotA.dll, таблицы существ запущенной игры | установленная сборка | HotA 1.8.1 | локальный runtime, подтверждено 2026-09-29 |
 
 ## Правила цитирования
 

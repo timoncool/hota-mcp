@@ -1,6 +1,6 @@
 # HotA MCP
 
-> An MCP server that lets an AI agent play Heroes of Might and Magic III: Horn of the Abyss (HotA 1.8.0 + HD Mod, Windows) like a human player. It reads the game's screens as structure and presses the game's own buttons with window events — no OCR, screenshots, mouse hijacking or internal game commands. A whole game: main menu, scenario setup, hotseat, save/load, adventure map, towns, recruiting, battles, sieges, level-ups, the score screen.
+> An MCP server that lets an AI agent play Heroes of Might and Magic III: Horn of the Abyss (HotA 1.8.1 + HD Mod, Windows) like a human player. It reads the game's screens as structure and presses the game's own buttons with window events — no OCR, screenshots, mouse hijacking or internal game commands. A whole game: main menu, scenario setup, hotseat, save/load, adventure map, towns, recruiting, battles, sieges, level-ups, the score screen.
 
 For an agent given this repository: the user installs the latest release (it needs their own copy of the game), you connect to the server over stdio, read the rules it sends on connect and the skill below, and start with `start_game` or `observe`. One action per call; every action takes the `revision` of the observation it was decided on and an `operationId`.
 

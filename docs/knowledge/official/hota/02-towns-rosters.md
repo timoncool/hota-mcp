@@ -1,7 +1,7 @@
 ---
 id: hota.towns-rosters
 title: "Новые города, существа и герои HotA"
-game_scope: "Installed HotA 1.8.0; online 1.8.1 comparison; Factory 1.7+, Bulwark 1.8.0+"
+game_scope: "Installed HotA 1.8.1; Factory 1.7+, Bulwark 1.8.0+"
 topics: [Cove, Factory, Bulwark, creatures, heroes, terrain]
 sources: [hota.documentation, hota.faq, hota.changelog]
 verification_status: "official documentation verified; exact availability remains map/template/version dependent"
@@ -21,7 +21,7 @@ HotA добавляет три полноценных фракции: Cove (Пр
 - **Factory**: wasteland; Halfling/Grenadier, Mechanic/Engineer, Armadillo/Bellwether Armadillo, Automaton/Sentinel Automaton, Sandworm/Olgoi-Khorkhoi, Gunslinger/Bounty Hunter, Couatl/Crimson Couatl, Dreadnought/Juggernaut; Cannon/Factory-инфраструктура и герои классов Mercenary и Artificer. Два уровня 7 (Couatl и Dreadnought) могут строиться вместе.
 - **Bulwark** (1.8.0+): snow; Kobold/Foreman, Mountain Ram/Argali, Snow Elf/Steel Elf, Yeti/Runemaster, Shaman/Great Shaman, Mammoth/War Mammoth, Jotunn/Warlord; фракционная вторичная способность Runes, герои классов Chieftain и Elder. Стены, ворота и башни Bulwark имеют +1 прочности.
 
-Нейтральные новинки включают Leprechaun, Satyr, Steel Golem и Fangarm. Среди новых/изменённых героев встречаются Beatrice, Ranloo, Rion, Gem, Verdish, Floribert, Haugir, Biarma и другие; состав доступности меняется по карте, шаблону, воде и версии. В 1.8.1 исправлена специальность Biarma и конфликт её доступности с Haugir; в установленной 1.8.0 эти исправления не гарантированы.
+Нейтральные новинки включают Leprechaun, Satyr, Steel Golem и Fangarm. Среди новых/изменённых героев встречаются Beatrice, Ranloo, Rion, Gem, Verdish, Floribert, Haugir, Biarma и другие; состав доступности меняется по карте, шаблону, воде и версии. В 1.8.1 исправлена специальность Biarma и конфликт её доступности с Haugir; эти исправления действуют в установленной игре (1.8.1).
 
 ## Советы агенту
 

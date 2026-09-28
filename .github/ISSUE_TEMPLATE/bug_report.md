@@ -4,7 +4,7 @@ about: The bridge read something wrong, refused a legal move or stalled / Мос
 labels: bug
 ---
 
-**Game edition and language / Издание и язык игры:** (e.g. GOG Complete, HotA 1.8.0, English)
+**Game edition and language / Издание и язык игры:** (e.g. GOG Complete, HotA 1.8.1, English)
 **HotA MCP version / Версия HotA MCP:**
 **Model and client / Модель и клиент:** (e.g. Claude Code + Opus, Codex + DeepSeek)
 

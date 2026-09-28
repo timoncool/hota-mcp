@@ -1,7 +1,7 @@
 ---
 id: hota.multiplayer-hd
 title: "Hotseat, LAN и HD Mod"
-game_scope: "Installed HotA 1.8.0 with HD Mod; online 1.8.1 comparison; interface functions are launcher/build dependent"
+game_scope: "Installed HotA 1.8.1 with HD Mod 5.8 R20; interface functions are launcher/build dependent"
 topics: [hotseat, LAN, online, simultaneous turns, HD Mod, interface]
 sources: [hota.documentation, hota.faq, hdmod.community, hota.changelog]
 verification_status: "official HotA multiplayer constraints verified; HD feature list partly secondary and must be probed locally"

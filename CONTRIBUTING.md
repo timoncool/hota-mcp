@@ -11,7 +11,7 @@
 1. Поставьте [последний выпуск](https://github.com/timoncool/hota-mcp/releases/latest), подключите MCP-клиент, дайте агенту поиграть.
 2. Когда мост читает что-то неверно, отказывает в законном ходе или застревает, вызовите `debug_snapshot` на этом экране (или попросите агента). Он сохранит кадр окна игры и наблюдение моста в один и тот же момент.
 3. Откройте [issue](https://github.com/timoncool/hota-mcp/issues/new/choose) и приложите:
-   - издание и язык игры (например, GOG Complete, HotA 1.8.0, английская), модель и клиент;
+   - издание и язык игры (например, GOG Complete, HotA 1.8.1, английская), модель и клиент;
    - пару снимков из `%LOCALAPPDATA%\HotaMcp\sessions\<сессия>\captures\` (PNG + JSON);
    - журнал сессии `%LOCALAPPDATA%\HotaMcp\sessions\<сессия>\journal.jsonl` и `%LOCALAPPDATA%\HotaMcp\errors.log`;
    - сохранение, если по нему проблема воспроизводится.
@@ -63,7 +63,7 @@ Three things help most right now: playing and reporting, testing other language 
 1. Install the [latest release](https://github.com/timoncool/hota-mcp/releases/latest), connect your MCP client, let an agent play.
 2. When the bridge reads something wrong, refuses a legal move or stalls, call `debug_snapshot` on that screen (or ask the agent to). It saves a frame of the game window and the bridge's observation of the same instant.
 3. Open an [issue](https://github.com/timoncool/hota-mcp/issues/new/choose) and attach:
-   - the game edition and language (e.g. GOG Complete, HotA 1.8.0, English), the model and client you used;
+   - the game edition and language (e.g. GOG Complete, HotA 1.8.1, English), the model and client you used;
    - the snapshot pair from `%LOCALAPPDATA%\HotaMcp\sessions\<session>\captures\` (PNG + JSON);
    - the session journal `%LOCALAPPDATA%\HotaMcp\sessions\<session>\journal.jsonl` and `%LOCALAPPDATA%\HotaMcp\errors.log`;
    - a save file, if the problem can be reproduced from it.

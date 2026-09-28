@@ -11,9 +11,9 @@ DOCS = ROOT / "docs"
 SITE = "https://timoncool.github.io/hota-mcp/"
 REPO = "https://github.com/timoncool/hota-mcp"
 RELEASE = REPO + "/releases/latest"
-VERSION = "1.0.0"
+VERSION = "1.0.1"
 SIZE_MB = 32
-UPDATED = "2026-09-28"
+UPDATED = "2026-09-29"
 PAGES = {"ru": "", "en": "en.html"}
 STARS = "https://img.shields.io/github/stars/timoncool/hota-mcp?label=%E2%98%85&amp;color=3f3f46&amp;style=flat"
 
@@ -30,7 +30,7 @@ T = {
         "cta_download": "Скачать для Windows",
         "cta_star": "Поставить звезду",
         "size": "МБ",
-        "note": "Windows 10/11 x64 и ваша Heroes III Complete (GOG) с HotA 1.8.0 и HD Mod. Установщик без прав администратора, .NET ставить не нужно.",
+        "note": "Windows 10/11 x64 и ваша Heroes III Complete (GOG) с HotA 1.8.1 и HD Mod. Установщик без прав администратора, .NET ставить не нужно.",
         "hero_alt": "DeepSeek Flash через HotA MCP открыл сундук и выбирает между золотом и опытом",
         "why_h": "Зачем",
         "why": "Герои — стратегия с длинным горизонтом: экономика, разведка, бои, карта, которую берут неделями. Одним удачным ходом её не выиграть, поэтому из неё выходит честный бенчмарк стратегического мышления агентов — в одиночку, против человека или в команде с ним.",
@@ -80,10 +80,10 @@ T = {
         "user": "&lt;вы&gt;",
         "faq_h": "Вопросы",
         "faq": [
-            ("Что нужно для игры?", "Windows 10/11 x64 и ваша легальная копия Heroes of Might and Magic III Complete (GOG) с Horn of the Abyss 1.8.0 и HD Mod — сборка сверяется по хешам файлов. Файлов игры в проекте нет."),
+            ("Что нужно для игры?", "Windows 10/11 x64 и ваша легальная копия Heroes of Might and Magic III Complete (GOG) с Horn of the Abyss 1.8.1 и HD Mod — при подключении мост проверяет, что всё нужное ему на месте в этой сборке. Файлов игры в проекте нет."),
             ("Какие агенты подходят?", "Любой MCP-клиент через stdio или HTTP: Claude Code, Claude Desktop, Codex и другие. Проверено с Claude и DeepSeek. Автобой идёт до 3 минут — поднимите таймаут вызова инструмента в клиенте (у Codex — tool_timeout_sec = 200)."),
                                     ("Это бесплатно? Куда уходят данные?", "Проект бесплатный, лицензия MIT. Служба работает на вашем компьютере и слушает только 127.0.0.1; телеметрия стоимости партии, если включить, тоже уходит только в локальный мост."),
-            ("Работает ли с игрой не на русском?", "Версия 1.0 проверена на русской HotA 1.8.0: около двух десятков фраз игры мост сверяет по тексту. Если ваша игра на другом языке — расскажите, что не читается, это одна из главных задач следующих версий."),
+            ("Работает ли с игрой не на русском?", "Мост проверен на русской HotA 1.8.1: около двух десятков фраз игры мост сверяет по тексту. Если ваша игра на другом языке — расскажите, что не читается, это одна из главных задач следующих версий."),
         ],
         "help_h": "Нужна помощь",
         "help_sub": "Мост, навык агента и справочник пока говорят по-русски. Поиграйте с агентом и сообщите, где он застревает; переведите навык и справочник на свой язык — модели играют лучше, когда справочник говорит на языке игры, которую они видят.",
@@ -110,7 +110,7 @@ T = {
         "cta_download": "Download for Windows",
         "cta_star": "Star on GitHub",
         "size": "MB",
-        "note": "Windows 10/11 x64 and your own Heroes III Complete (GOG) with HotA 1.8.0 and HD Mod. The installer needs no administrator rights and no .NET.",
+        "note": "Windows 10/11 x64 and your own Heroes III Complete (GOG) with HotA 1.8.1 and HD Mod. The installer needs no administrator rights and no .NET.",
         "hero_alt": "DeepSeek Flash opened a treasure chest through HotA MCP and chooses between gold and experience",
         "why_h": "Why",
         "why": "Heroes is a long-horizon strategy game: economy, scouting, battles, a map taken over weeks. One lucky move does not win it, which makes it an honest benchmark of an agent's strategic thinking — alone, against a human or on a human's team.",
@@ -160,10 +160,10 @@ T = {
         "user": "&lt;you&gt;",
         "faq_h": "Questions",
         "faq": [
-            ("What do I need?", "Windows 10/11 x64 and your own legal copy of Heroes of Might and Magic III Complete (GOG) with Horn of the Abyss 1.8.0 and HD Mod — the build is checked by file hashes. The project contains no game files."),
+            ("What do I need?", "Windows 10/11 x64 and your own legal copy of Heroes of Might and Magic III Complete (GOG) with Horn of the Abyss 1.8.1 and HD Mod — on attach the bridge checks that everything it needs is in place in this build. The project contains no game files."),
             ("Which agents work?", "Any MCP client over stdio or HTTP: Claude Code, Claude Desktop, Codex and others. Tested with Claude and DeepSeek. Auto-combat takes up to 3 minutes — raise the client's tool call timeout (Codex: tool_timeout_sec = 200)."),
                                     ("Is it free? Where does my data go?", "The project is free, MIT-licensed. The service runs on your computer and listens on 127.0.0.1 only; game cost telemetry, if you turn it on, also goes only to the local bridge."),
-            ("Does it work with a non-Russian game?", "Version 1.0 is verified on the Russian HotA 1.8.0: the bridge matches about twenty game phrases by text. If your game is in another language, tell us what it fails to read — that is one of the main goals of the next versions."),
+            ("Does it work with a non-Russian game?", "The bridge is verified on the Russian HotA 1.8.1: the bridge matches about twenty game phrases by text. If your game is in another language, tell us what it fails to read — that is one of the main goals of the next versions."),
         ],
         "help_h": "Help wanted",
         "help_sub": "The bridge, the agent skill and the reference speak Russian for now. Let an agent play and report where it gets stuck; translate the skill and the reference into your language — models play better when the reference speaks the language of the game they see.",
@@ -852,7 +852,7 @@ MANIFEST = json.dumps({
 
 LLMS = f"""# HotA MCP
 
-> An MCP server that lets an AI agent play Heroes of Might and Magic III: Horn of the Abyss (HotA 1.8.0 + HD Mod, Windows) like a human player. It reads the game's screens as structure and presses the game's own buttons with window events — no OCR, screenshots, mouse hijacking or internal game commands. A whole game: main menu, scenario setup, hotseat, save/load, adventure map, towns, recruiting, battles, sieges, level-ups, the score screen.
+> An MCP server that lets an AI agent play Heroes of Might and Magic III: Horn of the Abyss (HotA 1.8.1 + HD Mod, Windows) like a human player. It reads the game's screens as structure and presses the game's own buttons with window events — no OCR, screenshots, mouse hijacking or internal game commands. A whole game: main menu, scenario setup, hotseat, save/load, adventure map, towns, recruiting, battles, sieges, level-ups, the score screen.
 
 For an agent given this repository: the user installs the latest release (it needs their own copy of the game), you connect to the server over stdio, read the rules it sends on connect and the skill below, and start with `start_game` or `observe`. One action per call; every action takes the `revision` of the observation it was decided on and an `operationId`.
 

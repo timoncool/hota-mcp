@@ -1,10 +1,10 @@
 ---
 id: hota.index
 title: "HotA knowledge index"
-game_scope: "Heroes III Complete/SoD + HotA installed 1.8.0; online 1.8.1 comparison; checked 2026-09-19"
+game_scope: "Heroes III Complete/SoD + HotA installed 1.8.1; checked 2026-09-29"
 topics: [versioning, retrieval, scope]
 sources: [hota.sources]
-verification_status: "installed HotA 1.8.0 verified from in-game UI; online 1.8.1 separately verified"
+verification_status: "installed HotA 1.8.1 verified 2026-09-29"
 checked_at: "2026-09-19"
 type: reference
 layer: official
@@ -28,4 +28,4 @@ updated: "2026-09-20"
 
 ## Правило версии
 
-Установленная игра подтверждена после перезапуска в главном меню: UI ID3001 прочитал `Версия HotA: 1.8.0`. Онлайн-страница отдельно указывает 1.8.1. Хеши установки и правила 1.8.1 не следует приписывать локальной игре.
+Установлена последняя HotA 1.8.1 (подтверждено 29.09.2026: HotA_Setup.ini «Main Version=1.8.1», HotA.dll от 25.08.2026 и таблица существ запущенной игры (AI Value Боевого Мамонта 1672 — значение 1.8.1)). Правила 1.8.1 — текущие для этой игры.

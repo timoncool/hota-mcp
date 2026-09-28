@@ -1,7 +1,7 @@
 ---
 id: hota.agent-use
 title: "Как агенту пользоваться справкой HotA"
-game_scope: "MCP bridge knowledge layer; installed HotA 1.8.0, online 1.8.1; checked 2026-09-19"
+game_scope: "MCP bridge knowledge layer; installed HotA 1.8.1; checked 2026-09-29"
 topics: [MCP, facts, advice, visibility, version gating]
 sources: [hota.index, hota.version-scope, hota.documentation, TZ]
 verification_status: "project policy and source-backed guidance"
@@ -25,4 +25,4 @@ updated: "2026-09-20"
 4. Если версия/шаблон не подтверждены, не превращайте старую цифру в точное правило.
 5. Перед действием повторно запросите штатную доступность цели и текущего игрока.
 
-Пример безопасной формулировки: «Установленная UI-проверкой HotA 1.8.0 имеет Bulwark и Runes; проверка доступности всё равно делается по свойствам этой карты. Ice Formations и исправления Runes из 1.8.1 к этой установке автоматически не относятся».
+Пример безопасной формулировки: «Установленная HotA 1.8.1 имеет Кронверк и Руны с исправлениями 1.8.1; доступность всё равно проверяется по свойствам этой карты».

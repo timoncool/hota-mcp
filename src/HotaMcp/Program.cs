@@ -94,8 +94,13 @@ int? hostLauncherPid=launch?ServiceBootstrap.OpenLauncher(directory)
     :int.TryParse(Value("--launcher-pid"),out int parsedLauncherPid)?parsedLauncherPid:null;
 using var session=new GameSession(pid,player,directory,hostLauncherPid);
 // Remember where the launcher lives so a later cold start can raise this same service again.
+// A launcher started a moment ago has no modules loaded yet; its path then came from install.ini.
 if(hostLauncherPid is int knownLauncher)
-    try{ServiceBootstrap.RememberLauncher(directory,Process.GetProcessById(knownLauncher).MainModule!.FileName);}
+    try
+    {
+        using var launcherProcess=Process.GetProcessById(knownLauncher);
+        if(launcherProcess.MainModule?.FileName is string launcherPath)ServiceBootstrap.RememberLauncher(directory,launcherPath);
+    }
     catch(Exception e)when(e is InvalidOperationException or System.ComponentModel.Win32Exception or ArgumentException){}
 // The local connection credential survives service restarts, including connected older clients.
 string secret=File.Exists(tokenFile)?File.ReadAllText(tokenFile).Trim():Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
@@ -206,8 +211,9 @@ if(launch&&hostLauncherPid is int openedLauncher)
     {
         await ServiceBootstrap.AttachTab(openedLauncher,app.Lifetime.ApplicationStopping);
         string? refusal=null;
-        // The Play button is enabled a moment after the launcher window appears.
-        for(int attempt=0;attempt<120;attempt++)
+        // The Play button is enabled once the launcher has finished its own start, which after an
+        // update of HotA or HD Mod takes well over a minute.
+        for(int attempt=0;attempt<360;attempt++)
         {
             try{await session.Start(app.Lifetime.ApplicationStopping);refusal=null;break;}
             catch(InvalidOperationException e){refusal=e.Message;await Task.Delay(500,app.Lifetime.ApplicationStopping);}

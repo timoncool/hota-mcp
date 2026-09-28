@@ -38,6 +38,20 @@ internal static class LauncherActions
         if(controls.Count!=1)throw new InvalidOperationException("Unique renderer control not found");
         return new{changed,controls};
     }
+    /// The launcher's main dialog with its tab control — what launcher-attach looks for.
+    public static bool HasTabControl(int pid)
+    {
+        bool found=false;
+        EnumWindows((window,_)=>{
+            GetWindowThreadProcessId(window,out uint owner);
+            if(owner!=(uint)pid)return true;
+            var name=new StringBuilder(64);GetClassNameW(window,name,name.Capacity);
+            if(name.ToString()=="#32770"&&GetDlgItem(window,1046)!=0){found=true;return false;}
+            return true;
+        },0);
+        return found;
+    }
+
     public static void Play(int pid)
     {
         using var process=Process.GetProcessById(pid);

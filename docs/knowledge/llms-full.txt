@@ -1,6 +1,6 @@
 # Корпус знаний агента: полный текст
 
-> Собрано 2026-09-28 командой `python build/gen-docs-nav.py`. Каждый документ начинается со своего пути в репозитории.
+> Собрано 2026-09-29 командой `python build/gen-docs-nav.py`. Каждый документ начинается со своего пути в репозитории.
 
 
 <!-- ===== DESIGN.md ===== -->
@@ -780,7 +780,7 @@ updated: "2026-09-20"
 # Что НЕ работает и почему
 
 - Внутриигровой `game:load` (системные опции → кнопка «ЗАГРУЗИТЬ ИГРУ», отправляется `L`) открывает штатный вопрос «Вы уверены… несохранённые игры будут потеряны?». Подтверждение штатное, но отдельного браузера внутри партии не появляется: игра возвращается в партию. Проверено дважды (19.09 и 20.09). Для цикла «сохранил → загрузил» использовать путь через главное меню: либо перезапуск игры кнопкой Play лаунчера, либо кнопка «ГЛАВНОЕ МЕНЮ».
-- «ГЛАВНОЕ МЕНЮ» (`somain.def` id108): адресное событие регистрируется, игра показывает вопрос подтверждения, отмена (`icancel.def`) возвращает в системные опции — то есть диалог работает. Но подтверждение (`iokay.def` id30725) возвращает в партию, а не в главное меню. Открытый дефект; для выхода в меню надёжнее перезапуск игры через Play.
+- «ГЛАВНОЕ МЕНЮ» (`game:main_menu`, `somain.def` id108) → штатный вопрос «Вы уверены… несохранённые игры будут потеряны?» → `message:confirm` выводит в главное меню. Проверено 29.09.2026 на HotA 1.8.1; прежний дефект (подтверждение возвращало в партию) больше не воспроизводится.
 - Хук-vtable доставка для кнопок браузера: сломана (см. выше). Не возвращаться к ней без нового разбора.
 - Клавиатурный эксперимент `message:accept/confirm` через Enter и `decline` через Escape: снят. Вопросы надёжно отвечаются адресным событием по кнопке; Enter на вопросе главного меню закрывал диалог без выполнения действия.
 
@@ -1294,16 +1294,9 @@ H3API (`github.com/RoseKavalier/H3API`) — открытая header-only/ста�
 
 Раз адреса зашиты намертво, любое несовпадение версии exe — не «работает чуть хуже», а чтение мусора или падение. `native/game/attach.cpp` решает это не проверкой номера версии, а криптографической проверкой байтов файла:
 
-``cpp
-if (!QueryFullProcessImageNameW(process,0,path,&length) ||
-    HashFile(path) != "5AAAB925F06CCCF23BB09814767590A95B84A557EB33D244800520BE4F1F18DE") {
-    std::cerr << "Unsupported game binary\n"; ...
-}
-``
+С 29.09.2026 (переход на HotA 1.8.1) `game-attach.exe` хеши файлов не проверяет. Раньше он закреплял SHA-256 `h3hota HD.exe` и `HotA.dll` одной версией и отказывал на любом патч-релизе, хотя адреса не сдвигались: 1.8.1 заменила `HotA.dll`, а `h3hota HD.exe` осталась прежней. Защита от чужой сборки — структурная: каждая операция адаптера перед действием сверяет класс и состояние структур, которых касается (vtable диалога, менеджера карты, менеджера города), а служба при подключении проверяет раскладку (`BuildProfile.Probe`: менеджер окон, геометрия экрана, адресация героев и городов, список менеджеров). Все адреса адаптера лежат в образе `h3hota HD.exe`; в `HotA.dll` он не обращается.
 
-Хешируется (`BCryptHash`, SHA-256) не только сам `h3hota HD.exe`, но и лежащий рядом `HotA.dll` — то есть закреплена связка «exe + модуль правил HotA» целиком, одной версией. Если пользователь обновит HotA (например, с 1.8.0 на 1.8.1) и хотя бы один байт одного из двух файлов изменится, хеш не совпадёт и `game-attach.exe` откажется цепляться («Unsupported game binary» / «Unsupported game native DLL»), вместо того чтобы попытаться работать с потенциально другими смещениями. Это осознанно консервативнее, чем подход H3API/H3Plugins, где обычно нет автоматической защиты от неверной версии — только явное указание «библиотека для версии 3.2» в документации, а платить за несовпадение приходится падением или тихой порчей памяти.
-
-Источник: `native/game/attach.cpp` (строки 21–49)
+Источник: `native/game/attach.cpp`, `native/game/game_bridge.cpp`, `src/HotaMcp/BuildProfile.cs`
 
 ## Как устроена память партии: главный объект H3Main
 
@@ -1525,7 +1518,7 @@ Hook(0x408BA0, Splice, Thiscall, ::_HH_CheckShift); // HiHook типа Splice, _
 Экспериментально (раздел выше, 24 сверенных факта) для проверенного подмножества структур (H3Main, H3Player, H3Town/H3TownManager, H3WindowManager, H3AdventureManager, H3BaseDlg/H3DlgItem и их vtable-адреса, базовый H3Manager) адресация **не отличается вовсе**: HotA 1.8.x, на котором сейчас работает мост, использует те же самые абсолютные адреса и офсеты, что документированы для оригинального патча 3.2 SoD/Complete. Это означает, что HotA собран как надстройка над тем же самым базовым образом кода (тот же компилятор, те же настройки линковки, добавления идут в новые адреса, а не переупаковкой существующих).
 
 Что при этом всё-таки ломается при обновлении версии, по прямой логике кода моста и документации:
-- **Любое изменение хотя бы одного байта `h3hota HD.exe` или `HotA.dll`** (патч-релиз HotA, вплоть до 1.8.0 → 1.8.1) меняет SHA-256 файла и **гарантированно** блокирует `game-attach.exe` («Unsupported game binary/native DLL»), даже если по факту адреса не сдвинулись — мост осознанно не пытается «на глаз» угадать совместимость, отказ — это заглушка безопасности, а не доказательство того, что адреса реально изменились.
+- **Патч-релиз HotA** (как 1.8.0 → 1.8.1) меняет `HotA.dll`, но не адреса в `h3hota HD.exe`, на которые опирается мост: проверено живым прогоном 29.09.2026 на 1.8.1 (меню, загрузка, новая партия, карта, движение, город, справочник). Если релиз когда-нибудь сдвинет структуры, это покажет структурная проверка при подключении (`build.status=incompatible`) и отказ операции, а не хеш.
 - Новый контент HotA (третья фракция Бастион/Кронверк, новые здания, новые диалоги: список рун, алтарь рун, интерфейс третьей фракции) размещается в адресах и структурах, которых H3API вообще не документирует (H3API документирует только состав SoD) — то есть для любых операций, специфичных для контента HotA, готовых H3API-заголовков нет и не может быть, только собственное реверс-инжиниринговое исследование.
 - ERA/WoG нацелены на оригинальный `heroes3.exe`; официальная документация ERA не подтверждает и не отрицает работу на `h3hota HD.exe` напрямую — не проверялось (см. `## Пробелы`).
 - HD Mod, через который грузятся классические H3Plugins, — отдельный самостоятельно обновляемый компонент; его собственная версия и её совместимость с конкретной сборкой HotA — отдельная переменная, не покрытая ни H3API, ни нашим мостом.
@@ -1552,7 +1545,7 @@ Hook(0x408BA0, Splice, Thiscall, ::_HH_CheckShift); // HiHook типа Splice, _
 | --- | --- | --- | --- |
 | [`hota/00-index.md`](hota/00-index.md) | reference | Назначение | Короткая справка для агента, играющего через HotA MCP. Здесь собраны устойчивые различия HotA и Heroes III Complete, правила, которые влияют на решения, и ограничения версии. Это с |
 | [`hota/00-official-documentation.md`](hota/00-official-documentation.md) | reference | Horn of the Abyss — официальная документация (h3hota.com/en/documentation) | Источник: официальная страница документации HotA https://h3hota.com/en/documentation (получено 20.09.2026). |
-| [`hota/01-version-scope.md`](hota/01-version-scope.md) | reference | HotA версии и границы совместимости | Для текущей установки используйте профиль 1.8.0 и не применяйте правила, помеченные `1.8.1-only`. При подключении другой копии всё равно проверяйте UI version и хеши. Bulwark и Run |
+| [`hota/01-version-scope.md`](hota/01-version-scope.md) | reference | HotA версии и границы совместимости | Правила 1.8.1 — текущие. Числа существ, артефактов и заклинаний берите из `hota_reference`: он читает таблицы самой запущенной игры и поэтому всегда совпадает с установленной верси |
 | [`hota/02-towns-rosters.md`](hota/02-towns-rosters.md) | reference | Новые города, существа и герои HotA | HotA добавляет три полноценных фракции: Cove (Причал), Factory (Фабрика) и Bulwark. Для старых RoE/AB/SoD карт их доступность зависит от состава доступных городов; на HotA-картах е |
 | [`hota/03-mechanics-skills-spells.md`](hota/03-mechanics-skills-spells.md) | reference | Механики, навыки и заклинания HotA | Перед расчётом боя или маршрута проверяйте текущий навык, уровень, town spell settings и версию. Не подставляйте проценты из старого гайда. Если MCP видит только результат штатного |
 | [`hota/04-objects-editor.md`](hota/04-objects-editor.md) | reference | Новые объекты, артефакты и редактор карт HotA | Новые объекты включают Quest Gate, Seafaring Academy, Altar of Mana, Vial of Mana, Observatory, Airship/Ancient Lamp, Trapper Lodge, Shrine of Magic Mystery, Warehouses, Town Gate, |
@@ -1570,10 +1563,10 @@ Hook(0x408BA0, Splice, Thiscall, ::_HH_CheckShift); // HiHook типа Splice, _
 ---
 id: hota.index
 title: "HotA knowledge index"
-game_scope: "Heroes III Complete/SoD + HotA installed 1.8.0; online 1.8.1 comparison; checked 2026-09-19"
+game_scope: "Heroes III Complete/SoD + HotA installed 1.8.1; checked 2026-09-29"
 topics: [versioning, retrieval, scope]
 sources: [hota.sources]
-verification_status: "installed HotA 1.8.0 verified from in-game UI; online 1.8.1 separately verified"
+verification_status: "installed HotA 1.8.1 verified 2026-09-29"
 checked_at: "2026-09-19"
 type: reference
 layer: official
@@ -1597,7 +1590,7 @@ updated: "2026-09-20"
 
 ## Правило версии
 
-Установленная игра подтверждена после перезапуска в главном меню: UI ID3001 прочитал `Версия HotA: 1.8.0`. Онлайн-страница отдельно указывает 1.8.1. Хеши установки и правила 1.8.1 не следует приписывать локальной игре.
+Установлена последняя HotA 1.8.1 (подтверждено 29.09.2026: HotA_Setup.ini «Main Version=1.8.1», HotA.dll от 25.08.2026 и таблица существ запущенной игры (AI Value Боевого Мамонта 1672 — значение 1.8.1)). Правила 1.8.1 — текущие для этой игры.
 
 
 <!-- ===== official/hota/00-official-documentation.md ===== -->
@@ -5960,30 +5953,30 @@ These expressions are available in Hero Events and Quest Events. They operate on
 ---
 id: hota.version-scope
 title: "HotA версии и границы совместимости"
-game_scope: "Installed HotA 1.8.0; online HotA 1.8.1; Complete/SoD base; checked 2026-09-19"
+game_scope: "Installed HotA 1.8.1 (latest, 25.08.2026); Complete/SoD base; checked 2026-09-29"
 topics: [versions, changelog, compatibility, Complete]
 sources: [hota.download, hota.changelog, local.complete.readme, local.installed.build]
-verification_status: "installed 1.8.0 verified by in-game UI; online 1.8.1 verified separately"
-checked_at: "2026-09-19"
+verification_status: "installed 1.8.1 verified 2026-09-29 by HotA_Setup.ini, HotA.dll date and live creature tables"
+checked_at: "2026-09-29"
 type: reference
 layer: official
-updated: "2026-09-20"
+updated: "2026-09-29"
 ---
 # HotA версии и границы совместимости
 
 
 ## Факты
 
-- Официальная страница загрузки указывает HotA 1.8.1 (25.08.2026) как последнюю онлайн-версию. В архиве отдельно перечислены 1.8.0, 1.7.3, 1.7.2 и более старые сборки.
+- Установлена последняя версия HotA 1.8.1 (25.08.2026), официальным установщиком поверх 1.8.0. Подтверждение 29.09.2026: HotA_Setup.ini «Main Version=1.8.1», HotA.dll от 25.08.2026 и таблица существ запущенной игры (AI Value Боевого Мамонта 1672 — значение 1.8.1).
 - HotA ставится поверх Shadow of Death или Complete. Ubisoft «HD Edition» и чистые Restoration of Erathia/Armageddon’s Blade не являются поддерживаемой основой.
-- 1.8.0 добавила Bulwark и расширенную систему событий. Это применимо к установленной игре.
-- 1.8.1 (25.08.2026) добавила/исправила ряд вещей поверх 1.8.0: Ice Formations и связанные шахты, лимит событий/Pandora на RMG до 10 000, лимит Ocean Bottles/Signs 255 и combined Pandora/local events 20 000, исправления Runes/online sync, Biarma, water-zone generation и custom template settings. Эти пункты **не следует считать доступными или исправленными в локальной 1.8.0**.
-- Подтверждение установки: после перезапуска в главном меню текстовый UI-элемент ID3001 сообщил `Версия HotA: 1.8.0`.
-- Подтверждённые хеши этой установки: `h3hota.exe` `5AAAB925F06CCCF23BB09814767590A95B84A557EB33D244800520BE4F1F18DE`; `HotA.dll` `0A1DAA1D8F29870B5CB72EBBA54A88C43A366473530B908BD23FAFC7968223A7`.
+- 1.8.0 добавила Кронверк (Bulwark) и расширенную систему событий.
+- 1.8.1 поверх 1.8.0: Ice Formations и связанные шахты, лимит событий/Ящиков Пандоры на RMG до 10 000, лимит Ocean Bottles/Signs 255 и combined Pandora/local events 20 000, исправления Рун и онлайн-синхронизации, специализация Биармы (Стрельба → Первая помощь), правки специализаций Далтона и Эргона, Боевой Мамонт (боевая ценность 1601 → 1672), Ярмарка дороже (2000 золота + 10 дерева), новые шаблоны RMG Conquest и Sapphire, пять новых карт. Всё это действует в установленной игре.
+- HD Mod — 5.8 R20 (21.09.2026, последняя на 29.09.2026), обновляется встроенным апдейтером лаунчера.
+- Мост не привязан к хешам файлов: при подключении он проверяет, что структуры игры, на которые опирается, на своих местах.
 
 ## Советы агенту
 
-Для текущей установки используйте профиль 1.8.0 и не применяйте правила, помеченные `1.8.1-only`. При подключении другой копии всё равно проверяйте UI version и хеши. Bulwark и Runes доступны в 1.8.0; Bulwark campaign в 1.8.0 ещё отсутствует.
+Правила 1.8.1 — текущие. Числа существ, артефактов и заклинаний берите из `hota_reference`: он читает таблицы самой запущенной игры и поэтому всегда совпадает с установленной версией. Если подключена другая копия игры, версию смотрите в её главном меню.
 
 
 <!-- ===== official/hota/02-towns-rosters.md ===== -->
@@ -5991,7 +5984,7 @@ updated: "2026-09-20"
 ---
 id: hota.towns-rosters
 title: "Новые города, существа и герои HotA"
-game_scope: "Installed HotA 1.8.0; online 1.8.1 comparison; Factory 1.7+, Bulwark 1.8.0+"
+game_scope: "Installed HotA 1.8.1; Factory 1.7+, Bulwark 1.8.0+"
 topics: [Cove, Factory, Bulwark, creatures, heroes, terrain]
 sources: [hota.documentation, hota.faq, hota.changelog]
 verification_status: "official documentation verified; exact availability remains map/template/version dependent"
@@ -6011,7 +6004,7 @@ HotA добавляет три полноценных фракции: Cove (Пр
 - **Factory**: wasteland; Halfling/Grenadier, Mechanic/Engineer, Armadillo/Bellwether Armadillo, Automaton/Sentinel Automaton, Sandworm/Olgoi-Khorkhoi, Gunslinger/Bounty Hunter, Couatl/Crimson Couatl, Dreadnought/Juggernaut; Cannon/Factory-инфраструктура и герои классов Mercenary и Artificer. Два уровня 7 (Couatl и Dreadnought) могут строиться вместе.
 - **Bulwark** (1.8.0+): snow; Kobold/Foreman, Mountain Ram/Argali, Snow Elf/Steel Elf, Yeti/Runemaster, Shaman/Great Shaman, Mammoth/War Mammoth, Jotunn/Warlord; фракционная вторичная способность Runes, герои классов Chieftain и Elder. Стены, ворота и башни Bulwark имеют +1 прочности.
 
-Нейтральные новинки включают Leprechaun, Satyr, Steel Golem и Fangarm. Среди новых/изменённых героев встречаются Beatrice, Ranloo, Rion, Gem, Verdish, Floribert, Haugir, Biarma и другие; состав доступности меняется по карте, шаблону, воде и версии. В 1.8.1 исправлена специальность Biarma и конфликт её доступности с Haugir; в установленной 1.8.0 эти исправления не гарантированы.
+Нейтральные новинки включают Leprechaun, Satyr, Steel Golem и Fangarm. Среди новых/изменённых героев встречаются Beatrice, Ranloo, Rion, Gem, Verdish, Floribert, Haugir, Biarma и другие; состав доступности меняется по карте, шаблону, воде и версии. В 1.8.1 исправлена специальность Biarma и конфликт её доступности с Haugir; эти исправления действуют в установленной игре (1.8.1).
 
 ## Советы агенту
 
@@ -6023,7 +6016,7 @@ HotA добавляет три полноценных фракции: Cove (Пр
 ---
 id: hota.mechanics-skills-spells
 title: "Механики, навыки и заклинания HotA"
-game_scope: "Installed HotA 1.8.0; online 1.8.1 comparison; exact values are version dependent"
+game_scope: "Installed HotA 1.8.1; exact values are version dependent"
 topics: [spell research, Interference, Runes, skills, balance, combat]
 sources: [hota.documentation, hota.changelog]
 verification_status: "official documentation/changelog verified; use build-specific values"
@@ -6039,7 +6032,7 @@ updated: "2026-09-20"
 
 - **Spell Research**: в гильдии магов можно заменить заклинание в ячейке, заплатив ресурсы и 1000 золота; обычно доступно одно исследование в день на город. Предлагаются случайные варианты, исследование можно завершить позже; обязательные заклинания города не заменяются. Для Town Portal/Dimension Door действуют специальные ограничения.
 - **Interference** — новая/переработанная вторичная способность HotA, заменившая Resistance в стандартном балансе HotA. Шаблон может вернуть Resistance и запретить Interference.
-- **Runes** — фракционная вторичная способность Bulwark (1.8.0+). В 1.8.1 исправлен сброс бонусов после смерти/воскрешения стека и синхронизация Altar of the Runes; в установленной 1.8.0 эти дефекты нельзя считать исправленными.
+- **Runes** — фракционная вторичная способность Bulwark (1.8.0+). В 1.8.1 исправлен сброс бонусов после смерти/воскрешения стека и синхронизация Altar of the Runes; в установленной 1.8.1 они исправлены.
 - Изменены Eagle Eye, Learning, First Aid, Artillery, Ballistics, Sorcery, Mysticism, Pathfinding и Luck. Например, в 1.7.2 Pathfinding уменьшает стандартную стоимость внедорожного шага, Sorcery усиливает урон заклинаний, Mysticism восстанавливает долю максимальной маны; конкретные проценты менялись в последующих версиях.
 - HotA не следует описывать как пакет с обязательным списком совершенно новых базовых заклинаний: официальные материалы подчёркивают изменение доступности, Spell Research и формул/специализаций. Названия заклинаний в конкретной гильдии и на карте зависят от town settings, шаблона и версии.
 - Есть новые/изменённые способности существ и war machines: Cannon, огненный/смертельный дальний эффект некоторых существ, Runes, Heat Stroke/Automatons и другие. Не сводите их к Complete-правилам.
@@ -6048,9 +6041,9 @@ updated: "2026-09-20"
 
 Перед расчётом боя или маршрута проверяйте текущий навык, уровень, town spell settings и версию. Не подставляйте проценты из старого гайда. Если MCP видит только результат штатного интерфейса, возвращайте его; скрытые формулы и стратегические рекомендации не добавляйте автоматически.
 
-### Ограничение 1.8.1
+### Правки 1.8.1
 
-Правки Dalton/Ergon, War Mammoth, Fair cost, Glacius и лимит RMG events из changelog 1.8.1 относятся только к 1.8.1. Для локальной 1.8.0 используйте их только как сведения о различии версий, не как текущие правила.
+Правки Dalton/Ergon, War Mammoth, Fair cost, Glacius и лимит RMG events из changelog 1.8.1 действуют в установленной игре (1.8.1).
 
 
 <!-- ===== official/hota/04-objects-editor.md ===== -->
@@ -6058,7 +6051,7 @@ updated: "2026-09-20"
 ---
 id: hota.objects-editor
 title: "Новые объекты, артефакты и редактор карт HotA"
-game_scope: "Installed HotA 1.8.0; online 1.8.1 comparison; map/editor features vary by version"
+game_scope: "Installed HotA 1.8.1; map/editor features vary by version"
 topics: [objects, artifacts, map editor, quests, event system]
 sources: [hota.documentation, hota.changelog]
 verification_status: "official documentation verified"
@@ -6072,11 +6065,11 @@ updated: "2026-09-20"
 
 ## Факты
 
-Новые объекты включают Quest Gate, Seafaring Academy, Altar of Mana, Vial of Mana, Observatory, Airship/Ancient Lamp, Trapper Lodge, Shrine of Magic Mystery, Warehouses, Town Gate, Mineral Spring, Hermit’s Shack, Gazebo, Junkman, Derrick, Warlock’s Lab, Prospector, Trailblazer и новые creature banks (например Pirate Cavern, Ivory Tower, Temple of the Sea). Trapper Lodge на snow применим к установленной 1.8.0; Ice Formations и связанные шахты помечены `1.8.1-only`.
+Новые объекты включают Quest Gate, Seafaring Academy, Altar of Mana, Vial of Mana, Observatory, Airship/Ancient Lamp, Trapper Lodge, Shrine of Magic Mystery, Warehouses, Town Gate, Mineral Spring, Hermit’s Shack, Gazebo, Junkman, Derrick, Warlock’s Lab, Prospector, Trailblazer и новые creature banks (например Pirate Cavern, Ivory Tower, Temple of the Sea). Trapper Lodge на snow применим к установленной игре; Ice Formations и связанные шахты добавлены в 1.8.1 и тоже доступны.
 
 Новые артефакты включают Horn of the Abyss, Diplomat’s Cloak, Ironfist of the Ogre, Golden Goose, морские комплекты Cove, Ring of Suppression, Hideous Mask, Pendant of Downfall, Runes of Imminency, Shaman’s Puppet, Ring of Oblivion, Cape of Silence и Interference-набор Charm of Eclipse/Seal of Sunset/Plate of Dying Light.
 
-Редактор HotA расширяет лимиты объектов, поддерживает Quest Gates, несколько/повторяемые задания Seer Hut, ограничения по классу/дате/сложности, пользовательский текст после истечения задания, town events для нейтральных городов, difficulty-gating и extended event system. Лимит Ocean Bottles/Signs 255 и combined максимум Pandora/local events 20 000 — `1.8.1-only` по текущему changelog; не применять к установленной 1.8.0 без отдельной проверки.
+Редактор HotA расширяет лимиты объектов, поддерживает Quest Gates, несколько/повторяемые задания Seer Hut, ограничения по классу/дате/сложности, пользовательский текст после истечения задания, town events для нейтральных городов, difficulty-gating и extended event system. Лимит Ocean Bottles/Signs 255 и combined максимум Pandora/local events 20 000 — добавлены в 1.8.1 и действуют в установленной игре.
 
 ## Советы агенту
 
@@ -6088,7 +6081,7 @@ updated: "2026-09-20"
 ---
 id: hota.rmg-templates
 title: "Случайные карты и шаблоны HotA"
-game_scope: "Installed HotA 1.8.0; online 1.8.1 comparison; HotA RMG"
+game_scope: "Installed HotA 1.8.1; HotA RMG"
 topics: [RMG, templates, water, zones, objects, multiplayer templates]
 sources: [hota.documentation, hota.changelog, local.hota.templates]
 verification_status: "official RMG rules plus local template files verified; local templates are not proof of installed game version"
@@ -6104,7 +6097,7 @@ updated: "2026-09-20"
 
 - В официальном RMG вода — явный режим. На безводных картах убираются морские артефакты, Summon/Scuttle Boat, Water Walk и Navigation; набор стартовых героев также меняется (например Beatrice/Kinkeria/Derek/Biarma против Sylvia/Voy/Elmore/Haugir). Выбор уровня воды сразу влияет на доступных стартовых героев.
 - Зоны без города могут стать Cove на sand/swamp, Factory на wasteland и Bulwark на snow. Доступность фракций и объектов задают свойства карты и шаблон.
-- HotA исправляет генерацию проходов, дорог, стражей, заблокированных объектов, размеров зон и морских элементов. Исправление пустых водных зон, custom settings объектов из шаблонов и лимит до 10 000 событий/Pandora на случайных картах — `1.8.1-only`; не считать их гарантированными в установленной 1.8.0.
+- HotA исправляет генерацию проходов, дорог, стражей, заблокированных объектов, размеров зон и морских элементов. Исправление пустых водных зон, custom settings объектов из шаблонов и лимит до 10 000 событий/Pandora на случайных картах — появились в 1.8.1 и действуют в установленной игре. В 1.8.1 добавлены и шаблоны Conquest и Sapphire.
 - Локальный `G:\HoMM 3 Complete\HotA_RMGTemplates\1deaL\rmg.txt` и каталог `_HD3_Data\Templates` показывают расширенный формат шаблонов, поля Cove и правила зон/terrain. Это локальные файлы пользователя, доступные read-only; они не устанавливают версию HotA.
 
 ## Советы агенту
@@ -6117,7 +6110,7 @@ updated: "2026-09-20"
 ---
 id: hota.multiplayer-hd
 title: "Hotseat, LAN и HD Mod"
-game_scope: "Installed HotA 1.8.0 with HD Mod; online 1.8.1 comparison; interface functions are launcher/build dependent"
+game_scope: "Installed HotA 1.8.1 with HD Mod 5.8 R20; interface functions are launcher/build dependent"
 topics: [hotseat, LAN, online, simultaneous turns, HD Mod, interface]
 sources: [hota.documentation, hota.faq, hdmod.community, hota.changelog]
 verification_status: "official HotA multiplayer constraints verified; HD feature list partly secondary and must be probed locally"
@@ -6147,7 +6140,7 @@ updated: "2026-09-20"
 ---
 id: hota.agent-use
 title: "Как агенту пользоваться справкой HotA"
-game_scope: "MCP bridge knowledge layer; installed HotA 1.8.0, online 1.8.1; checked 2026-09-19"
+game_scope: "MCP bridge knowledge layer; installed HotA 1.8.1; checked 2026-09-29"
 topics: [MCP, facts, advice, visibility, version gating]
 sources: [hota.index, hota.version-scope, hota.documentation, TZ]
 verification_status: "project policy and source-backed guidance"
@@ -6171,7 +6164,7 @@ updated: "2026-09-20"
 4. Если версия/шаблон не подтверждены, не превращайте старую цифру в точное правило.
 5. Перед действием повторно запросите штатную доступность цели и текущего игрока.
 
-Пример безопасной формулировки: «Установленная UI-проверкой HotA 1.8.0 имеет Bulwark и Runes; проверка доступности всё равно делается по свойствам этой карты. Ice Formations и исправления Runes из 1.8.1 к этой установке автоматически не относятся».
+Пример безопасной формулировки: «Установленная HotA 1.8.1 имеет Кронверк и Руны с исправлениями 1.8.1; доступность всё равно проверяется по свойствам этой карты».
 
 
 <!-- ===== official/hota/08-gaps.md ===== -->
@@ -6179,7 +6172,7 @@ updated: "2026-09-20"
 ---
 id: hota.gaps
 title: "Пробелы и неопределённости HotA knowledge"
-game_scope: "HotA MCP project; installed 1.8.0, online 1.8.1; audit date 2026-09-19"
+game_scope: "HotA MCP project; installed 1.8.1; audit date 2026-09-29"
 topics: [gaps, verification, local build, HD Mod]
 sources: [hota.sources, TZ, local.complete.readme]
 verification_status: "open items explicitly recorded"
@@ -6193,10 +6186,10 @@ updated: "2026-09-20"
 
 ## Не установлено
 
-- Установленная версия теперь подтверждена UI ID3001 как HotA 1.8.0. Сохранены хеши `h3hota.exe` `5AAAB925F06CCCF23BB09814767590A95B84A557EB33D244800520BE4F1F18DE` и `HotA.dll` `0A1DAA1D8F29870B5CB72EBBA54A88C43A366473530B908BD23FAFC7968223A7`.
+- Установлена HotA 1.8.1 (подтверждено 29.09.2026: HotA_Setup.ini «Main Version=1.8.1», HotA.dll от 25.08.2026 и таблица существ запущенной игры (AI Value Боевого Мамонта 1672 — значение 1.8.1)). Мост не привязан к хешам файлов.
 - Нельзя гарантировать наличие HD Mod, его плагины, разрешение, хоткеи или Online Lobby без чтения текущего launcher state.
 - Онлайн-документация описывает много деталей списками; значения баланса, доступность героев и spell research могут меняться между версиями и шаблонами.
-- Локальные RMG templates — пользовательская коллекция; они не равны встроенному набору текущей HotA. Правила 1.8.1-only нельзя переносить в установленную 1.8.0.
+- Локальные RMG templates — пользовательская коллекция; они не равны встроенному набору текущей HotA.
 - Полный справочник всех числовых статов существ, героев и объектов намеренно не продублирован; для точного числа используйте официальную страницу соответствующей версии и проверяйте карту.
 
 ## Что проверить адаптером
@@ -6214,7 +6207,7 @@ updated: "2026-09-20"
 | --- | --- | --- | --- |
 | `00-index.md` | reference | Назначение | Короткая справка для агента, играющего через HotA MCP. Здесь собраны устойчивые различия HotA и Heroes III Complete, правила, которые влияют на решения, и ограничения версии. Это с |
 | `00-official-documentation.md` | reference | Horn of the Abyss — официальная документация (h3hota.com/en/documentation) | Источник: официальная страница документации HotA https://h3hota.com/en/documentation (получено 20.09.2026). |
-| `01-version-scope.md` | reference | HotA версии и границы совместимости | Для текущей установки используйте профиль 1.8.0 и не применяйте правила, помеченные `1.8.1-only`. При подключении другой копии всё равно проверяйте UI version и хеши. Bulwark и Run |
+| `01-version-scope.md` | reference | HotA версии и границы совместимости | Установлена HotA 1.8.1, её правила — текущие; числа берите из `hota_reference`, он читает таблицы запущенной игры. Bulwark и Run |
 | `02-towns-rosters.md` | reference | Новые города, существа и герои HotA | HotA добавляет три полноценных фракции: Cove (Причал), Factory (Фабрика) и Bulwark. Для старых RoE/AB/SoD карт их доступность зависит от состава доступных городов; на HotA-картах е |
 | `03-mechanics-skills-spells.md` | reference | Механики, навыки и заклинания HotA | Перед расчётом боя или маршрута проверяйте текущий навык, уровень, town spell settings и версию. Не подставляйте проценты из старого гайда. Если MCP видит только результат штатного |
 | `04-objects-editor.md` | reference | Новые объекты, артефакты и редактор карт HotA | Новые объекты включают Quest Gate, Seafaring Academy, Altar of Mana, Vial of Mana, Observatory, Airship/Ancient Lamp, Trapper Lodge, Shrine of Magic Mystery, Warehouses, Town Gate, |
@@ -6537,7 +6530,7 @@ Value/AI Value не документируются в changelog — это да�
 
 # Справка игры Heroes of Might and Magic III (извлечение из HEROES3.HLP)
 
-> **type:** reference · **layer:** official · **source:** `G:/HoMM 3 Complete/HEROES3.HLP` (русская справка «Полное собрание») · **updated:** 2026-09-28
+> **type:** reference · **layer:** official · **source:** `G:/HoMM 3 Complete/HEROES3.HLP` (русская справка «Полное собрание») · **updated:** 2026-09-29
 
 Тексты справки игры, разбитые на части по порядку следования в файле. Ценность для агента: русские названия существ, навыков, заклинаний и объектов — ровно те, что видны в наблюдениях моста. Уровень основной справки, без профессиональных тонкостей и скрытых механик.
 
@@ -20576,7 +20569,7 @@ updated: "2026-09-20"
 ---
 id: hota.sources
 title: "HotA knowledge source registry"
-game_scope: "Heroes III Complete/SoD + installed HotA 1.8.0; online HotA 1.8.1; checked 2026-09-19"
+game_scope: "Heroes III Complete/SoD + installed HotA 1.8.1; checked 2026-09-29"
 topics: [sources, provenance, verification]
 sources: [hota.download, hota.documentation, hota.changelog, hota.faq, hdmod.community, local.complete.readme, local.hota.templates, local.installed.build, TZ]
 verification_status: "registry checked 2026-09-19"
@@ -20597,7 +20590,7 @@ updated: "2026-09-20"
 | `hdmod.community` | [HD Mod extended functionality tips](https://heroes3wog.net/homm3-hd-mod-extended-functionality-tips/) | hotkeys и Quick Menu | HD Mod; secondary | вторичный, явно помечен |
 | `local.complete.readme` | `G:\HoMM 3 Complete\README.TXT` | базовая Complete, старые hotseat/TCP-IP сведения | Complete 4.0 readme, локальный read-only | локальный исторический, не HotA |
 | `local.hota.templates` | `G:\HoMM 3 Complete\HotA_RMGTemplates\1deaL\rmg.txt`, `_HD3_Data\Templates\*\rmg.txt` | реальный формат и пользовательские RMG templates | локальная коллекция | локальный read-only; версия не доказана |
-| `local.installed.build` | UI ID3001 после перезапуска + EXE/DLL SHA-256 | установленная сборка | HotA 1.8.0 | локальный runtime, подтверждено 2026-09-19 |
+| `local.installed.build` | HotA_Setup.ini, дата HotA.dll, таблицы существ запущенной игры | установленная сборка | HotA 1.8.1 | локальный runtime, подтверждено 2026-09-29 |
 
 ## Правила цитирования
 

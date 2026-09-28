@@ -94,17 +94,32 @@ internal static class ServiceBootstrap
         if(!File.Exists(helper)||!File.Exists(module))
             throw new InvalidOperationException("The MCP tab files are missing next to HotaMcp.exe; reinstall the add-on");
         using var launcher=Process.GetProcessById(launcherPid);
-        for(int attempt=0;attempt<240&&launcher.MainWindowHandle==0;attempt++)
+        // After an update the launcher shows its window before it has built its tabs; the helper
+        // needs the tab control, so it is started only once that control exists, and started again
+        // if it still found no window.
+        var deadline=DateTime.UtcNow.AddMinutes(3);
+        while(true)
         {
-            await Task.Delay(250,ct);
+            if(launcher.HasExited)throw new InvalidOperationException("HD Launcher closed before the MCP tab was attached");
+            if(LauncherActions.HasTabControl(launcherPid))
+            {
+                var start=new ProcessStartInfo(helper){UseShellExecute=false,CreateNoWindow=true,WorkingDirectory=AppContext.BaseDirectory};
+                start.ArgumentList.Add(launcherPid.ToString());
+                start.ArgumentList.Add(module);
+                using var attach=Process.Start(start)??throw new InvalidOperationException("launcher-attach.exe did not start");
+                // The helper stays alive while the tab is in use; an early exit is a refusal with a code.
+                if(!attach.WaitForExit(3000))return;
+                if(attach.ExitCode==AttachAlreadyInstalled)return;
+                if(attach.ExitCode!=AttachNoWindow||DateTime.UtcNow>deadline)
+                    throw new InvalidOperationException($"The MCP tab was not attached (launcher-attach exit code {attach.ExitCode})");
+            }
+            else if(DateTime.UtcNow>deadline)throw new InvalidOperationException("The HD Launcher tabs did not appear within three minutes");
+            await Task.Delay(500,ct);
             launcher.Refresh();
         }
-        if(launcher.MainWindowHandle==0)throw new InvalidOperationException("The HD Launcher window did not appear");
-        var start=new ProcessStartInfo(helper){UseShellExecute=false,CreateNoWindow=true,WorkingDirectory=AppContext.BaseDirectory};
-        start.ArgumentList.Add(launcherPid.ToString());
-        start.ArgumentList.Add(module);
-        Process.Start(start)?.Dispose();
     }
+
+    private const int AttachNoWindow=5,AttachAlreadyInstalled=6;
 
     /// Returns once the service answers, starting the whole chain if nothing is running yet.
     public static async Task<string> EnsureRunning(string endpoint,string stateDirectory,CancellationToken ct)

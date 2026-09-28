@@ -230,9 +230,11 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
         else if(progress==lastProgress)idleReads++;
         else {lastProgress=progress;idleReads=0;}
         var townsNow=state.Towns.Select(t=>t.Name??"безымянный").ToList();
-        // Towns are compared only inside a game: the score screen and the menus list none.
+        // Towns and yesterday's totals are compared only inside one game. The menus and the score screen
+        // lie between games: whatever is played next — a new game or a loaded one — starts its own
+        // baseline instead of being compared with the previous game.
         bool inGame=state.Date.Length==3&&state.Screen!="game_over";
-        if(!inGame)townsNow=heldTowns;
+        if(!inGame){townsNow=[];yesterday=([],0,0,0);}
         else if(heldTowns.Count>0)
         {
             foreach(var lost in heldTowns.Except(townsNow))
