@@ -90,9 +90,13 @@ Every action takes an `operationId` and the `revision` of the observation it was
 
 ## Configuration
 
-There are no sides to configure: everything comes from the game itself. Every `observe` says whose turn it is ("Ходит синий") and lists the scenario's participants — colour, human or computer, team. Which colour is its own the agent decides: in a hotseat it simply does not play another colour and waits with `wait_for_turn` and its own colour. On a computer's turn the bridge shows the human a window on screen is addressed to: a fight against them, its result, spoils, a level-up, the end of the game.
+There are no sides to configure and no settings files — everything comes from the game itself.
 
-Allies and opponents come from the scenario's teams: an ally's moves are logged in `ally_log`, an opponent's are not. When the agent names its colour (`wait_for_turn` with a colour, or `HOTA_PLAYER` for `--stdio`), an opponent's turn shows it only `waiting`.
+- **The agent decides its own colour** — when the game is created or loaded, from the scenario window that shows every side, who is human, the names and the teams. It writes the colour in its plan.
+- **Every `observe` gives the interface colour** — "Ходит синий". The agent does not play another colour and waits with `wait_for_turn` and its own colour.
+- **Nothing is bound.** Say "play for me" and the agent takes your colour until you are back.
+- **On a computer's turn** the bridge shows the human a window on screen is addressed to: a fight against them, its result, spoils, a level-up, the end of the game.
+- **Allies and opponents come from the scenario's teams:** an ally's moves are logged in `ally_log`, an opponent's are not.
 
 **Cost of a game.** Add to `~/.claude/settings.json` (from the next session):
 ```json
