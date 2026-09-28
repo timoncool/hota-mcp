@@ -30,7 +30,7 @@ public sealed class GameTools(IGameEndpoint endpoint)
     public Task<Observation> Observe(CancellationToken cancellationToken)=>endpoint.Observe(cancellationToken);
 
     [McpServerTool(Title="Wait for your turn",ReadOnly=true,Destructive=false,Idempotent=true,OpenWorld=false),
-     Description("Waits for the configured player's human turn, checking only the active colour. Returns yourTurn and state; no opponent actions, map, resources or summary are read or returned. Each call waits at most 60 seconds and can be cancelled. Use observe after yourTurn becomes true.")]
+     Description("Waits for the configured player's turn, or for a window the game addresses to that player on someone else's turn: its hotseat handover, «Город под атакой!», a fight a computer opens against it, the result, spoils and level-up after that fight, news for the whole table, the end of the game. Returns yourTurn and state; no opponent actions, map, resources or summary are read or returned. Each call waits at most 60 seconds and can be cancelled. Use observe after yourTurn becomes true, answer the window, then wait again.")]
     public Task<TurnWaitResult> WaitForTurn(
         [Description("Maximum wait in seconds, 0 to 60; default 30.")] int timeoutSeconds=30,
         CancellationToken cancellationToken=default)=>endpoint.WaitForTurn(timeoutSeconds,cancellationToken);

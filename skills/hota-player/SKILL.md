@@ -45,10 +45,14 @@ the full text of every description; this is the map.
   screen, its controls and the legal actions. This is the one call you cannot skip.
 - `wait_for_turn` — wait up to 60 seconds for your configured colour. It returns only `yourTurn`
   and `state`, without reading the opponent's actions. Call it again if the result is `waiting`,
-  then call `observe` when `yourTurn` is true. With `Privacy=competitive`, an opponent's turn
-  makes `observe` return only a `waiting` marker. Allied turns remain available through `ally_log`.
+  then call `observe` when `yourTurn` is true. Who is an ally comes from the scenario's teams: on
+  an opponent's turn `observe` returns only a `waiting` marker; on an ally's turn it shows your own
+  side without actions, and his moves are in `ally_log`.
   `menu` means no active party; `waiting_for_game` means no attached game. Neither means an
-  opponent is playing. Your colour's hotseat handover also counts as your turn: accept its message.
+  opponent is playing. `yourTurn` is also true for a window the game addresses to you on someone
+  else's turn — your handover, «Город под атакой!», a fight a computer opens against you, its
+  result and spoils, your hero's level-up after it, news for the whole table, the end of the game:
+  answer it, then keep waiting.
 - `nearby_targets` — recognised visible objects near the selected hero, by stable id.
 - `inspect_target` — makes the game compute the route to one destination and returns cost, steps and
   a state with a reason. Route data in `nearby_targets` is a stale cache; this is the live answer.
@@ -353,8 +357,9 @@ candidates, structured content of world view / puzzle / thieves guild, town sieg
 - **Hotseat names.** On `hotseat_names`, set each human slot with `hotseat:name:<slot>:<name>`
   before `hotseat:accept`. Names support the game's keyboard layout, lowercase letters and spaces;
   the bridge verifies the displayed text before reporting success.
-- **Recovery only.** `session:restart`, when offered on a public hotseat handover, forcibly closes
-  the game without saving and launches it again. Unsaved progress is lost. Use only for recovery
+- **Recovery only.** `session:restart`, when offered on a public hotseat handover, closes the game
+  without saving (its window is asked to close and the game's own quit question is confirmed) and
+  launches it again. Unsaved progress is lost. Use only for recovery
   the user authorized, never as a routine response to waiting, a stale revision or a missing action.
 - **Dialog buttons** are ordinary dialog controls, activated by an addressed window mouse event
   inside the control's own reported bounds, computed by the adapter from UI structures. Do not use
