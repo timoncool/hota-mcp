@@ -25,3 +25,4 @@ obj/
 *.exp
 
 CLAUDE.local.md
+dist/
