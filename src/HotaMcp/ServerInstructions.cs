@@ -16,8 +16,11 @@ internal static class ServerInstructions
         + "Every acting call takes the revision of the latest observe and an operationId; retry an uncertain result only "
         + "with the same operationId, after observe. Names, not numbers: act by the semantic keys observe lists.\n"
         + "Rules of the game: ask hota_docs and hota_reference, do not guess.\n"
-        + "Sides: observe says whose turn it is and lists the scenario's participants (colour, human or computer, team). "
-        + "Which colour is yours you decide; never play another colour — in a hotseat wait with wait_for_turn and your colour.\n"
+        + "Your colour is mandatory knowledge: when a game starts or is loaded, find it — the only human in a game against "
+        + "computers; in a hotseat the colour whose row carries your name in the scenario window, or whose hand-over reads "
+        + "«Ходит <your name>» under its flag — and write it in your plan. Before every action read the first line "
+        + "of observe, «Ходит <цвет>» — the bridge always says whose turn it is. If that colour is not yours, do nothing and "
+        + "wait with wait_for_turn and your colour; never play another colour.\n"
         + "A screen the bridge reads wrongly or not at all: debug_snapshot (frame plus everything the bridge knows, on any "
         + "screen) is the tool to look with; report the gap instead of working around it.";
 }
