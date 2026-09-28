@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="docs/icon-512.png" width="180" alt="HotA MCP" />
+
 # HotA MCP
 
 **MCP-сервер, через который ИИ-агент играет в Heroes of Might and Magic III: Horn of the Abyss как живой игрок — тот же экран, те же кнопки, партия целиком от меню до победы.**
@@ -10,7 +12,7 @@
 [![Stars](https://img.shields.io/github/stars/timoncool/hota-mcp?style=flat-square)](https://github.com/timoncool/hota-mcp/stargazers)
 [![Last Commit](https://img.shields.io/github/last-commit/timoncool/hota-mcp?style=flat-square)](https://github.com/timoncool/hota-mcp/commits)
 
-**[Русский](README.md)** · **[English](README_EN.md)**
+**[Сайт](https://timoncool.github.io/hota-mcp/)** · **[Русский](README.md)** · **[English](README_EN.md)**
 
 ![Claude играет в HotA через HotA MCP](docs/screenshots/hero.png)
 

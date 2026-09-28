@@ -42,6 +42,8 @@ VIAddVersionKey /LANG=1049 "LegalCopyright" "MIT, timoncool"
 
 Var GameDir
 
+!define MUI_ICON "${__FILEDIR__}\..\..\src\HotaMcp\hota-mcp.ico"
+!define MUI_UNICON "${__FILEDIR__}\..\..\src\HotaMcp\hota-mcp.ico"
 !define MUI_ABORTWARNING
 !define MUI_WELCOMEPAGE_TITLE "Установка ${APP} ${VERSION}"
 !define MUI_WELCOMEPAGE_TEXT "MCP-сервер для Heroes of Might and Magic III: Horn of the Abyss: ИИ-агент играет в игру через мост как живой игрок.$\r$\n$\r$\nНужны установленные Heroes III Complete (GOG), HotA и HD Mod. В папке игры ничего не меняется, прав администратора не требуется.$\r$\n$\r$\nЕсли запущен HD Launcher, закройте его перед установкой."
@@ -66,7 +68,7 @@ Var GameDir
 !insertmacro MUI_PAGE_INSTFILES
 
 !define MUI_FINISHPAGE_TITLE "${APP} установлен"
-!define MUI_FINISHPAGE_TEXT "Всё запускается ярлыком «${APP}» на рабочем столе и в меню Пуск: служба, ваш HD Launcher со вкладкой MCP, затем игра.$\r$\n$\r$\nMCP-клиент подключается к http://127.0.0.1:18773/mcp или через stdio: $\"$INSTDIR\app\HotaMcp.exe$\" --stdio. Подробно — README и docs в папке установки."
+!define MUI_FINISHPAGE_TEXT "Всё запускается ярлыком «${APP}» на рабочем столе и в меню Пуск: служба, ваш HD Launcher со вкладкой MCP, затем игра.$\r$\n$\r$\nMCP-клиент подключается к http://127.0.0.1:18773/mcp или через stdio: $\"$INSTDIR\app\HotaMcp.exe$\" --stdio. Подробно — timoncool.github.io/hota-mcp."
 !define MUI_FINISHPAGE_RUN "$INSTDIR\app\HotaMcp.exe"
 !define MUI_FINISHPAGE_RUN_PARAMETERS "--launch"
 !define MUI_FINISHPAGE_RUN_TEXT "Запустить ${APP} (служба, лаунчер и игра)"
@@ -197,9 +199,9 @@ Section "${APP}" SecMain
   DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "HotaMcp"
 
   SetOutPath "$INSTDIR\app"
-  CreateShortcut "$DESKTOP\${APP}.lnk" "$INSTDIR\app\HotaMcp.exe" "--launch" "$GameDir\HD_Launcher.exe" 0 SW_SHOWMINIMIZED "" "${APP}: служба, HD Launcher со вкладкой MCP, затем игра"
+  CreateShortcut "$DESKTOP\${APP}.lnk" "$INSTDIR\app\HotaMcp.exe" "--launch" "$INSTDIR\app\HotaMcp.exe" 0 SW_SHOWMINIMIZED "" "${APP}: служба, HD Launcher со вкладкой MCP, затем игра"
   CreateDirectory "$SMPROGRAMS\${APP}"
-  CreateShortcut "$SMPROGRAMS\${APP}\${APP}.lnk" "$INSTDIR\app\HotaMcp.exe" "--launch" "$GameDir\HD_Launcher.exe" 0 SW_SHOWMINIMIZED "" "${APP}: служба, HD Launcher со вкладкой MCP, затем игра"
+  CreateShortcut "$SMPROGRAMS\${APP}\${APP}.lnk" "$INSTDIR\app\HotaMcp.exe" "--launch" "$INSTDIR\app\HotaMcp.exe" 0 SW_SHOWMINIMIZED "" "${APP}: служба, HD Launcher со вкладкой MCP, затем игра"
   CreateShortcut "$SMPROGRAMS\${APP}\Удалить ${APP}.lnk" "$INSTDIR\uninstall.exe"
 
   WriteUninstaller "$INSTDIR\uninstall.exe"

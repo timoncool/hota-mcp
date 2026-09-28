@@ -1,0 +1,20 @@
+{
+  "name": "HotA MCP",
+  "short_name": "HotA MCP",
+  "start_url": "./",
+  "display": "browser",
+  "background_color": "#140c06",
+  "theme_color": "#30180c",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

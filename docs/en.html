@@ -1,0 +1,513 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>HotA MCP — an AI agent plays Heroes III: Horn of the Abyss like a human player</title>
+<meta name="description" content="An MCP server for Heroes of Might and Magic III: Horn of the Abyss. Claude, DeepSeek or any MCP agent plays a whole game through the game&#x27;s real interface: menus, map, towns, battles, hotseat. No OCR, no screenshots, free, Windows." />
+<meta name="theme-color" content="#30180c" />
+<link rel="canonical" href="https://timoncool.github.io/hota-mcp/en.html" />
+<link rel="alternate" hreflang="ru" href="https://timoncool.github.io/hota-mcp/" />
+<link rel="alternate" hreflang="en" href="https://timoncool.github.io/hota-mcp/en.html" />
+<link rel="alternate" hreflang="x-default" href="https://timoncool.github.io/hota-mcp/en.html" />
+<link rel="icon" href="favicon.ico" sizes="16x16 32x32 48x48" />
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<link rel="manifest" href="site.webmanifest" />
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="HotA MCP" />
+<meta property="og:title" content="HotA MCP — an AI agent plays Heroes III: Horn of the Abyss like a human player" />
+<meta property="og:description" content="An MCP server for Heroes of Might and Magic III: Horn of the Abyss. Claude, DeepSeek or any MCP agent plays a whole game through the game&#x27;s real interface: menus, map, towns, battles, hotseat. No OCR, no screenshots, free, Windows." />
+<meta property="og:url" content="https://timoncool.github.io/hota-mcp/en.html" />
+<meta property="og:locale" content="en_US" />
+<meta property="og:locale:alternate" content="ru_RU" />
+<meta property="og:image" content="https://timoncool.github.io/hota-mcp/og-en.jpg" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:image:alt" content="An AI agent plays Heroes III through HotA MCP" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="HotA MCP — an AI agent plays Heroes III: Horn of the Abyss like a human player" />
+<meta name="twitter:description" content="An MCP server for Heroes of Might and Magic III: Horn of the Abyss. Claude, DeepSeek or any MCP agent plays a whole game through the game&#x27;s real interface: menus, map, towns, battles, hotseat. No OCR, no screenshots, free, Windows." />
+<meta name="twitter:image" content="https://timoncool.github.io/hota-mcp/og-en.jpg" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=PT+Sans:ital,wght@0,400;0,700;1,400&display=swap" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.48.0/dist/tabler-icons.min.css" />
+<link rel="preload" as="image" href="site/hero-bg.webp" />
+<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"SoftwareApplication","@id":"https://timoncool.github.io/hota-mcp/#app","name":"HotA MCP","url":"https://timoncool.github.io/hota-mcp/en.html","inLanguage":"en","description":"An MCP server for Heroes of Might and Magic III: Horn of the Abyss. Claude, DeepSeek or any MCP agent plays a whole game through the game's real interface: menus, map, towns, battles, hotseat. No OCR, no screenshots, free, Windows.","applicationCategory":"DeveloperApplication","applicationSubCategory":"MCP server for AI agents","operatingSystem":"Windows 10, Windows 11","softwareVersion":"1.0.0","fileSize":"32 MB","downloadUrl":"https://github.com/timoncool/hota-mcp/releases/latest","isAccessibleForFree":true,"license":"https://opensource.org/licenses/MIT","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"image":"https://timoncool.github.io/hota-mcp/og-en.jpg","logo":"https://timoncool.github.io/hota-mcp/icon-512.png","screenshot":"https://timoncool.github.io/hota-mcp/screenshots/deepseek.webp","codeRepository":"https://github.com/timoncool/hota-mcp","sameAs":["https://github.com/timoncool/hota-mcp"],"about":{"@type":"VideoGame","name":"Heroes of Might and Magic III: Horn of the Abyss"},"author":{"@id":"https://github.com/timoncool#person"},"dateModified":"2026-09-28"},{"@type":"Person","@id":"https://github.com/timoncool#person","name":"Nerual Dreming","url":"https://github.com/timoncool","sameAs":["https://github.com/timoncool","https://t.me/nerual_dreming","https://artgeneration.me"]},{"@type":"FAQPage","inLanguage":"en","mainEntity":[{"@type":"Question","name":"What do I need?","acceptedAnswer":{"@type":"Answer","text":"Windows 10/11 x64 and your own legal copy of Heroes of Might and Magic III Complete (GOG) with Horn of the Abyss 1.8.0 and HD Mod — the build is checked by file hashes. The project contains no game files."}},{"@type":"Question","name":"Which agents work?","acceptedAnswer":{"@type":"Answer","text":"Any MCP client over stdio or HTTP: Claude Code, Claude Desktop, Codex and others. Tested with Claude and DeepSeek. Auto-combat takes up to 3 minutes — raise the client's tool call timeout (Codex: tool_timeout_sec = 200)."}},{"@type":"Question","name":"Does the agent peek through the fog or at the opponent's moves?","acceptedAnswer":{"@type":"Answer","text":"No. The bridge gives only what a player sees on the screen: fog, foreign armies and the computer's plans stay hidden. In hotseat the turn log goes to allies only, never to opponents."}},{"@type":"Question","name":"Can I play against the agent or with it?","acceptedAnswer":{"@type":"Answer","text":"Yes. In hotseat every observe says whose turn it is and lists the scenario's participants with their teams. The agent picks its colour when the game is created or loaded; say “play for me” and it takes yours. Two different agents can share one map."}},{"@type":"Question","name":"Is it free? Where does my data go?","acceptedAnswer":{"@type":"Answer","text":"The project is free, MIT-licensed. The service runs on your computer and listens on 127.0.0.1 only; game cost telemetry, if you turn it on, also goes only to the local bridge."}},{"@type":"Question","name":"Does it work with a non-Russian game?","acceptedAnswer":{"@type":"Answer","text":"Version 1.0 is verified on the Russian HotA 1.8.0: the bridge matches about twenty game phrases by text. If your game is in another language, tell us what it fails to read — that is one of the main goals of the next versions."}}]}]}</script>
+<style>
+:root {
+  --ink: #140c06;
+  --leather: #30180c;
+  --gold: #e4cc6c;
+  --gold-2: #c0a848;
+  --gold-3: #b49c48;
+  --gold-dark: #483c24;
+  --parch: #efe3c4;
+  --muted: #c2b08a;
+  --crimson: #9c0000;
+  --crimson-2: #840000;
+  --crimson-dark: #480000;
+  --royal: #243c84;
+  --royal-2: #18306c;
+  --bevel: #f0dc8c #7a6530 #5a4a22 #cdb467;
+  --noise: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.16 0 0 0 0 0.09 0 0 0 0 0.03 0 0 0 .55 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0; color: var(--parch);
+  background: var(--noise), radial-gradient(120% 60% at 50% 0%, #2a170b 0%, var(--ink) 60%) fixed, var(--ink);
+  font: 16px/1.65 "PT Sans", "Segoe UI", Roboto, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: inherit; }
+img { max-width: 100%; }
+code { font: 13.5px/1.5 ui-monospace, "Cascadia Mono", Consolas, monospace; }
+.wrap { max-width: 1140px; margin: 0 auto; padding: 0 20px; }
+.serif { font-family: "Cormorant Garamond", Georgia, serif; }
+body { font-variant-numeric: lining-nums; }
+.gold-text {
+  background: linear-gradient(180deg, #fff3bf 0%, #eed27a 38%, #c89f3e 62%, #f3dc8e 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(0 2px 0 rgba(0,0,0,.75)) drop-shadow(0 0 1px rgba(0,0,0,.9));
+}
+
+header {
+  position: sticky; top: 0; z-index: 20;
+  background: var(--noise), linear-gradient(180deg, #3a2010, #22120a);
+  border-bottom: 2px solid var(--gold-3);
+  box-shadow: 0 1px 0 #0a0603, 0 6px 18px rgba(0,0,0,.5);
+}
+.bar { display: flex; align-items: center; gap: 12px; padding-block: 8px; }
+.mark { width: 38px; height: 38px; flex: none; filter: drop-shadow(0 2px 3px rgba(0,0,0,.6)); }
+.name { font-family: "Cormorant Garamond", Georgia, serif; font-weight: 700; font-size: 24px; letter-spacing: .01em; white-space: nowrap; }
+.langs { display: flex; gap: 14px; margin-left: auto; white-space: nowrap; }
+.langs a { font-size: 13px; color: var(--muted); text-decoration: none; }
+.langs a:hover { color: var(--parch); }
+.langs a[aria-current="page"] { color: var(--gold); font-weight: 700; }
+
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 10px; text-decoration: none;
+  padding: 11px 20px; font-weight: 700; font-size: 16px; line-height: 1.2; color: #fff3cf; white-space: nowrap;
+  border: 2px solid; border-color: var(--bevel); border-radius: 3px;
+  background: var(--noise), linear-gradient(180deg, #b81414 0%, var(--crimson-2) 55%, #5e0000 100%);
+  text-shadow: 0 1px 0 #000;
+  box-shadow: 0 0 0 1px #0a0603, inset 0 1px 0 rgba(255,220,170,.35), inset 0 -2px 0 rgba(0,0,0,.35), 0 4px 10px rgba(0,0,0,.45);
+  transition: filter .12s;
+}
+.btn:hover { filter: brightness(1.12); }
+.btn:active { transform: translateY(1px); box-shadow: 0 0 0 1px #0a0603, inset 0 2px 6px rgba(0,0,0,.5); }
+.btn.blue { background: var(--noise), linear-gradient(180deg, #3552a2 0%, var(--royal-2) 58%, #11234f 100%); }
+.btn small { font-weight: 400; font-size: 12.5px; opacity: .85; }
+.btn img { display: block; }
+.btn.slim { padding: 7px 14px; font-size: 14px; }
+
+.hero {
+  position: relative; text-align: center; padding: 60px 0 36px;
+  background: linear-gradient(180deg, rgba(20,12,6,.35) 0%, rgba(20,12,6,.72) 55%, var(--ink) 100%), url(site/hero-bg.webp) center 30% / cover no-repeat;
+  border-bottom: 1px solid rgba(180,156,72,.25);
+}
+.brand { display: inline-flex; align-items: center; gap: 18px; margin: 0 0 18px; }
+.brand img { width: 118px; height: auto; filter: drop-shadow(0 8px 18px rgba(0,0,0,.7)); }
+.brand-name { font-family: "Cormorant Garamond", Georgia, serif; font-weight: 700; font-size: clamp(48px, 8vw, 88px); line-height: .95; text-align: left; }
+.brand-sub { display: block; font-family: "PT Sans", sans-serif; font-size: 15px; letter-spacing: .18em; text-transform: uppercase; color: var(--gold); margin-top: 6px; text-shadow: 0 1px 0 #000; }
+h1 { font-family: "Cormorant Garamond", Georgia, serif; font-weight: 700; font-size: clamp(30px, 4.6vw, 50px); line-height: 1.1; margin: 0 auto; max-width: 18em; color: var(--parch); text-shadow: 0 2px 0 #000, 0 0 24px rgba(0,0,0,.8); }
+.lead { color: #e2d3ae; font-size: clamp(17px, 2.1vw, 19px); margin: 16px auto 0; max-width: 40em; text-shadow: 0 1px 0 #000; }
+.cta { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin: 28px 0 10px; }
+.note { color: var(--muted); font-size: 13.5px; margin: 8px auto 0; max-width: 60em; }
+
+.res {
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 28px auto 0; max-width: 900px;
+  background: var(--noise), linear-gradient(180deg, #2c4892 0%, var(--royal-2) 55%, #10224f 100%);
+  border: 2px solid; border-color: var(--bevel);
+  box-shadow: 0 0 0 1px #0a0603, inset 0 0 0 1px rgba(0,0,0,.5), 0 8px 22px rgba(0,0,0,.5);
+}
+.res div { padding: 10px 8px 12px; text-align: center; border-left: 1px solid rgba(10,6,3,.7); box-shadow: inset 1px 0 0 rgba(228,204,108,.25); }
+.res div:first-child { border-left: 0; box-shadow: none; }
+.res b { display: block; font-family: "Cormorant Garamond", Georgia, serif; font-size: 34px; line-height: 1; color: var(--gold); text-shadow: 0 2px 0 #000; }
+.res span { font-size: 13px; color: #d9e0f3; text-shadow: 0 1px 0 #000; }
+
+.frame {
+  position: relative; padding: 7px; margin: 0;
+  background: linear-gradient(135deg, #f6e39a 0%, #b49c48 22%, #6b5a2a 48%, #e4cc6c 72%, #8f7a3a 100%);
+  box-shadow: 0 0 0 1px #0a0603, 0 22px 50px rgba(0,0,0,.65);
+}
+.frame img { display: block; width: 100%; height: auto; border: 1px solid #0a0603; cursor: zoom-in; }
+.gem { position: absolute; width: 18px; height: 18px; border-radius: 50%; z-index: 1;
+  background: radial-gradient(circle at 35% 32%, #d9e8ff 0%, #6f9cf0 22%, #2a4fb8 55%, #0d1e55 100%);
+  box-shadow: 0 0 0 2px #c0a848, 0 0 0 3px #0a0603, 0 2px 4px rgba(0,0,0,.6); }
+.gem.tl { top: -6px; left: -6px; } .gem.tr { top: -6px; right: -6px; } .gem.bl { bottom: -6px; left: -6px; } .gem.br { bottom: -6px; right: -6px; }
+.hero-shot { margin: 40px auto 0; max-width: 1100px; }
+
+section { padding: 76px 0 0; }
+.sec-head { text-align: center; margin: 0 auto 26px; max-width: 48em; }
+h2 { font-family: "Cormorant Garamond", Georgia, serif; font-weight: 700; font-size: clamp(32px, 4.2vw, 46px); line-height: 1.05; margin: 0; }
+.rule { position: relative; height: 14px; max-width: 360px; margin: 10px auto 0;
+  background: linear-gradient(90deg, transparent, var(--gold-3) 22%, var(--gold) 50%, var(--gold-3) 78%, transparent) center / 100% 1px no-repeat; }
+.rule::after { content: ""; position: absolute; left: 50%; top: 50%; width: 10px; height: 10px; transform: translate(-50%, -50%) rotate(45deg);
+  background: linear-gradient(135deg, #fff1b8, #b49c48); box-shadow: 0 0 0 2px var(--ink), 0 0 0 3px var(--gold-3); }
+.sub { color: var(--muted); margin: 14px auto 0; }
+.sub a, .note a, .connect a { color: var(--gold); }
+
+.panel {
+  position: relative;
+  background: var(--noise), radial-gradient(130% 100% at 25% 0%, #5a3a1c 0%, #3a2210 52%, #25130a 100%);
+  border: 2px solid; border-color: var(--bevel); border-radius: 2px;
+  box-shadow: 0 0 0 1px #0a0603, inset 0 0 0 1px rgba(10,6,3,.7), inset 0 0 34px rgba(0,0,0,.45), 0 10px 26px rgba(0,0,0,.45);
+}
+
+.bento { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 16px; }
+.tile { grid-column: span 2; padding: 18px; display: flex; flex-direction: column; gap: 12px; }
+.tile.wide { grid-column: span 3; }
+.tile h3 { margin: 0; font-family: "Cormorant Garamond", Georgia, serif; font-size: 25px; line-height: 1.1; color: var(--gold); text-shadow: 0 2px 0 #000; }
+.tile p { margin: 0; color: #dccba3; font-size: 15px; line-height: 1.55; }
+.tile .pic { margin: 0; padding: 4px; background: linear-gradient(135deg, #e4cc6c, #6b5a2a 50%, #c0a848); box-shadow: 0 0 0 1px #0a0603; }
+.tile .pic img { display: block; width: 100%; height: 190px; object-fit: cover; object-position: top center; border: 1px solid #0a0603; cursor: zoom-in; image-rendering: auto; }
+.tile .row { display: flex; align-items: center; gap: 14px; }
+.medal { flex: none; width: 50px; height: 50px; border-radius: 50%; display: grid; place-items: center; font-size: 26px; color: var(--gold);
+  background: var(--noise), radial-gradient(circle at 40% 30%, #c01818, var(--crimson-2) 55%, #4a0000);
+  border: 2px solid; border-color: var(--bevel); box-shadow: 0 0 0 1px #0a0603, inset 0 2px 6px rgba(0,0,0,.45), 0 3px 8px rgba(0,0,0,.5);
+  text-shadow: 0 1px 0 #000; }
+
+.look { display: grid; grid-template-columns: minmax(0, 11fr) minmax(0, 9fr); gap: 30px; align-items: start; }
+.log { padding: 0; overflow: hidden; }
+.log-head { padding: 10px 16px; font-family: "Cormorant Garamond", Georgia, serif; font-size: 20px; font-weight: 700; color: var(--gold);
+  background: var(--noise), linear-gradient(180deg, #a11212, var(--crimson-dark)); border-bottom: 2px solid var(--gold-3); text-shadow: 0 1px 0 #000; }
+.log ol { list-style: none; margin: 0; padding: 8px 16px 14px; display: grid; gap: 0; }
+.log li { padding: 12px 0; border-bottom: 1px solid rgba(180,156,72,.22); font-size: 15px; line-height: 1.55; color: #eadcb8; }
+.log li:last-child { border-bottom: 0; }
+.call { display: inline-block; margin: 0 8px 4px 0; padding: 1px 8px; font-size: 12.5px; color: var(--gold); background: rgba(0,0,0,.45); border: 1px solid var(--gold-dark); border-radius: 2px; }
+.points { list-style: none; margin: 26px 0 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.points li { padding: 16px 18px; color: #dccba3; font-size: 15px; line-height: 1.55; }
+.points li b { color: var(--gold); }
+
+.table { padding: 6px 18px; overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 15px; }
+th, td { text-align: left; padding: 11px 10px; border-bottom: 1px solid rgba(180,156,72,.22); vertical-align: top; }
+tr:last-child td { border-bottom: 0; }
+th { color: var(--gold); font-family: "Cormorant Garamond", Georgia, serif; font-size: 19px; font-weight: 700; }
+td { color: #e6d6b0; }
+td:first-child { white-space: nowrap; }
+td code { color: var(--gold); }
+
+.steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.steps li { padding: 22px 18px 18px; display: grid; gap: 8px; align-content: start; }
+.steps b { font-family: "Cormorant Garamond", Georgia, serif; font-size: 24px; color: var(--gold); display: flex; align-items: center; gap: 12px; text-shadow: 0 2px 0 #000; }
+.steps .num { width: 40px; height: 40px; flex: none; display: grid; place-items: center; border-radius: 50%; font-size: 22px;
+  background: var(--noise), radial-gradient(circle at 40% 30%, #c01818, var(--crimson-2) 55%, #4a0000);
+  border: 2px solid; border-color: var(--bevel); box-shadow: 0 0 0 1px #0a0603; }
+.steps span { color: #dccba3; font-size: 15px; line-height: 1.55; }
+.connect { margin-top: 22px; padding: 18px 20px; display: grid; gap: 8px; }
+.connect p { margin: 6px 0 0; color: var(--muted); font-size: 14.5px; }
+.connect p:first-child { margin-top: 0; }
+pre { margin: 0; padding: 12px 14px; overflow-x: auto; color: #f3e6c4; background: rgba(0,0,0,.55); border: 1px solid var(--gold-dark); box-shadow: inset 0 2px 8px rgba(0,0,0,.6); }
+#start .cta { justify-content: center; margin-top: 26px; }
+
+.faq { padding: 4px 22px; }
+.faq details { border-bottom: 1px solid rgba(180,156,72,.22); }
+.faq details:last-child { border-bottom: 0; }
+.faq summary { list-style: none; cursor: pointer; padding: 16px 36px 16px 0; font-family: "Cormorant Garamond", Georgia, serif; font-weight: 700; font-size: 22px; color: var(--gold); position: relative; text-shadow: 0 1px 0 #000; }
+.faq summary::-webkit-details-marker { display: none; }
+.faq summary::after { content: "+"; position: absolute; right: 4px; top: 12px; font-size: 26px; color: var(--gold-2); }
+.faq details[open] summary::after { content: "\2212"; }
+.answer { padding: 0 0 18px; color: #e2d2ab; max-width: 52em; }
+.answer p { margin: 0; }
+
+.pills { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+footer { margin: 76px 0 36px; padding-top: 22px; border-top: 1px solid rgba(180,156,72,.3); color: var(--muted); font-size: 13.5px; text-align: center; }
+footer p { margin: 0 0 8px; }
+footer a { color: var(--gold-2); }
+
+.viewer { position: fixed; inset: 0; z-index: 50; display: none; overflow: hidden; background: rgba(8,5,2,.94); touch-action: none; }
+.viewer.open { display: block; }
+.viewer img { position: absolute; left: 0; top: 0; transform-origin: 0 0; max-width: none; cursor: grab; user-select: none; -webkit-user-drag: none; box-shadow: 0 0 0 1px #0a0603, 0 0 0 5px #b49c48, 0 20px 60px rgba(0,0,0,.7); }
+.viewer img.dragging { cursor: grabbing; }
+.viewer img.pixel { image-rendering: pixelated; }
+.viewer .close { position: absolute; top: 12px; right: 14px; z-index: 2; width: 44px; height: 44px; padding: 0; font-size: 24px; }
+.viewer .hint { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); z-index: 2; max-width: calc(100% - 32px); padding: 6px 12px; font-size: 13px; color: var(--muted); text-align: center; background: rgba(20,12,6,.8); border: 1px solid var(--gold-dark); }
+
+@media (max-width: 960px) {
+  .bento { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tile, .tile.wide { grid-column: span 1; }
+  .look { grid-template-columns: minmax(0, 1fr); }
+  .points { grid-template-columns: minmax(0, 1fr); }
+  .steps { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 600px) {
+  .hero { padding-top: 36px; }
+  .name, .langs + .btn { display: none; }
+  .brand { gap: 12px; }
+  .brand img { width: 78px; }
+  .brand-sub { font-size: 12px; letter-spacing: .12em; }
+  .res { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .res div:nth-child(3) { border-left: 0; box-shadow: none; }
+  .res div:nth-child(n+3) { border-top: 1px solid rgba(10,6,3,.7); }
+  .bento { grid-template-columns: minmax(0, 1fr); }
+  .cta .btn { width: 100%; }
+  .btn.primary-dl { flex-direction: column; gap: 2px; }
+  td:first-child { white-space: normal; }
+  .faq, .table, .connect { padding-inline: 14px; }
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap bar">
+    <img class="mark" src="icon-192.png" alt="" width="38" height="38" />
+    <div class="name gold-text">HotA MCP</div>
+    <nav class="langs" aria-label="Language">
+      <a href="./" hreflang="ru">Русский</a>
+      <a href="./en.html" hreflang="en" aria-current="page">English</a>
+    </nav>
+    <a class="btn blue slim" href="https://github.com/timoncool/hota-mcp">GitHub<img class="stars" src="https://img.shields.io/github/stars/timoncool/hota-mcp?label=%E2%98%85&amp;color=3f3f46&amp;style=flat" alt="GitHub stars" height="20" /></a>
+    <a class="btn slim" href="https://github.com/timoncool/hota-mcp/releases/latest">Download</a>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="wrap">
+    <div class="brand"><img src="icon-512.png" alt="HotA MCP" width="118" height="118" /><div class="brand-name"><span class="gold-text">HotA MCP</span><span class="brand-sub">An AI agent plays Heroes III</span></div></div>
+    <h1>An AI agent plays Heroes III like a human player</h1>
+    <p class="lead">HotA MCP connects Claude, DeepSeek or any MCP agent to your Heroes III: Horn of the Abyss. The same screen, the same buttons — a whole game, from the main menu to the score screen.</p>
+    <div class="cta">
+      <a class="btn primary-dl" href="https://github.com/timoncool/hota-mcp/releases/latest">Download for Windows<small data-release>v1.0.0 · 32 MB</small></a>
+      <a class="btn blue" href="https://github.com/timoncool/hota-mcp">Star on GitHub<img class="stars" src="https://img.shields.io/github/stars/timoncool/hota-mcp?label=%E2%98%85&amp;color=3f3f46&amp;style=flat" alt="GitHub stars" height="20" /></a>
+    </div>
+    <p class="note">Windows 10/11 x64 and your own Heroes III Complete (GOG) with HotA 1.8.0 and HD Mod. The installer needs no administrator rights and no .NET.</p>
+    <div class="res"><div><b>31</b><span>tools</span></div><div><b>8</b><span>hotseat sides</span></div><div><b>0</b><span>OCR or screenshots</span></div><div><b>1</b><span>installer</span></div></div>
+  </div>
+</section>
+
+<main class="wrap">
+  <figure class="frame hero-shot"><i class="gem tl"></i><i class="gem tr"></i><i class="gem bl"></i><i class="gem br"></i><img src="screenshots/deepseek.webp" alt="DeepSeek Flash opened a treasure chest through HotA MCP and chooses between gold and experience" width="1800" height="783" /></figure>
+
+  <section id="why">
+    <div class="sec-head"><h2 class="gold-text">Why</h2><div class="rule"></div>
+      <p class="sub">Heroes is a long-horizon strategy game: economy, scouting, battles, a map taken over weeks. One lucky move does not win it, which makes it an honest benchmark of an agent's strategic thinking — alone, against a human or on a human's team.</p></div>
+  </section>
+
+  <section id="features">
+    <div class="sec-head"><h2 class="gold-text">What it does</h2><div class="rule"></div></div>
+    <div class="bento">
+      <article class="tile panel"><figure class="pic"><img src="site/heropanel.webp" alt="Hero panel from a DeepSeek game: troops, primary skills, artifacts" loading="lazy" /></figure><h3>The whole game</h3><p>Main menu, scenario and random map setup, hotseat, save and load, the adventure map, towns, recruiting, trading, battles and sieges, level-ups, the score screen.</p></article>
+      <article class="tile panel"><figure class="pic"><img src="site/chest.webp" alt="A treasure chest dialog: the game offers gold or experience" loading="lazy" /></figure><h3>Everything in words</h3><p>Every observe opens with a turn summary. Heroes, towns, troops and objects by name; routes, costs and “visited” marks come from the game itself.</p></article>
+      <article class="tile panel"><figure class="pic"><img src="site/minimap.webp" alt="The minimap under fog: the agent sees only what was explored" loading="lazy" /></figure><h3>Honest limits</h3><p>Hidden map, another side's turn, a stale view — refused with a reason code. The agent sees exactly what a player sees and nothing more.</p></article>
+      <article class="tile panel"><div class="row"><span class="medal"><i class="ti ti-hand-click" aria-hidden="true"></i></span><h3>Plays like a human</h3></div><p>Reads what is on the screen and presses the game's own buttons with window events. No mouse hijacking, computer-use, OCR or internal game commands.</p></article>
+      <article class="tile panel"><div class="row"><span class="medal"><i class="ti ti-book-2" aria-hidden="true"></i></span><h3>Built-in reference</h3></div><p>Rules, formulas, creature and artifact cards from the installed game's own tables. Offline search, so the agent need not rely on memory.</p></article>
+      <article class="tile panel"><div class="row"><span class="medal"><i class="ti ti-users-group" aria-hidden="true"></i></span><h3>Hotseat and teams</h3></div><p>The bridge passes the colour to move and the scenario's participants; the agent picks its own colour. Play against an agent, with one on your team, or pit two agents against each other.</p></article>
+      <article class="tile panel wide"><div class="row"><span class="medal"><i class="ti ti-coins" aria-hidden="true"></i></span><h3>Cost of a game</h3></div><p>Dollars, tokens and calls per side and game day from Claude Code telemetry — see what each model's strategy costs.</p></article>
+      <article class="tile panel wide"><div class="row"><span class="medal"><i class="ti ti-package" aria-hidden="true"></i></span><h3>Nothing to configure</h3></div><p>One installer, one shortcut. Nothing is written to the game folder or to autostart; the service listens on 127.0.0.1 only.</p></article>
+    </div>
+  </section>
+
+  <section id="agent">
+    <div class="sec-head"><h2 class="gold-text">The game through the agent's eyes</h2><div class="rule"></div>
+      <p class="sub">The agent gets the screen as structure: a turn summary, resources, heroes, troops, the actions available and their labels. It makes the decisions — the bridge only shows and presses.</p></div>
+    <div class="look">
+      <figure class="frame"><i class="gem tl"></i><i class="gem tr"></i><i class="gem bl"></i><i class="gem br"></i><img src="site/town.webp" alt="A town screen from Claude&#x27;s game: panorama, garrison and the resource bar" loading="lazy" width="800" height="600" /></figure>
+      <div class="panel log">
+        <div class="log-head">Claude's log · month 1, week 2, day 4</div>
+        <ol>
+          <li><code class="call">move_to</code>Kalt got there by himself and opened a chest: 2000 gold or 1800 experience. For a gatherer — the gold.</li>
+          <li><code class="call">act</code>Brissa walked the whole way to the end of her movement. The game asks about Kalt's remaining points — I confirm the end of the day.</li>
+          <li><code class="call">inspect_cell</code>Inspecting a cell gives exactly what a player sees: (70,24) — “A horde (20-49) of Royal Griffins”.</li>
+          <li><code class="call">hota_reference</code>By the game's own tables: my army is ≈ 6677 fight value, griffins from 20 up are 7280 and more, plus speed 9 and unlimited retaliation. Not going in.</li>
+          <li><code class="call">move_to</code>Taking Kalt to town — 9950 gold is lying idle and the army is weak.</li>
+        </ol>
+      </div>
+    </div>
+    <ul class="points">
+      <li class="panel"><b>One action per call.</b> Every action refers to the observation revision it was decided on: a stale view is refused, a retry with the same operationId is safe.</li>
+      <li class="panel"><b>The game proves the result:</b> a new screen, resources, battle log or date. No proof means an “uncertain” answer, not a guess.</li>
+      <li class="panel"><b>Routes from the game itself:</b> path, movement cost and the guard of a cell — exactly what the cursor would show.</li>
+      <li class="panel"><b>Battles in words:</b> stacks, hexes, reach, retaliation, spells and auto-combat.</li>
+    </ul>
+  </section>
+
+  <section id="tools">
+    <div class="sec-head"><h2 class="gold-text">Tools</h2><div class="rule"></div>
+      <p class="sub">31 tools; full descriptions are in the <a href="https://github.com/timoncool/hota-mcp/blob/main/docs/knowledge/agent/01-tools.md">agent reference</a> (in Russian).</p></div>
+    <div class="panel table"><table>
+        <thead><tr><th>Tool</th><th>What for</th></tr></thead>
+        <tbody>
+          <tr><td><code>observe</code></td><td>Your side's whole state and the actions available on this screen</td></tr>
+          <tr><td><code>act</code></td><td>Any action named by observe: town, recruiting, battle, dialog, end of turn</td></tr>
+          <tr><td><code>nearby_targets</code>, <code>inspect_target</code>, <code>read_map</code></td><td>What is around, route and cost from the game itself, the explored map</td></tr>
+          <tr><td><code>move_to</code>, <code>move_to_tile</code>, <code>attack_target</code></td><td>Walking and fighting — deliberately separate tools</td></tr>
+          <tr><td><code>inspect_cell</code>, <code>inspect_element</code>, <code>inspect_tile</code></td><td>Right-click cards and the status line a player reads</td></tr>
+          <tr><td><code>wait_for_turn</code>, <code>ally_log</code></td><td>Hotseat: wait for your turn or a window addressed to you; what an ally did</td></tr>
+          <tr><td><code>plan</code>, <code>mark</code>, <code>read_journal</code></td><td>The agent's memory between turns</td></tr>
+          <tr><td><code>hota_docs</code>, <code>hota_reference</code></td><td>Game reference</td></tr>
+          <tr><td><code>debug_snapshot</code></td><td>A frame and an observation as one pair — to report what the bridge reads wrong</td></tr>
+        </tbody>
+    </table></div>
+  </section>
+
+  <section id="start">
+    <div class="sec-head"><h2 class="gold-text">Get started</h2><div class="rule"></div></div>
+    <ol class="steps">
+      <li class="panel"><b><span class="num">1</span>Install</b><span>Download the installer and run it with HD Launcher closed. It finds the game itself and puts a “HotA MCP” shortcut on the desktop.</span></li>
+      <li class="panel"><b><span class="num">2</span>Connect an agent</b><span>Claude Code, Claude Desktop, Codex or any MCP client — lines below.</span></li>
+      <li class="panel"><b><span class="num">3</span>Play</b><span>Tell the agent “let's play Heroes”. It brings up the service, the launcher and the game itself — or start them with the shortcut.</span></li>
+    </ol>
+    <div class="panel connect">
+      <p>Claude Code:</p>
+      <pre><code>claude mcp add hota -- "C:\Users\&lt;you&gt;\AppData\Local\Programs\HotaMcp\app\HotaMcp.exe" --stdio</code></pre>
+      <p>Claude Desktop (claude_desktop_config.json):</p>
+      <pre><code>{
+  "mcpServers": {
+    "hota": {
+      "command": "C:\\Users\\&lt;you&gt;\\AppData\\Local\\Programs\\HotaMcp\\app\\HotaMcp.exe",
+      "args": ["--stdio"]
+    }
+  }
+}</code></pre>
+      <p>The path assumes the default folder; use yours if you changed it. The server hands its rules to the client on connect; the full game procedure is the <a href="https://github.com/timoncool/hota-mcp/blob/main/skills/hota-player/SKILL.md">hota-player</a> skill.</p>
+    </div>
+    <div class="cta"><a class="btn primary-dl" href="https://github.com/timoncool/hota-mcp/releases/latest">Download for Windows<small data-release>v1.0.0 · 32 MB</small></a></div>
+  </section>
+
+  <section id="faq">
+    <div class="sec-head"><h2 class="gold-text">Questions</h2><div class="rule"></div></div>
+    <div class="panel faq">
+      <details><summary>What do I need?</summary><div class="answer"><p>Windows 10/11 x64 and your own legal copy of Heroes of Might and Magic III Complete (GOG) with Horn of the Abyss 1.8.0 and HD Mod — the build is checked by file hashes. The project contains no game files.</p></div></details>
+      <details><summary>Which agents work?</summary><div class="answer"><p>Any MCP client over stdio or HTTP: Claude Code, Claude Desktop, Codex and others. Tested with Claude and DeepSeek. Auto-combat takes up to 3 minutes — raise the client's tool call timeout (Codex: tool_timeout_sec = 200).</p></div></details>
+      <details><summary>Does the agent peek through the fog or at the opponent's moves?</summary><div class="answer"><p>No. The bridge gives only what a player sees on the screen: fog, foreign armies and the computer's plans stay hidden. In hotseat the turn log goes to allies only, never to opponents.</p></div></details>
+      <details><summary>Can I play against the agent or with it?</summary><div class="answer"><p>Yes. In hotseat every observe says whose turn it is and lists the scenario's participants with their teams. The agent picks its colour when the game is created or loaded; say “play for me” and it takes yours. Two different agents can share one map.</p></div></details>
+      <details><summary>Is it free? Where does my data go?</summary><div class="answer"><p>The project is free, MIT-licensed. The service runs on your computer and listens on 127.0.0.1 only; game cost telemetry, if you turn it on, also goes only to the local bridge.</p></div></details>
+      <details><summary>Does it work with a non-Russian game?</summary><div class="answer"><p>Version 1.0 is verified on the Russian HotA 1.8.0: the bridge matches about twenty game phrases by text. If your game is in another language, tell us what it fails to read — that is one of the main goals of the next versions.</p></div></details>
+    </div>
+  </section>
+
+  <section id="help">
+    <div class="sec-head"><h2 class="gold-text">Help wanted</h2><div class="rule"></div>
+      <p class="sub">The bridge, the agent skill and the reference speak Russian for now. Let an agent play and report where it gets stuck; translate the skill and the reference into your language — models play better when the reference speaks the language of the game they see.</p></div>
+    <div class="pills">
+      <a class="btn blue slim" href="https://github.com/timoncool/hota-mcp/blob/main/CONTRIBUTING.md">How to report a problem</a>
+      <a class="btn blue slim" href="https://github.com/timoncool/hota-mcp/issues">Issues</a>
+      <a class="btn blue slim" href="https://github.com/timoncool/hota-mcp/blob/main/docs/DEVELOPING.md">How to map new screens</a>
+    </div>
+  </section>
+
+  <section id="author">
+    <div class="sec-head"><h2 class="gold-text">Who made it</h2><div class="rule"></div>
+      <p class="sub">Nerual Dreming — artist, founder of ArtGeneration.me and the Neuro-Cartel community, author of ACE-Step Studio, YuE2 Studio and MCP servers for Telegram and Civitai.</p></div>
+    <div class="pills">
+      <a class="btn blue slim" href="https://github.com/timoncool">GitHub · @timoncool</a>
+      <a class="btn blue slim" href="https://t.me/nerual_dreming">Telegram · @nerual_dreming</a>
+      <a class="btn blue slim" href="https://t.me/neuroport">Telegram · @neuroport</a>
+      <a class="btn blue slim" href="https://artgeneration.me">ArtGeneration.me</a>
+      <a class="btn slim" href="https://github.com/timoncool/ACE-Step-Studio/blob/master/DONATE.md">Support the project</a>
+    </div>
+  </section>
+
+  <footer>
+    <p>Heroes of Might and Magic III and Horn of the Abyss belong to their rights holders. This is an independent fan and research project; it works with your own copy of the game. Code — MIT.</p>
+    <p><a href="https://github.com/timoncool/hota-mcp/blob/main/CHANGELOG.md">What changed</a> · <a href="https://github.com/timoncool/hota-mcp/issues">Report a problem</a> · Updated <time datetime="2026-09-28">2026-09-28</time></p>
+  </footer>
+</main>
+
+<div class="viewer" id="viewer" aria-hidden="true" role="dialog">
+  <button type="button" class="btn slim close" aria-label="Close">×</button>
+  <img id="viewer-image" alt="" draggable="false" />
+  <div class="hint">Wheel or pinch — zoom · drag — pan · double click — zoom in or reset · Esc — close</div>
+</div>
+<script>
+const viewer = document.getElementById('viewer');
+const view = document.getElementById('viewer-image');
+let scale = 1, fit = 1, x = 0, y = 0, dragging = null, moved = false;
+const pointers = new Map();
+let pinch = null;
+function paint() {
+  view.style.transform = 'translate(' + x + 'px,' + y + 'px) scale(' + scale + ')';
+  view.classList.toggle('pixel', scale > 1.6);
+}
+function fitImage() {
+  const w = view.naturalWidth, h = view.naturalHeight;
+  fit = Math.min((innerWidth - 40) / w, (innerHeight - 90) / h, 1);
+  scale = fit; x = (innerWidth - w * fit) / 2; y = (innerHeight - h * fit) / 2 - 20; paint();
+}
+function zoomAt(cx, cy, next) {
+  next = Math.min(fit * 10, Math.max(fit, next));
+  x = cx - (cx - x) * next / scale; y = cy - (cy - y) * next / scale; scale = next;
+  if (scale === fit) fitImage(); else paint();
+}
+function openViewer(image) {
+  view.alt = image.alt;
+  view.onload = fitImage;
+  view.src = image.currentSrc || image.src;
+  viewer.classList.add('open'); viewer.setAttribute('aria-hidden', 'false');
+  document.body.style.overflow = 'hidden';
+}
+function closeViewer() {
+  viewer.classList.remove('open'); viewer.setAttribute('aria-hidden', 'true');
+  document.body.style.overflow = ''; pointers.clear(); pinch = null;
+}
+document.addEventListener('click', (event) => {
+  const image = event.target.closest('.frame img, .tile .pic img');
+  if (image) openViewer(image);
+});
+viewer.addEventListener('click', (event) => {
+  if (event.target.closest('.close')) return closeViewer();
+  if (event.target === viewer && !moved) closeViewer();
+});
+viewer.addEventListener('wheel', (event) => {
+  event.preventDefault();
+  zoomAt(event.clientX, event.clientY, scale * Math.exp(-event.deltaY * 0.0015));
+}, { passive: false });
+view.addEventListener('dblclick', (event) => {
+  if (scale > fit * 1.05) fitImage(); else zoomAt(event.clientX, event.clientY, fit * 3);
+});
+view.addEventListener('pointerdown', (event) => {
+  view.setPointerCapture(event.pointerId);
+  pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+  moved = false;
+  if (pointers.size === 2) {
+    const [a, b] = [...pointers.values()];
+    pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), s: scale };
+  } else {
+    dragging = { x: event.clientX, y: event.clientY };
+    view.classList.add('dragging');
+  }
+});
+view.addEventListener('pointermove', (event) => {
+  if (!pointers.has(event.pointerId)) return;
+  pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+  if (pinch && pointers.size === 2) {
+    const [a, b] = [...pointers.values()];
+    zoomAt((a.x + b.x) / 2, (a.y + b.y) / 2, pinch.s * Math.hypot(a.x - b.x, a.y - b.y) / pinch.d);
+    moved = true;
+  } else if (dragging) {
+    x += event.clientX - dragging.x; y += event.clientY - dragging.y;
+    dragging = { x: event.clientX, y: event.clientY }; moved = true; paint();
+  }
+});
+function release(event) {
+  pointers.delete(event.pointerId);
+  if (pointers.size < 2) pinch = null;
+  if (pointers.size === 0) { dragging = null; view.classList.remove('dragging'); }
+}
+view.addEventListener('pointerup', release);
+view.addEventListener('pointercancel', release);
+addEventListener('resize', () => { if (viewer.classList.contains('open')) fitImage(); });
+document.addEventListener('keydown', (event) => {
+  if (!viewer.classList.contains('open')) return;
+  if (event.key === 'Escape') closeViewer();
+  if (event.key === '+' || event.key === '=') zoomAt(innerWidth / 2, innerHeight / 2, scale * 1.25);
+  if (event.key === '-') zoomAt(innerWidth / 2, innerHeight / 2, scale / 1.25);
+  if (event.key === '0') fitImage();
+});
+// the download buttons name the latest release as GitHub has it, so a new release needs no new page
+fetch('https://api.github.com/repos/timoncool/hota-mcp/releases/latest')
+  .then((response) => (response.ok ? response.json() : Promise.reject(new Error('GitHub answered ' + response.status))))
+  .then((release) => {
+    const installer = release.assets.find((asset) => /^HotaMcp-Setup-.+\.exe$/.test(asset.name));
+    if (!installer) throw new Error('the latest release has no installer');
+    const label = release.tag_name + ' · ' + Math.round(installer.size / 1048576) + ' MB';
+    document.querySelectorAll('[data-release]').forEach((element) => { element.textContent = label; });
+  })
+  .catch((error) => console.warn('Latest release not read; the page shows the one it was built with:', error));
+</script>
+</body>
+</html>

@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="docs/icon-512.png" width="180" alt="HotA MCP" />
+
 # HotA MCP
 
 **An MCP server that lets AI agents play Heroes of Might and Magic III: Horn of the Abyss like a human player — same screen, same buttons, a whole game from menu to victory.**
@@ -10,7 +12,7 @@
 [![Stars](https://img.shields.io/github/stars/timoncool/hota-mcp?style=flat-square)](https://github.com/timoncool/hota-mcp/stargazers)
 [![Last Commit](https://img.shields.io/github/last-commit/timoncool/hota-mcp?style=flat-square)](https://github.com/timoncool/hota-mcp/commits)
 
-**[Русский](README.md)** · **[English](README_EN.md)**
+**[Website](https://timoncool.github.io/hota-mcp/en.html)** · **[Русский](README.md)** · **[English](README_EN.md)**
 
 ![Claude plays HotA through HotA MCP](docs/screenshots/hero.png)
 

@@ -102,10 +102,14 @@ foreach ($binary in @('hota_launcher_tab.dll', 'launcher-attach.exe')) {
     }
 }
 
-# The bridge serves its documentation offline; it is found by walking up from the binaries.
+# The bridge serves docs\knowledge and skills offline; they are found by walking up from the binaries.
 foreach ($tree in @('docs', 'skills')) {
     $destination = Join-Path $InstallPath $tree
     if (Test-Path $destination) { Remove-Item $destination -Recurse -Force }
+}
+foreach ($tree in @('docs\knowledge', 'skills')) {
+    $destination = Join-Path $InstallPath $tree
+    New-Item -ItemType Directory -Path (Split-Path $destination) -Force | Out-Null
     Copy-Item (Join-Path $repo $tree) $destination -Recurse -Force
 }
 

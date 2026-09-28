@@ -9,6 +9,7 @@
     <AssemblyName>HotaMcp</AssemblyName>
     <Version>1.0.0</Version>
     <Product>HotA MCP</Product>
+    <ApplicationIcon>hota-mcp.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.12" />

@@ -1,0 +1,25 @@
+# HotA MCP
+
+> An MCP server that lets an AI agent play Heroes of Might and Magic III: Horn of the Abyss (HotA 1.8.0 + HD Mod, Windows) like a human player. It reads the game's screens as structure and presses the game's own buttons with window events — no OCR, screenshots, mouse hijacking or internal game commands. A whole game: main menu, scenario setup, hotseat, save/load, adventure map, towns, recruiting, battles, sieges, level-ups, the score screen.
+
+For an agent given this repository: the user installs the latest release (it needs their own copy of the game), you connect to the server over stdio, read the rules it sends on connect and the skill below, and start with `start_game` or `observe`. One action per call; every action takes the `revision` of the observation it was decided on and an `operationId`.
+
+## Connect
+
+- stdio: `HotaMcp.exe --stdio` from the install folder (default `%LOCALAPPDATA%\Programs\HotaMcp\app\HotaMcp.exe`)
+- Claude Code: `claude mcp add hota -- "%LOCALAPPDATA%\Programs\HotaMcp\app\HotaMcp.exe" --stdio`
+- Auto-combat can take up to 3 minutes: raise the client's tool call timeout (Codex: `tool_timeout_sec = 200`)
+- Hotseat: every `observe` says whose turn it is («Ходит <цвет>») and lists the scenario's participants; the agent picks its own colour and waits with `wait_for_turn` and that colour
+
+## Docs
+
+- [Agent skill](https://raw.githubusercontent.com/timoncool/hota-mcp/main/skills/hota-player/SKILL.md): how to play through the bridge, step by step (Russian)
+- [Tools](https://github.com/timoncool/hota-mcp/blob/main/docs/knowledge/agent/01-tools.md): all 31 tools
+- [README (Russian)](https://github.com/timoncool/hota-mcp#readme), [README (English)](https://github.com/timoncool/hota-mcp/blob/main/README_EN.md)
+- [Latest release](https://github.com/timoncool/hota-mcp/releases/latest): the installer
+- [Project page](https://timoncool.github.io/hota-mcp/)
+
+## Optional
+
+- [Developer guide](https://github.com/timoncool/hota-mcp/blob/main/docs/DEVELOPING.md): code map and how to map a new game screen
+- [CHANGELOG](https://github.com/timoncool/hota-mcp/blob/main/CHANGELOG.md)

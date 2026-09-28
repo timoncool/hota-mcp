@@ -33,10 +33,12 @@ foreach ($required in @('HotaMcp.exe', 'native\game-attach.exe', 'native\hota_ga
     if (-not (Test-Path (Join-Path $app $required))) { throw "Published service lacks $required" }
 }
 Copy-Item (Join-Path $tab 'hota_launcher_tab.dll'), (Join-Path $tab 'launcher-attach.exe') $app
-foreach ($tree in @('docs', 'skills')) { Copy-Item (Join-Path $repo $tree) (Join-Path $stage $tree) -Recurse }
-# README pictures and the star chart are for the repository page, not for the bridge's reference.
-Remove-Item (Join-Path $stage 'docs\screenshots') -Recurse -Force
-Remove-Item (Join-Path $stage 'docs\stars-*.svg') -Force
+# The bridge serves docs\knowledge and skills; the rest of docs is the project page and the developer guide.
+foreach ($tree in @('docs\knowledge', 'skills')) {
+    $destination = Join-Path $stage $tree
+    New-Item -ItemType Directory -Path (Split-Path $destination) -Force | Out-Null
+    Copy-Item (Join-Path $repo $tree) $destination -Recurse
+}
 Copy-Item (Join-Path $repo 'LICENSE') (Join-Path $stage 'LICENSE.txt')
 
 $output = Join-Path $dist "HotaMcp-Setup-$version.exe"
