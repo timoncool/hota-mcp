@@ -34,6 +34,9 @@ foreach ($required in @('HotaMcp.exe', 'native\game-attach.exe', 'native\hota_ga
 }
 Copy-Item (Join-Path $tab 'hota_launcher_tab.dll'), (Join-Path $tab 'launcher-attach.exe') $app
 foreach ($tree in @('docs', 'skills')) { Copy-Item (Join-Path $repo $tree) (Join-Path $stage $tree) -Recurse }
+# README pictures and the star chart are for the repository page, not for the bridge's reference.
+Remove-Item (Join-Path $stage 'docs\screenshots') -Recurse -Force
+Remove-Item (Join-Path $stage 'docs\stars-*.svg') -Force
 Copy-Item (Join-Path $repo 'LICENSE') (Join-Path $stage 'LICENSE.txt')
 
 $output = Join-Path $dist "HotaMcp-Setup-$version.exe"
