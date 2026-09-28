@@ -25,9 +25,7 @@ if(args.Contains("--usage"))
 
 if(stdio)
 {
-    // A client may connect before anything is running. Bring the player's own launcher up and let
-    // its MCP tab raise the service, instead of requiring a hand-started stack.
-    Console.Error.WriteLine(await ServiceBootstrap.EnsureRunning(endpoint,directory,CancellationToken.None));
+    // Codex starts stdio MCP servers on startup. Connecting must never launch the game.
     var http=new HttpClient{BaseAddress=new Uri(endpoint.TrimEnd('/')+"/"),Timeout=TimeSpan.FromSeconds(75)};
     // A client playing one colour of a hotseat names it: HOTA_PLAYER=1 or blue.
     if(Environment.GetEnvironmentVariable("HOTA_PLAYER") is {Length:>0} colour)http.DefaultRequestHeaders.Add("X-Hota-Player",colour);

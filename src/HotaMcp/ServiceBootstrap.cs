@@ -8,9 +8,8 @@ namespace HotaMcp;
 /// Brings the whole chain up from a cold machine: service, then the player's own HD Launcher with
 /// the MCP tab in it, then the game through the launcher's Play button.
 ///
-/// The «HotA MCP» shortcut runs HotaMcp.exe --launch, which does exactly that. An MCP client that
-/// connects over stdio while nothing runs starts the same --launch process. Nothing is left running
-/// in the background of Windows: the service and the tab helper live as long as the launcher.
+/// The «HotA MCP» shortcut runs HotaMcp.exe --launch. An MCP client starts the same chain only
+/// when its start_game tool is called explicitly. Merely connecting over stdio does nothing.
 /// </summary>
 internal static class ServiceBootstrap
 {

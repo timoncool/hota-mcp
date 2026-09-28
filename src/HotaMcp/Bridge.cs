@@ -1808,7 +1808,7 @@ internal sealed class LocalEndpoint(Bridge bridge) : IGameEndpoint
     public Task<RouteView> InspectPath(int x,int y,int z,string revision,CancellationToken ct)=>bridge.InspectPath(x,y,z,revision,ct);
 }
 
-internal sealed class RemoteEndpoint(HttpClient client,Func<string> readToken,Func<CancellationToken,Task> restoreService) : IGameEndpoint
+internal sealed class RemoteEndpoint(HttpClient client,Func<string> readToken,Func<CancellationToken,Task> startService) : IGameEndpoint
 {
     private static readonly HashSet<string> ReadOnlyRoutes=[
         "bridge/status","bridge/wait-turn","bridge/observe","bridge/inspect-element","bridge/inspect-cell",
@@ -1838,10 +1838,9 @@ internal sealed class RemoteEndpoint(HttpClient client,Func<string> readToken,Fu
         string token=Token();
         HttpResponseMessage response;
         try{response=await Send(route,body,token,ct);}
-        catch(HttpRequestException) when(readOnly)
+        catch(HttpRequestException e) when(readOnly)
         {
-            await restoreService(ct);
-            response=await Send(route,body,Token(),ct);
+            throw new InvalidOperationException("HotA service is not running. Start it explicitly with start_game or the HotA MCP shortcut.",e);
         }
         catch(HttpRequestException e)
         {
@@ -1889,7 +1888,11 @@ internal sealed class RemoteEndpoint(HttpClient client,Func<string> readToken,Fu
     public Task<OperationResult> MapClick(MapClickRequest request,CancellationToken ct)=>Call<OperationResult>("bridge/map-click",request,ct);
     public Task<OperationResult> MoveToTile(TileMoveRequest request,CancellationToken ct)=>Call<OperationResult>("bridge/move-tile",request,ct);
     public Task<DebugSnapshot> Snapshot(CancellationToken ct)=>Call<DebugSnapshot>("bridge/debug-snapshot",new{},ct);
-    public Task<object> Start(CancellationToken ct)=>Call<object>("bridge/start",new{},ct);
+    public async Task<object> Start(CancellationToken ct)
+    {
+        await startService(ct);
+        return await Call<object>("bridge/start",new{},ct);
+    }
     public Task<object> Graphics(string? renderer,CancellationToken ct)=>Call<object>("bridge/graphics",new{renderer},ct);
     public Task<CaptureResult> Capture(CancellationToken ct)=>Call<CaptureResult>("bridge/debug-capture",new{},ct);
     public Task<object> Status(CancellationToken ct)=>Call<object>("bridge/status",new{},ct);

@@ -88,26 +88,37 @@ Console.WriteLine("PASS stdio reloads the service token on every request");
 int requests=0,restores=0;
 using(var client=new HttpClient(new StubHandler(_=>
 {
-    if(++requests==1)throw new HttpRequestException("offline");
-    return new(System.Net.HttpStatusCode.OK){Content=new StringContent("{}")};
+    requests++;throw new HttpRequestException("offline");
 })){BaseAddress=new Uri("http://localhost/")})
 {
     var remote=new RemoteEndpoint(client,()=>token,_=>{restores++;return Task.CompletedTask;});
-    await remote.Status(default);
-    if(requests!=2||restores!=1)throw new Exception("Read-only reconnect failed");
+    try{await remote.Status(default);throw new Exception("Offline status should fail");}
+    catch(InvalidOperationException e)when(e.Message.Contains("Start it explicitly")){}
+    if(requests!=1||restores!=0)throw new Exception("Read-only request started HotA automatically");
 }
-Console.WriteLine("PASS read-only request reconnects once");
+Console.WriteLine("PASS read-only request never starts HotA automatically");
 
 requests=0;restores=0;
 using(var client=new HttpClient(new StubHandler(_=>{requests++;throw new HttpRequestException("offline");}))
     {BaseAddress=new Uri("http://localhost/")})
 {
     var remote=new RemoteEndpoint(client,()=>token,_=>{restores++;return Task.CompletedTask;});
-    try{await remote.Start(default);throw new Exception("Action should report connection failure");}
+    try{await remote.Graphics(null,default);throw new Exception("Action should report connection failure");}
     catch(InvalidOperationException e)when(e.Message.Contains("outcome is unknown")){}
     if(requests!=1||restores!=0)throw new Exception("Mutation was automatically replayed");
 }
 Console.WriteLine("PASS disconnected action is never replayed");
+
+requests=0;restores=0;
+using(var client=new HttpClient(new StubHandler(_=>
+    {requests++;return new(System.Net.HttpStatusCode.OK){Content=new StringContent("{}")};}))
+    {BaseAddress=new Uri("http://localhost/")})
+{
+    var remote=new RemoteEndpoint(client,()=>token,_=>{restores++;return Task.CompletedTask;});
+    await remote.Start(default);
+    if(requests!=1||restores!=1)throw new Exception("Explicit start_game did not start the service");
+}
+Console.WriteLine("PASS only explicit start_game starts the service");
 
 string probe=Path.Combine(Path.GetTempPath(),"hota-job-"+Guid.NewGuid().ToString("N")+".txt");
 try
