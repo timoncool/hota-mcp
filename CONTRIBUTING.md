@@ -1,6 +1,56 @@
-# Contributing to HotA MCP
+# Как помочь HotA MCP
 
-**[English](#english)** · **[Русский](#русский)**
+**[Русский](#русский)** · **[English](#english)**
+
+## Русский
+
+Сейчас больше всего помогут три вещи: играть и сообщать о проблемах, проверять игру на других языках и переводить.
+
+### Играть и сообщать
+
+1. Поставьте [последний выпуск](https://github.com/timoncool/hota-mcp/releases/latest), подключите MCP-клиент, дайте агенту поиграть.
+2. Когда мост читает что-то неверно, отказывает в законном ходе или застревает, вызовите `debug_snapshot` на этом экране (или попросите агента). Он сохранит кадр окна игры и наблюдение моста в один и тот же момент.
+3. Откройте [issue](https://github.com/timoncool/hota-mcp/issues/new/choose) и приложите:
+   - издание и язык игры (например, GOG Complete, HotA 1.8.0, английская), модель и клиент;
+   - пару снимков из `%LOCALAPPDATA%\HotaMcp\sessions\<сессия>\captures\` (PNG + JSON);
+   - журнал сессии `%LOCALAPPDATA%\HotaMcp\sessions\<сессия>\journal.jsonl` и `%LOCALAPPDATA%\HotaMcp\errors.log`;
+   - сохранение, если по нему проблема воспроизводится.
+
+**Никогда не прикладывайте `%LOCALAPPDATA%\HotaMcp\connection.token`** — это ключ локальной службы.
+
+### Игра на других языках
+
+Имена существ, городов, объектов, навыков и артефактов мост берёт из таблиц установленной игры, поэтому они сами выходят на языке игры. Но в нескольких местах он сверяет русский текст игры, и на другом издании там нужна его формулировка. Если вы играете на другом языке, отчёт о том, что не читается, — уже вклад; пулреквест с текстами вашего издания — ещё лучше.
+
+| Что ищет мост | Русский текст | Где в коде |
+|---|---|---|
+| Цвета игроков на флагах и окнах передачи хода | красный, синий, коричневый, зелёный, оранжевый, фиолетовый, бирюзовый, розовый | `GameReader.Colour`, `PlayerSetting` |
+| Отметка посещения в строке состояния | (Посещено) / (Не посещено) | `VisitStatus.cs` |
+| Вопрос о выходе | …хотите выйти… | `Bridge.ConfirmQuit`, `AwaitResult` |
+| Строка повышения уровня | «<герой> теперь на уровне N» | `GameReader.LevelUpHero` |
+| Вопрос о конце хода | …ещё могут ходить… | `ScreenActions` |
+| Требование постройки | Требуется | `GameReader` |
+| Урон в журнале боя | наносит | `Bridge` (подтверждение удара) |
+| Строка состояния в бою | Атака…, …цель заклинания…, Направить… | `GameCommands`, `ScreenActions` |
+| Осадная машина | Катапульта | `ScreenActions`, `ScreenBriefing` |
+| Итог боя | опыт, Нападающий, Обороняющийся | `ScreenBriefing` |
+| Игроки в окне сценария | Компьютер | `ScenarioReader` |
+| Класс артефакта в HotA.dat | Класс: | `GameReference` |
+| Имена хотсита | набираются по раскладке окна игры | `WindowsGame.KeysFor` |
+
+### Переводы
+
+Сводки, подписи действий и отказы моста, навык агента и справочник написаны по-русски. Переводы очень нужны:
+
+- `skills/hota-player/SKILL.md` — как играет агент; самый ценный.
+- `docs/knowledge/` — справочник, который отдаёт мост (`hota_docs`). Сохраните имена файлов и структуру заголовков, переведённый файл кладите рядом с суффиксом языка, например `00-start-here.en.md`.
+- `README.md`, `README_EN.md` — добавьте `README_<ЯЗЫК>.md` и ссылку в строке языков.
+
+Сообщения самого моста живут в исходниках C# (`ScreenBriefing.cs`, `ScreenActions.cs`, `Bridge.cs`) и пока не вынесены в ресурсы — это в планах; напишите в issue, какой язык хотите взять, и вынос сделаем вместе.
+
+### Код
+
+Сборка: `native\launcher\build.cmd` (Visual Studio Build Tools, x86), затем `tools\install.ps1` (установка для разработки) или `tools\build-installer.ps1` (установщик, NSIS 3). Тесты: `dotnet run --project tests/HotaMcp.TeamRules`. Правила моста: никакого перехвата мыши, никаких внутренних команд игры, одно действие за вызов, ничего сверх того, что видит игрок. Сообщение коммита — что изменилось и зачем.
 
 ## English
 
@@ -44,44 +94,10 @@ The bridge's briefs, action labels and refusals, the agent skill and the game re
 
 - `skills/hota-player/SKILL.md` — how the agent plays; the most valuable one.
 - `docs/knowledge/` — the game reference the bridge serves (`hota_docs`). Keep file names and headings' structure; add a translated file next to the original with a language suffix, e.g. `00-start-here.en.md`.
-- `README.md`, `README_RU.md` — add `README_<LANG>.md` and a link in the language line.
+- `README.md`, `README_EN.md` — add `README_<LANG>.md` and a link in the language line.
 
 The bridge's own messages live in the C# sources (`ScreenBriefing.cs`, `ScreenActions.cs`, `Bridge.cs`) and are not yet separated into resource files — that is planned; say in an issue which language you would like to take, so the extraction can be done with you.
 
 ### Code
 
 Build: `native\launcher\build.cmd` (Visual Studio Build Tools, x86), then `tools\install.ps1` (development install) or `tools\build-installer.ps1` (installer, NSIS 3). Tests: `dotnet run --project tests/HotaMcp.TeamRules`. Rules the bridge keeps: no mouse takeover, no internal game commands, one action per call, nothing a player cannot see. Commit messages say what changed and why.
-
-## Русский
-
-Сейчас больше всего помогут три вещи: играть и сообщать о проблемах, проверять игру на других языках и переводить.
-
-### Играть и сообщать
-
-1. Поставьте [последний выпуск](https://github.com/timoncool/hota-mcp/releases/latest), подключите MCP-клиент, дайте агенту поиграть.
-2. Когда мост читает что-то неверно, отказывает в законном ходе или застревает, вызовите `debug_snapshot` на этом экране (или попросите агента). Он сохранит кадр окна игры и наблюдение моста в один и тот же момент.
-3. Откройте [issue](https://github.com/timoncool/hota-mcp/issues/new/choose) и приложите:
-   - издание и язык игры (например, GOG Complete, HotA 1.8.0, английская), модель и клиент;
-   - пару снимков из `%LOCALAPPDATA%\HotaMcp\sessions\<сессия>\captures\` (PNG + JSON);
-   - журнал сессии `%LOCALAPPDATA%\HotaMcp\sessions\<сессия>\journal.jsonl` и `%LOCALAPPDATA%\HotaMcp\errors.log`;
-   - сохранение, если по нему проблема воспроизводится.
-
-**Никогда не прикладывайте `%LOCALAPPDATA%\HotaMcp\connection.token`** — это ключ локальной службы.
-
-### Игра на других языках
-
-Имена существ, городов, объектов, навыков и артефактов мост берёт из таблиц установленной игры, поэтому они сами выходят на языке игры. Но в нескольких местах он сверяет русский текст игры (таблица выше, в английском разделе), и на другом издании там нужна его формулировка. Если вы играете на другом языке, отчёт о том, что не читается, — уже вклад; пулреквест с текстами вашего издания — ещё лучше.
-
-### Переводы
-
-Сводки, подписи действий и отказы моста, навык агента и справочник написаны по-русски. Переводы очень нужны:
-
-- `skills/hota-player/SKILL.md` — как играет агент; самый ценный.
-- `docs/knowledge/` — справочник, который отдаёт мост (`hota_docs`). Сохраните имена файлов и структуру заголовков, переведённый файл кладите рядом с суффиксом языка, например `00-start-here.en.md`.
-- `README.md`, `README_RU.md` — добавьте `README_<ЯЗЫК>.md` и ссылку в строке языков.
-
-Сообщения самого моста живут в исходниках C# (`ScreenBriefing.cs`, `ScreenActions.cs`, `Bridge.cs`) и пока не вынесены в ресурсы — это в планах; напишите в issue, какой язык хотите взять, и вынос сделаем вместе.
-
-### Код
-
-Сборка: `native\launcher\build.cmd` (Visual Studio Build Tools, x86), затем `tools\install.ps1` (установка для разработки) или `tools\build-installer.ps1` (установщик, NSIS 3). Тесты: `dotnet run --project tests/HotaMcp.TeamRules`. Правила моста: никакого перехвата мыши, никаких внутренних команд игры, одно действие за вызов, ничего сверх того, что видит игрок. Сообщение коммита — что изменилось и зачем.
