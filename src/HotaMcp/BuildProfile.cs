@@ -1,39 +1,27 @@
 namespace HotaMcp;
 
 public sealed record BuildCheck(string Name,bool Passed,string Detail);
-public sealed record BuildFingerprint(string Status,string Game,string Hota,string[] Validated,BuildCheck[] Checks)
+public sealed record BuildFingerprint(string Status,BuildCheck[] Checks)
 {
-    public bool Usable=>Status!="incompatible";
-    public string Summary=>Status switch
-    {
-        "validated"=>"Build matches a version this adapter was validated against",
-        "probed"=>"New build; every structure this adapter uses was found in place",
-        _=>"Structures this adapter needs were not found: "
-            +string.Join("; ",Checks.Where(c=>!c.Passed).Select(c=>c.Name+" — "+c.Detail))
-    };
+    public bool Usable=>Status=="compatible";
+    public string Summary=>Usable
+        ?"Every structure this adapter uses was found in place"
+        :"Structures this adapter needs were not found: "
+            +string.Join("; ",Checks.Where(c=>!c.Passed).Select(c=>c.Name+" — "+c.Detail));
 }
 
 /// <summary>
 /// Decides whether the running game is one this adapter can drive.
 ///
-/// A pinned file hash answers the wrong question: HotA and HD Mod update themselves, so the hash
-/// moves on every release while the structures the adapter reads usually do not. What matters is
-/// whether those structures are where the adapter expects them, so that is what is checked. A hash
-/// match is kept as extra information — it says the build was seen and validated by hand — but a
-/// mismatch downgrades the verdict to "probed" instead of refusing to attach.
+/// File hashes answer the wrong question: HotA and HD Mod update themselves, so the hashes move on
+/// every release while the structures the adapter reads usually do not. What matters is whether those
+/// structures are where the adapter expects them, so that is what is checked.
 ///
 /// Probes read memory only. Every command additionally revalidates its own target structure before
 /// dispatch, so a wrong verdict here still cannot turn into a blind write.
 /// </summary>
 internal static class BuildProfile
 {
-    /// Builds whose structures were confirmed against the running game by hand.
-    private static readonly Dictionary<string,string> Known=new()
-    {
-        ["5AAAB925F06CCCF23BB09814767590A95B84A557EB33D244800520BE4F1F18DE"]="h3hota HD.exe 2023-10-07",
-        ["0A1DAA1D8F29870B5CB72EBBA54A88C43A366473530B908BD23FAFC7968223A7"]="HotA.dll 1.8.0",
-    };
-
     /// Dialog classes the screen reader can name. The active dialog must be one of them, otherwise
     /// the whole reading layer is addressing something else.
     private static readonly uint[] ScreenVtables=
@@ -42,7 +30,7 @@ internal static class BuildProfile
         0x63a5e4,0x642478,0x64373c,0x6437b0,0x643954,0x643c24,0x63eae8,0x642438,
     ];
 
-    public static BuildFingerprint Probe(WindowsGame game,string gameHash,string hotaHash)
+    public static BuildFingerprint Probe(WindowsGame game)
     {
         var checks=new List<BuildCheck>();
 
@@ -109,11 +97,7 @@ internal static class BuildProfile
             return $"{count} managers";
         });
 
-        string status=checks.All(c=>c.Passed)
-            ?Known.ContainsKey(gameHash)&&Known.ContainsKey(hotaHash)?"validated":"probed"
-            :"incompatible";
-        var validated=new[]{gameHash,hotaHash}.Select(h=>Known.TryGetValue(h,out var name)?name:"unknown build").ToArray();
-        return new(status,gameHash,hotaHash,validated,checks.ToArray());
+        return new(checks.All(c=>c.Passed)?"compatible":"incompatible",checks.ToArray());
     }
 
     private static void Check(List<BuildCheck> checks,string name,Func<string> probe)

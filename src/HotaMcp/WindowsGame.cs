@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
-using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Win32.SafeHandles;
 
@@ -15,19 +14,17 @@ internal sealed class WindowsGame : IDisposable
     public WindowsGame(int pid)
     {
         Process = Process.GetProcessById(pid);
-        string path = Process.MainModule?.FileName ?? throw new InvalidOperationException("Game path unavailable");
         handle = OpenProcess(0x410, false, pid);
-        if (handle.IsInvalid) throw new InvalidOperationException("Cannot read game process");
-        Window = Process.MainWindowHandle;
-        if (Window == 0) { handle.Dispose(); throw new InvalidOperationException("Game window unavailable"); }
-        SetProcessDPIAware();
-        Build = BuildProfile.Probe(this, Hash(path), Hash(Path.Combine(Path.GetDirectoryName(path)!, "HotA.dll")));
-        if (!Build.Usable) { handle.Dispose(); throw new InvalidOperationException(Build.Summary); }
-    }
-    private static string Hash(string path)
-    {
-        try { using var file = File.OpenRead(path); return Convert.ToHexString(SHA256.HashData(file)); }
-        catch (IOException) { return ""; }
+        try
+        {
+            if (handle.IsInvalid) throw new InvalidOperationException("Cannot read game process");
+            Window = Process.MainWindowHandle;
+            if (Window == 0) throw new InvalidOperationException("Game window unavailable");
+            SetProcessDPIAware();
+            Build = BuildProfile.Probe(this);
+            if (!Build.Usable) throw new InvalidOperationException(Build.Summary);
+        }
+        catch { handle.Dispose(); Process.Dispose(); throw; }
     }
     public byte[] Read(uint address, int length)
     {

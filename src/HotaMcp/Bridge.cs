@@ -234,6 +234,8 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
         // lie between games: whatever is played next — a new game or a loaded one — starts its own
         // baseline instead of being compared with the previous game.
         bool inGame=state.Date.Length==3&&state.Screen!="game_over";
+        // A date earlier than the remembered one is another game too: a new one, or an earlier save.
+        if(inGame&&yesterday.Day.Length==3&&Earlier(state.Date,yesterday.Day)){heldTowns=[];yesterday=([],0,0,0);}
         if(!inGame){townsNow=[];yesterday=([],0,0,0);}
         else if(heldTowns.Count>0)
         {
@@ -301,6 +303,8 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
     };
 
     private static string Delta(int value)=>value>0?"+"+value:value.ToString();
+    /// Game dates are day, week, month.
+    private static bool Earlier(int[] date,int[] than)=>(date[2],date[1],date[0]).CompareTo((than[2],than[1],than[0]))<0;
 
     /// One line a player would write about the event: what was pressed and where it led, or what
     /// the move ended with. Operation ids and revisions say nothing to the reader of the brief.
@@ -322,7 +326,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
     public object Status()=>new
     {
         phase="development",player,gamePid=game.Process.Id,
-        build=new{game.Build.Status,game.Build.Summary,game.Build.Validated,game.Build.Checks},
+        build=new{game.Build.Status,game.Build.Summary,game.Build.Checks},
         capabilities=new[]{"observe_own_hero","observe_adventure_ui","open_system_options","return_to_game",
             "visible_targets","route_preview","move_to_target","move_to_tile","own_towns","town_construction",
             "town_recruitment","tavern_hero","hero_exchange","combat_actions","battle_result","spellbook",

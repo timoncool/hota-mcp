@@ -207,9 +207,14 @@ if(launch&&hostLauncherPid is int openedLauncher)
     // The service answers on the launcher's control pipe already, so the tab shows it and does not
     // start a second one. Then the game, through the launcher's own Play button.
     string launchLog=Path.Combine(directory,"launch.log");
+    // The game starts even when the tab could not be attached: the tab is the launcher's view of the
+    // service, the game and the MCP endpoint work without it.
+    string tab="launcher tab";
+    try{await ServiceBootstrap.AttachTab(openedLauncher,app.Lifetime.ApplicationStopping);}
+    catch(InvalidOperationException e){tab="no launcher tab ("+e.Message+")";}
+    catch(OperationCanceledException){tab="no launcher tab (the service was stopping)";}
     try
     {
-        await ServiceBootstrap.AttachTab(openedLauncher,app.Lifetime.ApplicationStopping);
         string? refusal=null;
         // The Play button is enabled once the launcher has finished its own start, which after an
         // update of HotA or HD Mod takes well over a minute.
@@ -218,9 +223,11 @@ if(launch&&hostLauncherPid is int openedLauncher)
             try{await session.Start(app.Lifetime.ApplicationStopping);refusal=null;break;}
             catch(InvalidOperationException e){refusal=e.Message;await Task.Delay(500,app.Lifetime.ApplicationStopping);}
         }
-        File.WriteAllText(launchLog,refusal is null?"[OK] service, launcher tab and game started":"[ERROR] game not started: "+refusal);
+        File.WriteAllText(launchLog,refusal is null?$"[OK] service, {tab} and game started":$"[ERROR] game not started: {refusal}; {tab}");
     }
     catch(InvalidOperationException e){File.WriteAllText(launchLog,"[ERROR] "+e.Message);}
+    // The launcher closed while the service was still starting the chain: nothing is left to start.
+    catch(OperationCanceledException){File.WriteAllText(launchLog,$"[ERROR] the service stopped before the game started; {tab}");}
 }
 await app.WaitForShutdownAsync();
 record JournalRequest(int Limit);record PlanRequest(string? Value);record MarkRequest(int X,int Y,int Z,string? Note);

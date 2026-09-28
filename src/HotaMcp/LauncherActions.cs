@@ -38,34 +38,33 @@ internal static class LauncherActions
         if(controls.Count!=1)throw new InvalidOperationException("Unique renderer control not found");
         return new{changed,controls};
     }
-    /// The launcher's main dialog with its tab control — what launcher-attach looks for.
-    public static bool HasTabControl(int pid)
+    /// The launcher's main dialog: the one holding the tab control, which is what launcher-attach
+    /// looks for and where the Play button lives.
+    private static nint MainDialog(int pid)
     {
-        bool found=false;
+        nint found=0;
         EnumWindows((window,_)=>{
             GetWindowThreadProcessId(window,out uint owner);
             if(owner!=(uint)pid)return true;
             var name=new StringBuilder(64);GetClassNameW(window,name,name.Capacity);
-            if(name.ToString()=="#32770"&&GetDlgItem(window,1046)!=0){found=true;return false;}
+            if(name.ToString()=="#32770"&&GetDlgItem(window,1046)!=0){found=window;return false;}
             return true;
         },0);
         return found;
     }
 
+    public static bool HasTabControl(int pid)=>MainDialog(pid)!=0;
+
+    /// The property the MCP tab module sets on the launcher dialog once the tab is in place.
+    public static bool TabInstalled(int pid)=>MainDialog(pid) is var dialog&&dialog!=0&&GetPropW(dialog,"HotAMcp.LauncherTab.v1")!=0;
+
     public static void Play(int pid)
     {
         using var process=Process.GetProcessById(pid);
         if(!string.Equals(process.ProcessName,"HD_Launcher",StringComparison.OrdinalIgnoreCase))throw new InvalidOperationException("Parent is not HD Launcher");
-        nint root=0,button=0;
-        EnumWindows((window,_)=>{
-            GetWindowThreadProcessId(window,out uint owner);
-            if(owner!=(uint)pid)return true;
-            nint candidate=GetDlgItem(window,1007);
-            var name=new StringBuilder(64);GetClassNameW(candidate,name,name.Capacity);
-            if(candidate!=0&&name.ToString()=="Button"&&IsWindowEnabled(candidate)){root=window;button=candidate;return false;}
-            return true;
-        },0);
-        if(root==0)throw new InvalidOperationException("Launcher Play action is unavailable");
+        nint root=MainDialog(pid),button=root==0?0:GetDlgItem(root,1007);
+        var name=new StringBuilder(64);if(button!=0)GetClassNameW(button,name,name.Capacity);
+        if(button==0||name.ToString()!="Button"||!IsWindowEnabled(button))throw new InvalidOperationException("Launcher Play action is unavailable");
         // The existing Play button's command. No focus, cursor or keyboard input.
         if(!PostMessageW(root,0x111,1007,button))throw new InvalidOperationException("Launcher command failed");
     }
@@ -80,5 +79,6 @@ internal static class LauncherActions
     [DllImport("user32.dll")]private static extern nint GetDlgItem(nint window,int id);
     [DllImport("user32.dll",CharSet=CharSet.Unicode)]private static extern int GetClassNameW(nint window,StringBuilder name,int capacity);
     [DllImport("user32.dll")]private static extern bool IsWindowEnabled(nint window);
+    [DllImport("user32.dll",CharSet=CharSet.Unicode)]private static extern nint GetPropW(nint window,string name);
     [DllImport("user32.dll")]private static extern bool PostMessageW(nint window,uint message,nuint wp,nint lp);
 }

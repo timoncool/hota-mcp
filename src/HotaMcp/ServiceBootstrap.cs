@@ -107,8 +107,14 @@ internal static class ServiceBootstrap
                 start.ArgumentList.Add(launcherPid.ToString());
                 start.ArgumentList.Add(module);
                 using var attach=Process.Start(start)??throw new InvalidOperationException("launcher-attach.exe did not start");
-                // The helper stays alive while the tab is in use; an early exit is a refusal with a code.
-                if(!attach.WaitForExit(3000))return;
+                // The tab is in place when its module has marked the launcher dialog; the helper then
+                // stays alive for as long as the tab is used. An exit before that is a refusal with a code.
+                // The helper itself waits five seconds for the mark, so the wait here is longer.
+                var attachDeadline=DateTime.UtcNow.AddSeconds(8);
+                while(!LauncherActions.TabInstalled(launcherPid)&&!attach.HasExited&&DateTime.UtcNow<attachDeadline)
+                    await Task.Delay(100,ct);
+                if(LauncherActions.TabInstalled(launcherPid))return;
+                if(!attach.HasExited)throw new InvalidOperationException("The MCP tab did not appear in HD Launcher");
                 if(attach.ExitCode==AttachAlreadyInstalled)return;
                 if(attach.ExitCode!=AttachNoWindow||DateTime.UtcNow>deadline)
                     throw new InvalidOperationException($"The MCP tab was not attached (launcher-attach exit code {attach.ExitCode})");

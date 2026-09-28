@@ -43,7 +43,9 @@ Copy-Item (Join-Path $repo 'LICENSE') (Join-Path $stage 'LICENSE.txt')
 
 $output = Join-Path $dist "HotaMcp-Setup-$version.exe"
 Write-Host "Building $output..."
-& $Makensis /V2 "/DVERSION=$version" "/DSTAGE=$stage" "/DOUTFILE=$output" (Join-Path $PSScriptRoot 'installer\hota-mcp.nsi')
+# The script is UTF-8 without a byte order mark; without the charset makensis reads it as the ANSI
+# code page and every Russian string of the installer comes out garbled.
+& $Makensis /V2 /INPUTCHARSET UTF8 "/DVERSION=$version" "/DSTAGE=$stage" "/DOUTFILE=$output" (Join-Path $PSScriptRoot 'installer\hota-mcp.nsi')
 if ($LASTEXITCODE -ne 0) { throw 'makensis failed' }
 $hash = (Get-FileHash $output -Algorithm SHA256).Hash
 Write-Host ("Built {0} ({1:N1} MB), SHA256 {2}" -f $output, ((Get-Item $output).Length / 1MB), $hash)
