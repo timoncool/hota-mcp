@@ -144,7 +144,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
     public bool InFrontend=>GameReader.InFrontend(game);
     public bool OwnTurn=>!InFrontend&&(GameReader.ActiveHuman(game)==player||OwnsWindow);
     /// The window on screen during another colour's turn is this side's to answer.
-    public bool OwnsWindow=>GameReader.OwnsWindow(game,player,reader.MidFight);
+    public bool OwnsWindow=>GameReader.OwnsWindow(game,player);
 
     /// After the game window was asked to close the game asks «Вы действительно хотите выйти?»; the
     /// answer is its own OK button, pressed as any dialog button is. False while the question is
@@ -847,6 +847,13 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
         while(DateTime.UtcNow<deadline)
         {
             await Task.Delay(70,CancellationToken.None);
+            // The quit question answered «yes» ends the process: that is the result, not a failure.
+            if(game.Process.HasExited)
+            {
+                var closed=new OperationResult("completed","The game closed",null);
+                operations[request.OperationId]=(request,closed);
+                return closed;
+            }
             Observation? after=null;
             try{after=reader.Peek();}
             catch(InvalidOperationException){}

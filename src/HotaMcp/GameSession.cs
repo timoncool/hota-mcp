@@ -131,7 +131,7 @@ internal sealed class GameSession(int? requestedPid,int player,string directory,
     /// and a loaded one are treated alike.
     private bool OpponentTurn()
     {
-        if(game is null||GameReader.InFrontend(game)||game.U32(0x699538)==0)return false;
+        if(game is null||game.Process.HasExited||GameReader.InFrontend(game)||!GameReader.InGame(game))return false;
         int active=game.I32(0x69ccf4),observer=Acting;
         return active is >=0 and <8&&active!=observer&&!TeamRelations.Allied(game,observer,active)
             &&bridge?.OwnsWindow!=true;
@@ -170,7 +170,9 @@ internal sealed class GameSession(int? requestedPid,int player,string directory,
             for(int i=0;i<30&&!confirmed;i++)
             {
                 await Task.Delay(100,CancellationToken.None);
-                confirmed=await bridge!.ConfirmQuit(CancellationToken.None);
+                // The game may close between the two halves of the press; that is the answer.
+                try{confirmed=await bridge!.ConfirmQuit(CancellationToken.None);}
+                catch(InvalidOperationException)when(game.Process.HasExited){confirmed=true;}
             }
             using(var wait=new CancellationTokenSource(TimeSpan.FromSeconds(20)))
                 try{await game.Process.WaitForExitAsync(wait.Token);}
@@ -201,6 +203,7 @@ internal sealed class GameSession(int? requestedPid,int player,string directory,
     {
         // Only the side whose turn it is acts; a waiting side polling for its turn does not own
         // the time its opponent spends thinking.
+        if(game?.Process.HasExited==true)return;
         if(player==PlayerSetting.EverySide&&game is not null&&GameReader.ActiveHuman(game) is int active&&active!=Acting)return;
         var day=bridge?.LastDate??[];
         lock(timelineGate)
@@ -231,7 +234,7 @@ internal sealed class GameSession(int? requestedPid,int player,string directory,
         if(timeoutSeconds is <0 or >60)
             throw new ActionRefused(ActionRefused.BadArgument,"Use 0 to 60 seconds");
         int own=player==PlayerSetting.EverySide
-            ?pinned.Value??throw new InvalidOperationException("X-Hota-Player is required to wait for one colour")
+            ?pinned.Value??throw new ActionRefused(ActionRefused.BadArgument,"X-Hota-Player (HOTA_PLAYER) is required to wait for one colour when the service plays every side")
             :player;
         var deadline=Stopwatch.StartNew();
         while(true)
@@ -358,8 +361,8 @@ internal sealed class GameSession(int? requestedPid,int player,string directory,
     {
         pinned.Value=string.IsNullOrWhiteSpace(colour)?null:PlayerSetting.Parse(colour);
         if(pinned.Value is int wanted&&player!=PlayerSetting.EverySide&&wanted!=player)
-            throw new InvalidOperationException($"This service plays colour {player}; set Player=все in settings.ini to serve colour {wanted} too");
-        if(pinned.Value==PlayerSetting.EverySide)throw new InvalidOperationException("X-Hota-Player names one colour: 0-7 or red, blue, …");
+            throw new ActionRefused(ActionRefused.BadArgument,$"This service plays colour {player}; set Player=все in settings.ini to serve colour {wanted} too");
+        if(pinned.Value==PlayerSetting.EverySide)throw new ActionRefused(ActionRefused.BadArgument,"X-Hota-Player names one colour: 0-7 or red, blue, …");
     }
 
     private void FollowTurn()

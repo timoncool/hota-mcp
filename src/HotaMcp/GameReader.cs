@@ -205,8 +205,6 @@ internal sealed class GameReader(WindowsGame game,int player)
         }).OfType<string>().ToArray();
     }
 
-    /// This side's fight is on screen: a question now belongs to it.
-    public bool MidFight {get;private set;}
 
     /// The table the high-score window paints, from the file it paints it from: Data\HiScore.dat
     /// holds 22 records of 100 bytes — eleven campaigns, then eleven scenarios — with the player's
@@ -254,10 +252,20 @@ internal sealed class GameReader(WindowsGame game,int player)
 
     /// The colours that still hold a town or a hero on the map, and each colour's team. Without
     /// teams every colour is a team of its own.
-    private static (List<int> Owners,Func<int,int> Team)? Standing(WindowsGame game)
+    /// A game is loaded: the map object carries a real date. The object itself exists from the
+    /// intro video on, zeroed, so its pointer alone says nothing.
+    public static bool InGame(WindowsGame game)
     {
         uint main=game.U32(0x699538);
-        if(main==0)return null;
+        if(main==0)return false;
+        byte[] date=game.Read(main+0x1f63e,6);
+        return BitConverter.ToUInt16(date,0) is >=1 and <=7&&BitConverter.ToUInt16(date,2) is >=1 and <=4&&BitConverter.ToUInt16(date,4)>=1;
+    }
+
+    private static (List<int> Owners,Func<int,int> Team)? Standing(WindowsGame game)
+    {
+        if(!InGame(game))return null;
+        uint main=game.U32(0x699538);
         byte[] teams=game.Read(main+0x1f86c+0xc,9);
         if(teams[0]>8)return null;
         int Team(int colour)=>teams[0]==0?colour:teams[1+colour];
@@ -313,8 +321,10 @@ internal sealed class GameReader(WindowsGame game,int player)
             {
                 if(BitConverter.ToUInt32(stack,at)!=0x004F48B7||BitConverter.ToInt32(stack,at+12)!=days)continue;
                 int baseScore=BitConverter.ToInt32(stack,at+4),score=BitConverter.ToInt32(stack,at+8);
+                // The caller's frame lies higher on the same stack; anything else is not this frame.
                 uint frame=BitConverter.ToUInt32(stack,at-4);
-                byte[] caller=game.Read(frame-0x64,0x64);
+                if(frame<start+(uint)at+0x10+0x64||frame>start+(uint)stack.Length)continue;
+                byte[] caller=stack.AsSpan((int)(frame-start)-0x64,0x64).ToArray();
                 int percent=BitConverter.ToInt32(caller,0x64-0x20);
                 if(percent is not (80 or 100 or 130 or 160 or 200)||baseScore<0||Math.Abs(score-baseScore*percent/100)>1)continue;
                 string rank=Encoding.GetEncoding(1251).GetString(caller,0,32).Split('\0')[0].Trim();
@@ -950,14 +960,15 @@ internal sealed class GameReader(WindowsGame game,int player)
     /// level-up after it and the spoils the game hands the winner, and a hand-over or alarm drawn
     /// with its own colour («Город под атакой!»). One rule for the privacy gate, the turn waiter
     /// and the reader.
-    public static bool OwnsWindow(WindowsGame game,int player,bool midFight)
+    public static bool OwnsWindow(WindowsGame game,int player)
     {
         uint ui=game.U32(0x6992d0),dialog=ui==0?0:game.U32(ui+0x54);
-        if(GameEnded(game))return true;
-        if(dialog==0)return false;
+        // The window-less score screen comes only after the game is decided.
+        if(dialog==0)return GameEnded(game);
         var combat=new CombatReader(game,player);
         return NameOf(game.U32(dialog)) switch
         {
+            "high_score_name" or "high_scores" => true,
             "combat" or "battle_result" => combat.Participant(),
             "spellbook" => combat.LiveParticipant(),
             // The combat manager keeps its owners after a battle, so a level-up is this side's only
@@ -966,15 +977,15 @@ internal sealed class GameReader(WindowsGame game,int player)
             // A message drawn with a flag is the flag's player's; one with the flag of the computer
             // whose turn it is — «зелёный терпит поражение!» — is news for every human at the
             // table, and any of them closes it (the revision keeps a second press from landing on
-            // the next window). Without a flag: a question in the
-            // middle of this side's fight («Вы действительно хотите отступить?») belongs to that
-            // fight, and on a computer's turn — which is never shown a window — a message is the
-            // human's of the fight that just ended: «Вы захватили вражеский артефакт!», raised
-            // undead. The combat manager keeps the owners of the last fight, so this holds after
-            // a restart of the service too.
+            // the next window). Without a flag: a question over the fight this side takes part
+            // in («Вы действительно хотите отступить?») belongs to that fight; on a computer's
+            // turn — which is never shown a window — a message is the human's of the fight that
+            // just ended: «Вы захватили вражеский артефакт!», raised undead; and once one team is
+            // left, «Все ваши враги побеждены!» is everyone's. Everything here is read from the
+            // game, so it holds after a restart of the service too.
             "message" => MessageFlag(game,dialog) is {} flag?flag==Colour(player)
                     ||ActiveHuman(game) is null&&flag==Colour(game.I32(0x69ccf4))
-                :combat.Participant()&&(midFight||ActiveHuman(game) is null),
+                :combat.Participant()&&(OverCombat(game,dialog)||ActiveHuman(game) is null)||GameEnded(game),
             _ => false,
         };
     }
@@ -1027,13 +1038,24 @@ internal sealed class GameReader(WindowsGame game,int player)
         for(uint item=game.U32(dialog+0x2c);item!=0&&seen.Add(item)&&seen.Count<2048;item=game.U32(item+8))
         {
             byte[] control=game.Read(item,0x38);
-            if(BitConverter.ToUInt32(control,4)!=dialog)return null;
+            if(BitConverter.ToUInt32(control,4)!=dialog)throw new InvalidOperationException("Message control layout not validated");
             if((BitConverter.ToUInt16(control,0x16)&4)==0)continue;
             if(BitConverter.ToUInt32(control) is not (0x642dc0 or 0x642df8 or 0x642d50))continue;
             string? text=game.Text(BitConverter.ToUInt32(control,0x34))?.Trim();
             if(Enumerable.Range(0,8).Any(c=>Colour(c)==text))return text;
         }
         return null;
+    }
+
+    /// Whether the combat window is in the stack with this one on top: a question asked in a fight.
+    /// Both links are walked, as UnderMenu does; nothing lies over the top window.
+    private static bool OverCombat(WindowsGame game,uint top)
+    {
+        var seen=new HashSet<uint>();
+        foreach(int link in new[]{0x8,0xc})
+            for(uint d=game.U32(top+(uint)link);d!=0&&seen.Add(d)&&seen.Count<32;d=game.U32(d+(uint)link))
+                if(game.U32(d)==0x63d528)return true;
+        return false;
     }
 
     private static bool UnderMenu(WindowsGame game,uint top)
@@ -1225,15 +1247,14 @@ internal sealed class GameReader(WindowsGame game,int player)
         if(screen=="combat")
         {
             // A computer attacking this side on its own turn opens a fight this side must answer.
-            try{fight=new CombatReader(game,player).Read();waiting=false;MidFight=true;}
+            try{fight=new CombatReader(game,player).Read();waiting=false;}
             catch(InvalidOperationException)when(waiting){}
         }
-        if(waiting&&OwnsWindow(game,player,MidFight))waiting=false;
+        if(waiting&&OwnsWindow(game,player))waiting=false;
         // A defender who beat this side's hero levels up on this side's own turn: that window names
         // his hero and is his to answer.
         if(!waiting&&!frontend&&screen=="level_up"&&LevelUpHero(game,dlg) is {} leveled&&!OwnHeroNames(game,player).Contains(leveled))
             waiting=true;
-        if(screen is "adventure" or "battle_result")MidFight=false;
         // Victory and defeat are worded several ways; the score screen is still confirmed by who is left.
         var combat=Remember(fight);
         // A message on another player's turn — «Ходит КЛОДИК.» at the hand-over — is read by everyone

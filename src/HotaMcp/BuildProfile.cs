@@ -51,9 +51,9 @@ internal static class BuildProfile
             uint manager=game.U32(0x6992d0);
             if(manager<0x10000)throw new InvalidOperationException("manager pointer is not a pointer");
             uint dialog=game.U32(manager+0x54);
-            // The score screen at the end of a game has no window at all; with a map loaded that is a
-            // screen of the game, not the intro video that plays before one.
-            if(dialog<0x10000&&game.U32(0x699538)!=0)return "no active dialog over a loaded map";
+            // The score screen at the end of a game has no window at all; that is a screen of the
+            // game, not the intro video that plays before one.
+            if(dialog<0x10000&&GameReader.GameEnded(game))return "no active dialog: the score screen of a finished game";
             if(dialog<0x10000)throw new InvalidOperationException("no active dialog");
             uint vtable=game.U32(dialog);
             // A dialog class the screen reader has no name for is an unsupported screen, not a
