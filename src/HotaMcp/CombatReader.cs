@@ -50,6 +50,25 @@ public record CombatLogEntry(int Index,string Text);
 
 internal sealed class CombatReader(WindowsGame game,int player)
 {
+    /// A human defender participates in the whole live battle, even while the attacking
+    /// player's stack is active. The dialog check prevents a stale combat manager from
+    /// exposing the attacker's later adventure turn.
+    public bool LiveParticipant()
+    {
+        try
+        {
+            uint ui=game.U32(0x6992d0),dialog=ui==0?0:game.U32(ui+0x54);
+            if(dialog==0||!Participant())return false;
+            uint screen=game.U32(dialog);
+            if(screen==0x63d528)return true;
+            if(screen!=0x641ddc)return false;
+            uint manager=game.U32(0x699420);
+            int own=game.I32(manager+0x54a8)==player?0:1;
+            return game.I32(manager+0x132c0)==own;
+        }
+        catch(InvalidOperationException){return false;}
+    }
+
     /// A defender can be the current combat actor during an opponent's strategic turn.
     /// Check ownership before reading the battle, so an enemy stack's turn stays private.
     public bool OwnActiveStack()
@@ -130,9 +149,10 @@ internal sealed class CombatReader(WindowsGame game,int player)
                 Abilities=Traits(flags),Effects=effects,
             });
         }
-        string? active=stacks.Any(s=>s.Side==side&&s.Slot==slot)?$"stack:{side}:{slot}":null;
+        string? active=stacks.Any(s=>s.Side==side&&s.Slot==slot)?$"stack:{side}:{slot}"
+            :activeSide==own&&side==own&&slot is >=6 and <=8&&game.I32(manager+0x13d6c)>=0?$"tower:{slot}":null;
         bool ownTurn=activeSide==own&&active is not null;
-        byte[] access=ownTurn?game.Read(manager+0x107,187):new byte[187];
+        byte[] access=ownTurn&&active is not null&&!active.StartsWith("tower:",StringComparison.Ordinal)?game.Read(manager+0x107,187):new byte[187];
         if(access.Any(b=>b>3))throw new InvalidOperationException("Combat accessibility layout unsupported");
         uint dlg=game.U32(game.U32(0x6992d0)+0x54);
         if(game.U32(dlg)!=0x63d528)throw new InvalidOperationException("Combat dialog changed");

@@ -143,7 +143,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
     public int Player=>player;
     public bool InFrontend=>GameReader.InFrontend(game);
     public bool OwnTurn=>!InFrontend&&(GameReader.ActiveHuman(game)==player||GameReader.OwnTurnPrompt(game,player)
-        ||new CombatReader(game,player).OwnActiveStack());
+        ||new CombatReader(game,player).LiveParticipant());
 
     /// The game belongs to whoever attached it; several bridges may share one.
     public void Dispose()=>gate.Dispose();
@@ -1591,7 +1591,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
         if(before.Side is null||before.Side.Yours||before.Combat is not null)return;
         // A window addressed to this side on another's turn — its own flag on a hand-over, the result
         // of a fight it took part in — is the reader's call: it offers actions only for those.
-        if(before.Screen is "message" or "battle_result"&&before.Actions.Count>0)return;
+        if(before.Screen is "message" or "battle_result" or "spellbook"&&before.Actions.Count>0)return;
         throw new ActionRefused(ActionRefused.NotYourTurn,
             $"Сейчас ходит {before.Side.ActiveColour}, а ты играешь за {before.Side.Colour}: ничего не нажато. "
             +"Жди своего хода — observe покажет, когда он начнётся.");

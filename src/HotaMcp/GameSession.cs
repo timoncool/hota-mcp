@@ -137,7 +137,7 @@ internal sealed class GameSession(int? requestedPid,int player,string directory,
         if(game is null||GameReader.InFrontend(game)||game.U32(0x699538)==0)return false;
         int active=game.I32(0x69ccf4);
         return active is >=0 and <8&&active!=player&&!GameReader.OwnTurnPrompt(game,player)
-            &&!new CombatReader(game,player).OwnActiveStack();
+            &&!new CombatReader(game,player).LiveParticipant();
     }
 
     private bool PublicHandover()=>game is not null
@@ -230,7 +230,7 @@ internal sealed class GameSession(int? requestedPid,int player,string directory,
                 if(game is not null&&GameReader.InFrontend(game))return new(false,"menu");
                 if(game is not null&&(GameReader.ActiveHuman(game)==own
                    ||GameReader.OwnTurnPrompt(game,own)
-                   ||competitive&&new CombatReader(game,own).OwnActiveStack()))
+                   ||competitive&&new CombatReader(game,own).LiveParticipant()))
                     return new(true,"your_turn");
                 current=game is null?"waiting_for_game":"waiting";
             }

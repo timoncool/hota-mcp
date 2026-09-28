@@ -212,9 +212,15 @@ internal static class Deliveries
     {
         var reader = new CombatReader(context.Game, context.Player);
         var combat = context.Before.Combat ?? throw new InvalidOperationException("Бой не прочитан");
+        var victim = target(context);
+        if(combat.ActiveStack?.StartsWith("tower:",StringComparison.Ordinal)==true)
+        {
+            var centre=reader.Center(victim.Hex);
+            await Deliveries.Press(context,centre.X,centre.Y,ct);
+            return;
+        }
         var active = combat.Stacks.FirstOrDefault(s => s.Id == combat.ActiveStack)
             ?? throw new InvalidOperationException("Активный отряд не определён");
-        var victim = target(context);
         var around = victim.Around().ToList();
         // Which side a melee blow comes from is decided by the part of the defender's hex the
         // cursor stands on. Pointing at the middle left that choice to chance, and a side the

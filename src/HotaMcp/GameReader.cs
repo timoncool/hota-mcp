@@ -1135,6 +1135,7 @@ internal sealed class GameReader(WindowsGame game,int player)
             try{fight=new CombatReader(game,player).Read();waiting=false;midFight=true;}
             catch(InvalidOperationException)when(waiting){}
         }
+        if(waiting&&screen=="spellbook"&&new CombatReader(game,player).LiveParticipant())waiting=false;
         // The result of a fight this side took part in is its own to accept, whoever's turn it is.
         if(waiting&&screen=="battle_result"&&new CombatReader(game,player).Participant())waiting=false;
         // A question the game asks in the middle of this side's fight — «Вы действительно хотите
