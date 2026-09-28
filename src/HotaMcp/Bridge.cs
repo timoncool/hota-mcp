@@ -848,8 +848,12 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
         {
             await Task.Delay(70,CancellationToken.None);
             // The quit question answered «yes» ends the process: that is the result, not a failure.
+            // After any other press a vanished process is a crash, and the outcome is unknown.
             if(game.Process.HasExited)
             {
+                bool quit=request.Element=="menu:quit"
+                    ||before.Screen=="message"&&before.Elements.Any(e=>e.Text?.Contains("хотите выйти",StringComparison.OrdinalIgnoreCase)==true);
+                if(!quit)throw new InvalidOperationException($"The game process ended after {request.Element}: it crashed or was closed; the outcome is unknown");
                 var closed=new OperationResult("completed","The game closed",null);
                 operations[request.OperationId]=(request,closed);
                 return closed;

@@ -173,6 +173,11 @@ internal sealed class GameSession(int? requestedPid,int player,string directory,
                 // The game may close between the two halves of the press; that is the answer.
                 try{confirmed=await bridge!.ConfirmQuit(CancellationToken.None);}
                 catch(InvalidOperationException)when(game.Process.HasExited){confirmed=true;}
+                catch(InvalidOperationException)
+                {
+                    restarts.Remove(request.OperationId);
+                    throw;
+                }
             }
             using(var wait=new CancellationTokenSource(TimeSpan.FromSeconds(20)))
                 try{await game.Process.WaitForExitAsync(wait.Token);}

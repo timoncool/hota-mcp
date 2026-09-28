@@ -205,7 +205,6 @@ internal sealed class GameReader(WindowsGame game,int player)
         }).OfType<string>().ToArray();
     }
 
-
     /// The table the high-score window paints, from the file it paints it from: Data\HiScore.dat
     /// holds 22 records of 100 bytes — eleven campaigns, then eleven scenarios — with the player's
     /// name at 0, the map at 41, the score at 0x54 and the days at 0x58 (cp1251 text).
@@ -250,8 +249,6 @@ internal sealed class GameReader(WindowsGame game,int player)
     public static bool GameEnded(WindowsGame game)=>
         Standing(game) is var (owners,team)&&owners.Select(team).Distinct().Count()<=1;
 
-    /// The colours that still hold a town or a hero on the map, and each colour's team. Without
-    /// teams every colour is a team of its own.
     /// A game is loaded: the map object carries a real date. The object itself exists from the
     /// intro video on, zeroed, so its pointer alone says nothing.
     public static bool InGame(WindowsGame game)
@@ -262,6 +259,8 @@ internal sealed class GameReader(WindowsGame game,int player)
         return BitConverter.ToUInt16(date,0) is >=1 and <=7&&BitConverter.ToUInt16(date,2) is >=1 and <=4&&BitConverter.ToUInt16(date,4)>=1;
     }
 
+    /// The colours that still hold a town or a hero on the map, and each colour's team. Without
+    /// teams every colour is a team of its own.
     private static (List<int> Owners,Func<int,int> Team)? Standing(WindowsGame game)
     {
         if(!InGame(game))return null;
