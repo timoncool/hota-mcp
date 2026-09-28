@@ -1409,7 +1409,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             if(mark=='?')return $"Игра не проложила путь к {where}: клетка в тумане, туда ещё никто не смотрел. Герой не двигался.";
             if(mark=='#')return $"Игра не проложила путь к {where}: на клетку нельзя встать (скалы, деревья, вода или часть объекта). Вход в объект — его собственная клетка из nearby_targets. Герой не двигался.";
         }
-        catch(InvalidOperationException e)when(e.Message.Contains("hidden",StringComparison.OrdinalIgnoreCase))
+        catch(ActionRefused e)when(e.Code==ActionRefused.TileHidden)
         {
             return $"Игра не проложила путь к {where}: клетка скрыта туманом. Герой не двигался.";
         }
@@ -1434,7 +1434,7 @@ internal sealed class Bridge(WindowsGame game,int player,string stateDirectory) 
             if(creature)
                 throw new ActionRefused(ActionRefused.GuardedCell,"Danger: this cell holds a creature stack, and stepping there starts a battle. Approach a neighbouring cell instead, or use attack_target when the fight is intended");
         }
-        catch(InvalidOperationException e)when(!e.Message.StartsWith("Danger:")){}
+        catch(InvalidOperationException e)when(e is not ActionRefused{Code:ActionRefused.GuardedCell}){}
     }
 
     /// Brings a cell into view the way a player does: a press on the sidebar minimap. The game

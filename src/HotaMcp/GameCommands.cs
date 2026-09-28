@@ -783,12 +783,16 @@ internal static class GameCommands
         var owned = GameReader.SidebarTowns(context.Game, context.Player);
         int slot = Array.FindIndex(owned, id => context.Before.Towns.FirstOrDefault(t => t.Id == id)?.Name == name);
         if (slot < 0) throw new InvalidOperationException($"Города {name} нет в списке твоих городов");
-        var places = context.Before.Elements.Where(e => e.Asset == "itpa.def").OrderBy(e=>e.Y).ToArray();
-        if (owned.Length > places.Length)
-            throw new InvalidOperationException($"Городов ({owned.Length}) больше, чем мест в списке справа ({places.Length}): прокрутка списка не читается, место города {name} не определить. Открой его через героя в городе или town:switch из другого города");
-        var portrait = places.ElementAtOrDefault(slot)
+        var portrait = context.Before.Elements.Where(e => e.Asset == "itpa.def").OrderBy(e=>e.Y).ElementAtOrDefault(slot)
             ?? throw new InvalidOperationException($"Место города {name} в списке справа не найдено");
         await Deliveries.PressUntilOpened(context, portrait, "town", ct);
+        // A list longer than its places may be scrolled: the town that opened is the answer.
+        var opened = context.Reader.Peek();
+        if (opened.Screen == "town" && opened.OpenTown >= 0 && opened.OpenTown != owned[slot])
+        {
+            string other = opened.Towns.FirstOrDefault(t => t.Id == opened.OpenTown)?.Name ?? $"№{opened.OpenTown}";
+            throw new InvalidOperationException($"Список городов справа прокручен: открылся город {other}, а не {name}. Ты в городе {other}; до {name} — town:next / town:previous или town:switch:{name}");
+        }
     };
 
     /// Another own town from inside the town screen: its icon in the town list on the right.

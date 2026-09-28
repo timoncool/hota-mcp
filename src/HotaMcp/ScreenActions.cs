@@ -484,13 +484,15 @@ internal static class ScreenActions
             // list puts there, and the town is asked for by its name.
             var owned=GameReader.SidebarTowns(game,player);
             var portraits=items.Where(i=>i.Asset=="itpa.def").OrderBy(i=>i.Y).ToArray();
-            // More towns than places: the list may be scrolled, and its offset is not read, so no
-            // place is trusted to hold the town the list order puts there.
-            for(int slot=0;owned.Length<=portraits.Length&&slot<owned.Length;slot++)
+            // More towns than places: the list may be scrolled and its offset is not read, so the
+            // command checks which town actually opened.
+            bool scrollable=owned.Length>portraits.Length;
+            for(int slot=0;slot<owned.Length&&slot<portraits.Length;slot++)
             {
                 var town=towns.FirstOrDefault(t=>t.Id==owned[slot]);
                 if(town is null||!portraits[slot].Interactive)continue;
-                actions.Add(new($"town:open:{town.Name}",$"Открыть город {town.Name} (место {slot+1} в списке городов справа)"));
+                actions.Add(new($"town:open:{town.Name}",$"Открыть город {town.Name} (место {slot+1} в списке городов справа)"
+                    +(scrollable?"; городов больше, чем мест, — если список прокручен, откроется другой город и это будет сказано":"")));
             }
         }
         if(screen=="adventure")actions.Add(new("hero:select","Перейти к следующему своему герою на карте (штатная клавиша H)"));
