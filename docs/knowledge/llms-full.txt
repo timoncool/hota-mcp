@@ -1,6 +1,6 @@
 # Корпус знаний агента: полный текст
 
-> Собрано 2026-09-22 командой `python build/gen-docs-nav.py`. Каждый документ начинается со своего пути в репозитории.
+> Собрано 2026-09-28 командой `python build/gen-docs-nav.py`. Каждый документ начинается со своего пути в репозитории.
 
 
 <!-- ===== DESIGN.md ===== -->
@@ -121,8 +121,7 @@ SQLite FTS5 в памяти: `bm25()` ранжирует, `snippet()` вырез
    границу своего знания, а не додумывать.
 4. Один факт — один хозяин. Повтор заменяется ссылкой на хозяина, а не копией.
 5. Ссылки внутри корпуса — относительные. Абсолютных путей конкретной машины быть не должно.
-6. Рабочие документы разработки (`docs/STATE.md`, `docs/TASKS.md`, `docs/LESSONS.md`,
-   `docs/HANDOFF-*.md`) — не знания об игре и в корпус не входят.
+6. Рабочие документы разработки — не знания об игре: в корпус и в репозиторий они не входят.
 
 ## Чего в корпусе нет
 
@@ -274,7 +273,7 @@ updated: "2026-09-20"
 
 ## Дисциплина работы
 - Одно действие — один `operationId`; при `uncertain` наблюдать заново, а не повторять под новым ID.
-- После каждого проверенного игрового факта писать в `docs/LESSONS.md`, а покрытие инструментов отмечать в `docs/CAPABILITIES.md`.
+- Что мост читает неверно или не умеет — снять `debug_snapshot` и сообщить, а не обходить.
 - Скриншоты — только для разработки нового пути; боевая игра идёт по семантике наблюдений.
 
 
@@ -295,6 +294,40 @@ updated: "2026-09-21"
 Ты играешь в настоящую Heroes of Might and Magic III: Horn of the Abyss. Мост не принимает решений
 за тебя: он читает состояние игры и доставляет твои команды в её штатные обработчики. Стратегию,
 выбор целей и оценку боя делаешь ты.
+
+## Запуск и жёсткие правила
+
+- **Запуск делает сервис.** Ярлык «HotA MCP» или подключение MCP-клиента через stdio, когда ничего
+  не запущено, поднимают по порядку: сервис → HD Launcher игрока со вкладкой MCP → игру через
+  кнопку «Играть» лаунчера. Агент вызывает `game_status` и, если игры нет, `start_game`. Ничего не
+  запускать руками, не щёлкать по экрану, не пользоваться computer-use и не двигать настоящую мышь.
+- **В хотсите** мост в каждом `observe` передаёт, чей ход («Ходит синий»), и участников сценария
+  (цвет, человек или компьютер, команда). Какой цвет твой, решаешь ты — по сценарию и именам. Чужим
+  цветом не играй: жди своего хода `wait_for_turn` со своим цветом. Кто союзник, а кто противник,
+  берётся из команд сценария; назвав свой цвет, в ход противника ты видишь только «ожидание». Окна,
+  которые игра адресует твоему цвету в чужой ход, — твои:
+  «Город под атакой!», бой, который против тебя начал компьютер, его итог и трофеи, повышение
+  твоего героя, новость для всех за столом («… терпит поражение!»), конец партии. На них
+  `wait_for_turn` отвечает «твой ход», а `observe` даёт действия — ответь и жди дальше.
+  Чей ход, видно и на экране: нижняя рамка интерфейса окрашена в цвет ходящего игрока, а при
+  передаче хода игра пишет «Ходит <имя>». Своё имя и цвет — в `observe.side`, сверять каждый ход.
+- **Ходы союзника** мост записывает, пока тот ходит: где встали его герои, что взяли или победили,
+  бои, армии, уровни, навыки, артефакты, постройки и гарнизоны городов, итог ресурсов за ход.
+  Сводка твоего хода начинается с «Союзник за свой ход»; весь журнал — `ally_log`. Противников
+  мост так не читает.
+- **Клавиши-модификаторы (Shift, Ctrl, Alt) мосту недоступны**: игра читает их с настоящей
+  клавиатуры, а мост шлёт только оконные события. То, что подсказка игры обещает с модификатором,
+  делается кнопками (деление отряда — кнопка «Разделить» и ползунок). Обычные горячие клавиши
+  без модификаторов работают.
+- **Одно действие — один вызов**, результат читать до следующего. Скриптов и циклов, играющих за
+  агента, нет.
+- **Имена, а не номера**: действовать смысловыми ключами из `observe.actions`.
+- **Правила игры** — из `hota_docs` и `hota_reference`, не по памяти.
+- **Неразмеченный или неверно прочитанный экран** — `debug_snapshot`: работает на любом экране и
+  отдаёт всё, что мост знает в этот момент. Пробел сообщать, а не обходить.
+- После сжатия контекста — перечитать этот файл и `skills/hota-player/SKILL.md` до следующего хода.
+- Перед новой партией — прочитать разборы прошлых: `hota_docs("разбор партии")`. Там записано, что
+  уже стоило городов и армий, и по какому признаку это видно заранее.
 
 ## Первые три вызова
 
@@ -325,9 +358,17 @@ updated: "2026-09-21"
 очков хода, передача отряда — изменением состава гарнизона, конец хода — сменой даты, боевое
 действие — ростом боевого журнала.
 
+## Свой цвет
+
+Определи его один раз — при создании или загрузке партии: окно сценария показывает все стороны, кто
+человек, имена и команды. Запиши цвет первой строкой плана. Каждый `observe` передаёт цвет интерфейса —
+«Ходит <цвет>»; чужим цветом не играй: жди `wait_for_turn` со своим цветом. Если пользователь просит
+сыграть за него («поиграй за меня»), его цвет твой, пока он не заберёт ход обратно, — отметь это в
+плане. Мост ни к какому цвету тебя не привязывает.
+
 ## Игровой цикл
 
-1. `observe` — где я, сколько хода, что за экран.
+1. `observe` — где я, сколько хода, что за экран, чей ход.
 2. `nearby_targets` — видимые объекты рядом с выбранным героем.
 3. `inspect_target` по интересным целям — игра сама проложит маршрут и вернёт стоимость и число
    шагов. Состояния: `reachable_today`, `needs_more_days`, `not_available` с честной причиной.
@@ -392,9 +433,27 @@ updated: "2026-09-21"
 | `adventure_options` | `game:adventure_options` (A) | `screen:close` |
 | `scenario_info` | `game:scenario_info` (I) | `screen:close` |
 | `spellbook` | `combat:spellbook` (C) | `spellbook:close` |
-| `system_options` | нажатие кнопки `iam009.def` на панели | возврат кнопкой `soretrn.def` |
+| `system_options` | нажатие кнопки `iam009.def` на панели (`click_ui`) | возврат кнопкой `soretrn.def` |
+| `save_game` | `game:save` из `system_options`; имя файла — поле 160, `save:name:<имя>` вписывает и сверяет | `save:confirm` пишет в имя из поля |
 
 Источник: обход всех клавиш мануала через мост, 21.09.2026.
+
+## Подземный мир: второй слой карты (размечено 26.09.2026)
+
+На некоторых картах есть второй уровень — подземелье. Сводка `observe` в «Участниках» пишет, есть ли
+он («На карте есть подземный уровень» / «Подземного уровня нет»).
+
+- **Как попасть:** героем войти во **Врата Подземного Мира** (объект карты). Он оказывается на той
+  же клетке по x,y на другом уровне (z=1 — подземелье, z=0 — поверхность); обратно — через Врата
+  внизу. Проверено: Мариус вошёл во Врата (35,36) и встал на (35,37) под землёй.
+- **Что видно на экране:** кнопка-переключатель на боковой панели справа от «Обзора королевства»
+  (контрол 4) меняет вид между уровнями. Её картинка говорит, какой уровень на экране: `iam003.def`
+  (солнце над горами) — сейчас подземелье, `iam010.def` — сейчас поверхность. Горячей клавиши у
+  неё нет (ни в мануале, ни в подсказке игры). На карте без подземелья этой кнопки нет — пропуск.
+- **Через мост:** `view:level` переключает вид (героя не двигает); сводка пишет «На экране
+  подземелье/поверхность», у героя под землёй — «(подземелье)» и «свои города на другом уровне —
+  путь через Врата». Клетки другого уровня для `inspect_cell`, `move_to_tile` и камеры мост
+  переключает сам.
 
 ## Как выбрать героя и открыть его экран
 
@@ -471,9 +530,21 @@ updated: "2026-09-21"
 | Экран | Действия |
 | --- | --- |
 | `message` | `message:accept`, либо `message:confirm` и `message:decline` у вопроса |
-| `level_up` | `level:choose:<id>` по названию навыка, затем `level:accept` |
-| `exchange` | стрелки под отрядами передают отряд соседу, `exchange:done` закрывает |
-| `split_stack` | `split:cancel` |
+| `level_up` | `level:choose:<навык (уровень)>`, например `level:choose:Лидерство (базовый)`, затем `level:accept` |
+| `exchange` | войско: `exchange:take/give/one:*`, `exchange:army:left/right/swap`; артефакты: `exchange:artifact:<название>` (при одинаковых у обоих — `@слева`/`@справа`), рюкзак целиком — `exchange:backpack:слева/справа`; `exchange:done` закрывает |
+| `backpack` | окно рюкзака HotA: сводка перечисляет все артефакты, `inspect_element` по картинке, `backpack:close` |
+| `split_army` | `split:amount:<n>` — сколько уходит в новую клетку, `split:confirm`, `split:decline` |
+| `marketplace` | `market:give:<ресурс>` → `market:get:<ресурс>` → `market:amount:<n>` или `market:max` → `market:trade` |
+
+Окно обмена в сводке перечисляет артефакты обоих героев по слотам (голова, плечи, шея, руки, торс,
+кольца, ноги, пять «разных», боевые машины, книга) и видимую часть рюкзаков. Перенос одного
+артефакта — как у игрока: щелчок поднимает его на курсор, игра подсвечивает слоты, куда он
+встаёт, щелчок по такому слоту соседа кладёт; если подсвеченного слота нет, он уходит в рюкзак.
+Книгу заклинаний обменять нельзя — игра так и отвечает на правую кнопку.
+
+Разделение отряда в городе: `army:split-give:<существо>` или `army:split-take:<существо>`
+открывает `split_army`. Жест из мануала: отряд, кнопка «Разделить армии» (справа над списком
+городов), свободная клетка. Shift не нужен.
 
 У сундука сокровищ выбор — два безымянных элемента: левый даёт золото, правый опыт. Кнопка ОК
 становится доступной только после выбора.
@@ -493,6 +564,69 @@ updated: "2026-09-21"
 Загрузка подтверждается не сменой экрана, а появлением настоящей партии: герой и дата.
 
 Источник: загрузка сохранения через мост, 21.09.2026.
+
+## Создание партии и хотсит (размечено 23.09.2026)
+
+Путь: `menu:new` → `menu:multiplayer` (экран `multiplayer`) → `multiplayer:hotseat` → окно «Горячий
+Стул — введите имена» (`hotseat_names`: сколько имён — столько людей; `hotseat:accept`,
+`hotseat:cancel`) → выбор сценария (`scenario_selection`). Для одиночной игры — `menu:single`.
+
+Имена игроков меняются только в этом окне: строка на человека, щелчок по строке, стереть, ввести,
+✓. На экране настройки имя не редактируется — чтобы переименовать, выйти («ВЫЙТИ») и снова открыть
+«Горячий Стул». Посадка людей за цвета — флаг в строке цвета на панели «Дополнительные опции»
+(`setup:<цвет>:кто`): после смены имён её проверить заново.
+
+Выбор сценария — три панели слева и общая правая часть:
+
+- **Доступные сценарии** (`scenario:maps`): список со строкой на карту — размер, подземелье, сколько
+  игроков и сколько из них могут быть людьми, условия победы и поражения; фильтр по размеру
+  `scenario:filter:<id>`, выбор `scenario:map:<название>` (далёкую строку мост просит сначала
+  отфильтровать, как игрок). Союзные версии карт помечены «(С)» или «(Союзники)».
+- **Случайная карта** (`scenario:random`): размер `setup:size:<n>`, игроков `setup:players:<n>`,
+  только компьютеров `setup:computer_only:<n>`, вода `setup:water:<n>`, монстры `setup:monsters:<n>`,
+  подземелье `rmg:underground`, дороги `rmg:road:dirt|gravel|cobble`, шаблон `rmg:template`,
+  команды `rmg:teams`, уже созданные карты `rmg:generated`. Текущие значения — в `setup.fields`.
+- **Дополнительные опции** (`scenario:players`): строка на цвет — флаг `setup:<цвет>:кто` сажает за
+  цвет человека или отдаёт компьютеру, `setup:<цвет>:фора` — помеха игроку, город
+  `setup:<цвет>:город:<фракция>` или стрелками, герой и бонус стрелками. Под строками — таймер хода.
+- Правая часть: название и описание карты, условия, **союзники и враги** выбранной карты
+  (`setup.allies`, `setup.enemies` — флаги под «Союзники»/«Враги»), сложность
+  `scenario:difficulty:1..5`, «Ещё опции…» (`scenario:more`: турнирные правила, PvP-бои с
+  нейтралами), «PvP-опции» (`scenario:pvp`: переключает панель на монетку, случайный город,
+  перевод золота), `scenario:start`, `scenario:back`.
+
+Всплывающие окна HotA (ещё опции, сетки городов и героев, команды, таймер, шаблон) принимают
+клавиатуру: `popup:подтвердить` — Enter, `popup:отменить` — Esc. Щелчки мостом по их переключателям
+пока не доходят — такие опции остаются по умолчанию (записано в TASKS).
+
+## Обмен героев (exchange, размечено 23.09.2026)
+
+Открывается встречей двух героев на карте или в городе кнопкой со стрелками между портретами
+гарнизонного героя и гостя (`town:exchange`). Встреча на карте: выбрать одного героя и
+`move_to_tile` на клетку второго — над своим героем курсор обмена, щелчок прокладывает путь, по
+прибытии открывается окно (проверено 25.09.2026). Всё видно сразу: имена, первичные навыки, опыт, мана,
+специальность, вторичные навыки, армии, куклы артефактов и рюкзаки.
+
+- **Стрелка под отрядом** — отдать этот отряд соседу одним нажатием (`exchange:give:<существо>` —
+  слева направо, `exchange:take:<существо>` — справа налево). Последний отряд героя уходит без
+  одного существа: герой не может остаться без армии.
+- **Центр, верхний ряд — армии:** всё направо (`exchange:army:right`), поменять местами
+  (`exchange:army:swap`), всё налево (`exchange:army:left`).
+- **Центр, нижний ряд — артефакты:** всё направо, поменять местами (`exchange:artifacts:swap`),
+  всё налево; один артефакт — `exchange:artifact:<название>`.
+- Кнопки у концов рядов армии — «разделить существа». Часть отряда соседу:
+  `exchange:split-give:<существо>` / `exchange:split-take:<существо>` (отряд → кнопка «Разделить» →
+  свободная клетка соседа) открывает `split_army`: `split:amount:<n>`, `split:confirm`.
+- Нижние углы — «закрыть окно и выбрать левого/правого героя» (`exchange:close:left|right`); «ОК» —
+  `exchange:done`.
+
+- **Модификаторы из подсказок игры:** стрелка под отрядом с Alt — отдать всё, кроме одного существа;
+  «передать все артефакты» с Ctrl — только надетые, с Shift — только из рюкзака. Строку подсказки
+  читает `inspect_element`. **Модификаторы мост послать не может:** игра берёт Shift/Ctrl/Alt с
+  настоящей клавиатуры, а мост работает только оконными событиями (проверено 23.09: стрелка
+  «с Alt» отдала всех 67 бесов, а не 66). Результат модификатора делается кнопками:
+  «всех, кроме одного» — `exchange:split-give:<существо>` и `split:amount:<всего−1>`; отдельные
+  артефакты — `exchange:artifact:<название>`.
 
 ## Карточка чужого героя (enemy_hero_card)
 
@@ -516,9 +650,8 @@ layout unsupported», из-за чего блокируется всё набл�
 
 ## Пробелы
 
-- Экран героя не публикует артефакты и заклинания отдельными полями: они читаются поштучно через
-  `inspect_element` по слоту.
-- Рынок открывается и читается, но обмен ресурсов через мост ещё не выполнялся.
+- Экран героя называет надетые артефакты по картинке, но не слоты, куда они надеты; заклинания
+  отдельным полем не публикуются.
 - Гильдия магов открывается, но выбор и изучение заклинания через мост не проверены.
 - Таверна: наём героя проверен, но чтение кандидатов и их навыков — нет.
 - Просмотр мира, карта-загадка и гильдия воров читаются как экраны, но их содержимое в
@@ -537,10 +670,11 @@ layout unsupported», из-за чего блокируется всё набл�
 | Инструмент | Что делает |
 | --- | --- |
 | `act` | Performs one action from observe.Actions by its key — town, construction, recruitment, tavern, hero screen, army transfers, combat, dialogs, end of turn. This is the main verb of the bridge. Returns the result state and a fresh observation. The game enforces costs, daily limits and legality; an action that the game refuses comes back as refused, not as a silent no-op. Changes the game and cannot be undone — a dismissed stack is gone, an ended turn is over. Retry an uncertain result under the SAME operationId; a new id repeats the action and can move a hero twice. Only keys the latest observation published are accepted; for a raw control with no semantic key use click_ui. |
+| `ally_log` | Reads the log of your ally's turns, newest last, each line stamped with the game date and his colour: where his heroes stopped, which objects they reached, picked up or beat, fights, armies, levels, skills, artefacts, what his towns built and hired, and his resource change per turn. The bridge records it while he moves, reading only his side, the way an allied player follows him. The first lines of your brief already sum up his last turn; this tool gives the whole record. Does NOT show opponents and changes nothing. |
 | `attack_target` | Deliberately starts a fight: moves the selected hero onto a visible creature stack. Ordinary movement refuses such cells, so this tool is the only way in and the choice is explicit. Returns the result state and a fresh observation; the battle then runs on the combat screen. The army can be lost and nothing can be undone — read inspect_cell for the guard and hota_reference for both creatures before calling. Retry under the SAME operationId; an uncertain result is not permission to attack again. |
 | `click_ui` | Presses one validated control of the current screen by its element key, for screens where no semantic key exists yet. Returns the result state and a fresh observation. Prefer act: a semantic key says what it does and is checked against the screen. Use this only when the control you need is in observe.Elements but not in observe.Actions. Changes the game and cannot be undone; retry under the SAME operationId. |
 | `debug_capture` | Developer diagnostic: saves the game's current frame as a local PNG without activating the window, moving the cursor, sending input or capturing the desktop. Returns the file path and size, never inline image data. Writes a file on the host. Not part of playing: observe is the cheap, structured way to read the game. |
-| `debug_snapshot` | Developer diagnostic: saves the game's framebuffer as a local PNG together with the matching observation JSON and checks that the revision did not change across the capture. Returns the observation and the file paths, never inline image data. Writes files on the host. This is for mapping a screen that has no adapter yet, or for an illustration the user asked for — not part of playing. The play loop reads observe. |
+| `debug_snapshot` | Developer diagnostic for mapping screens: returns the game's current frame as an image together with everything the bridge knows at that instant — the observation with every control, text, picture and action, or, on a screen the bridge has not mapped yet, the raw controls of the top window (id, class, rectangle, state, picture, frame, text) and the reason there is no observation. Works on every screen. Saves the PNG and the JSON on the host and returns their paths; the image itself is returned only when includeImage is true, because images are expensive and have no place in the play loop. Not part of playing: the play loop reads observe. |
 | `game_status` | Reports what this build of the bridge supports and what it does not, including screens that are mapped and features still missing. Returns capability and limitation lists. Does NOT touch the game. Call it once at the start of a session so a missing feature is read rather than guessed at. |
 | `hota_docs` | Asks the built-in knowledge base a direct question and returns the passage that answers it: rules, formulas, combat, movement, towns and economy, skills and spells, object guards, hotkeys, HotA specifics and this bridge's own playbooks. Ask in plain words, in Russian or English — every document carries an English summary beside its Russian body, and the 1999 manual and the HotA documentation are English originals. Returns the hits with file, heading and the answering passage. A question naming one thing — a creature, a spell, an artefact, a building — also returns that thing's card from the installed game's own tables. Every document ends with a Пробелы section stating what it does not know, so silence is never mistaken for "no such rule". Says nothing about the current game; that is observe. |
 | `hota_docs_catalog` | Lists the contents of the knowledge base. Without a path it names every document and how many sections each holds; with a path it lists that document's headings. Returns the list only, never the text — read a section with hota_docs_read. Use it when no search hit looks right, or to see what subjects exist before asking. |
@@ -549,17 +683,23 @@ layout unsupported», из-за чего блокируется всё набл�
 | `hota_tools` | Lists every tool this server offers with its group and its safety class, built from the registered tools themselves so it cannot drift from reality. Groups: state (what you have and where), look (the cards a player reads with the right mouse button), act (the verbs that change the game), reference (the game knowledge base), diagnostic (developer frames, not gameplay). Returns one line per tool; the full description arrives with the tool itself. Does NOT execute anything. |
 | `inspect_cell` | Looks at one map cell the way a player does before walking into it: the bridge holds the right mouse button over the cell, reads the card the game draws and releases. Returns the card text — for a wandering stack, the creature and its rough size, which is the input for "fight or walk around". Does NOT enter the cell, start a fight or move the hero. The cell must be inside the visible part of the map. The answer goes stale: wandering stacks move on the enemy's turn, so read it in the same turn you attack. |
 | `inspect_element` | Reads the game's own info card for one control of the current screen: creature stats, a skill or spell description, artefact text, hero details. The bridge holds the right mouse button, reads the card and releases it, so the control is NOT activated — nothing is bought, moved, dismissed or spent. Returns the card text. Left-clicking the same control would act: on an army slot or an exchange arrow a left click moves troops. For the rules behind the card use hota_reference. |
-| `inspect_target` | Makes the game compute the route to one destination and reads the answer. Returns movement cost, number of steps and a state — reachable_today, needs_more_days or not_available with a reason. Does NOT move the hero. This is the live answer; the route attached to nearby_targets is a cache. Known defect: not_available is sometimes returned for a cell the hero can in fact reach, so treat a single refusal as weak evidence and settle it with a short move_to_tile. |
+| `inspect_path` | Makes the game plan the selected hero's route to any explored cell, the way pointing at it does, and reads the game's own answer. Returns movement cost, steps and a state — reachable_today, needs_more_days or not_available with the reason (no path at all, fog on the way). Use it to learn whether an area can be walked to at all and in how many days, before sending a hero there. A route longer than today also says StopsToday — the cell where the hero stands when today's movement runs out, the end of the green arrows — and Days, how many days of movement it takes. Does NOT move the hero. |
+| `inspect_target` | Makes the game compute the route to one destination and reads the answer. Returns movement cost, number of steps and a state — reachable_today, needs_more_days or not_available with a reason. Does NOT move the hero. Where the game lays no path, the reason names what shuts the way. |
+| `inspect_tile` | Moves the mouse over one map cell the way a player does and returns the line the game writes at the bottom of the screen. That line is the cheapest and richest thing on the adventure map: it names the object, what it gives, what it costs, whether the bonus is once per hero, and — for the hero selected right now — whether he has already been there, as «(Посещено)» or «(Не посещено)». Example: «Беседка (+2000 опыта один раз для каждого героя за 1000 золота) (Не посещено)». The visited state belongs to the SELECTED hero, so switch heroes and ask again to read it for the other one. Nothing is entered, no fight starts, the hero does not move. Use it before spending a day walking to a bonus object. For the creature guarding a cell use inspect_cell, which holds the right button and reads the fuller card. |
 | `launcher_graphics` | Reads the HD Launcher's renderer options, or selects one for the next launch. Pass null to read without changing anything. Returns the available renderer labels and the current selection. Only change the renderer when the user asks for it — it decides how the game window is drawn. Does NOT activate windows or send input. |
 | `map_click` | Clicks one point of the adventure map surface in game pixels. This is how the game is made to compute routes: after such a click a route cache exists and nearby_targets starts reporting routes. Returns the result state and a fresh observation. Clicking the centre of the map area lands on the hero's own tile and orders no move. Prefer move_to and move_to_tile for actual movement; this is the low-level gesture behind them. |
+| `mark` | Pins your own note to a map cell, or removes it when the note is empty. Use it for what the map does not remember for you: a stack too strong for now, a passage, a guarded pocket worth coming back to, where an enemy hero was last seen. Notes are handed back in every adventure observation and beside the target in nearby_targets. Returns all notes. Does NOT change the game. |
+| `minimap_capture` | Takes the minimap exactly as the game paints it on the adventure screen and turns each cell's colour into a character: unexplored black, water, dark rock and forest, land, and the players' flag colours. It shows the level the adventure view shows now (view:level switches it). Use it as the picture a player glances at; for exact objects use read_minimap or read_map. Does NOT send input. |
 | `move_to` | Walks the selected hero toward a visible target id using the game's own route and move handlers. The hero walks the whole way and the answer comes back when he stops. Returns the result state and a fresh observation. May pick up the resource, open a dialog or run into an enemy on the way. Spends movement and cannot be undone. Refuses a cell holding a creature stack, because stepping there is a battle — that is attack_target, chosen deliberately. For a cell with no object use move_to_tile. Retry under the SAME operationId. |
 | `move_to_tile` | Walks the selected hero to an explicit cell using the game's own route planning. Use it for exploring and for cells that carry no recognised object — revealed terrain, a town seen across the map. Returns the result state and a fresh observation. The hero stops when the day's movement runs out; if the game cannot plan a path nothing moves and the result stays uncertain. Spends movement and cannot be undone. Retry under the SAME operationId. |
-| `nearby_targets` | Lists the recognised objects the selected hero can see, each with a stable target id. Returns ids, object names and coordinates, plus whatever route the game last computed. That route data is a stale cache — the game keeps a route for one destination and any action invalidates it — so a target may read not_available while the hero can plainly reach it. Does NOT plan routes, choose targets or send input. For a live route to one destination call inspect_target; object coverage is not exhaustive and hidden objects are never reported, so an absent target is not proof of an empty map. |
+| `nearby_targets` | Lists the recognised objects the selected hero can see, each with a stable target id. Returns ids, object names and coordinates, and the game's own route to each: reachable_today, needs_more_days or not_available. Read only, it presses nothing: when the game's route table is stale the routes say so, and pointing at a cell with inspect_path rebuilds it. Where the game lays no path, the reason names what shuts the way — a wandering stack with its cell, a garrison, a border gate, another hero — or says there is no explored land way; LockedBehind groups the targets one fight opens. A mine carries the colour of its flag (yours, an ally's — leave it, an enemy's or nobody's — take it). For visitable objects, VisitState is visited or not_visited only when the game's hint explicitly marks it for the selected hero. Unknown means the object is off screen or its hint has no visit marker: use inspect_tile on that cell before spending movement. The list does not move the camera. Does NOT choose targets or move the hero. Object coverage is not exhaustive and hidden objects are never reported, so an absent target is not proof of an empty map. |
 | `observe` | Reads the entire state of your own side in one call and returns the revision that every acting tool requires. Starts with Brief: the screen in plain words — who is in the garrison, who is visiting, whether today's building is spent, what can be recruited, which action key does each of those — so the obvious follow-up questions need no extra calls. Returns: the date; your seven resources; Heroes — EVERY hero you own with id, name, map position, movement left, mana, primary skills and army, not only the selected one; Towns — EVERY town you own with its garrison, what is built and whether today's single building is already spent; Side — which colour you play and whose turn it is now, so a hotseat game is never played for someone else; the active screen with its controls; and Actions, the semantic keys that are legal on this screen right now, each with a label saying what it does and when it is used. Does NOT reveal anything the player cannot see, does not send input and changes nothing. For the reference rules use hota_docs; for one control's card use inspect_element. |
-| `plan` | Reads your stored plan, or replaces it when a value is given. The plan is your own memory between turns: the goal of the game, what changed today, what is known about the enemy, the first things to do tomorrow. Returns the stored text. Writing REPLACES the previous plan — include what still matters. Does NOT execute anything or change the game; read_journal holds what actually happened. |
+| `plan` | Reads your stored plan, or replaces it when a value is given. This is the controller's memory between turns and it is handed back inside every observation, so it is read whether or not it is asked for. Returns the stored text. Writing REPLACES the whole plan, so carry forward what still matters. Shape that survives a long game: GOAL — one line, unchanged for the whole game; ACTIVE TASK — exactly one, with the game day it must be done by, so stalling is visible; QUEUE — the tasks after it, in order; DONE — one compressed line per day, not a retelling; BANS — what the player forbade; NOT TAKEN NEARBY — objects seen and left, so they are not rediscovered every turn. Keep decisions and their reason, not a narration of events; what happened is in read_journal. Rewrite it at the end of every turn, and whenever the active task turns out to be impossible — an active task nobody can finish is how a game stalls. Does NOT execute anything or change the game. |
 | `read_journal` | Reads this controller's own recent actions and their results, newest last, each stamped with the game date. Returns the record of what was attempted and what came of it — the answer to "what did I do yesterday". Does NOT contain opponent history and shows nothing the player could not see. |
 | `read_map` | Reads the uncovered map around a cell: terrain, roads, cells blocked by terrain and the recognised visible objects with their coordinates. Returns a grid where cells the player has not uncovered are '?'. Does NOT send input, move anything or reveal the fog. Use it to decide where a hero can step and what lies on the way; for the creature guarding a cell use inspect_cell. |
+| `read_minimap` | Reads one whole map level the way the minimap shows it, one character per cell, from the game's own map: '?' where the player has not been, water, rock, land, the flags over towns and mines (yours, an ally's, an enemy's, nobody's) and the heroes a player sees, plus a list of the towns and heroes with coordinates and the number of unexplored cells. Use it to see where the unexplored land and the enemy towns are before choosing a direction. Does NOT send input or reveal the fog. |
 | `start_game` | Starts HotA through the host HD Launcher's own Play action with its saved settings. Returns already_running or launch_pending; calling it again while the game is coming up is harmless. Does NOT activate windows or send mouse or keyboard input. Check readiness with game_status and observe. |
+| `wait_for_turn` | Waits for your colour's turn, or for a window the game addresses to your colour on someone else's turn: its hotseat handover, «Город под атакой!», a fight a computer opens against it, the result, spoils and level-up after that fight, news for the whole table, the end of the game. Which colour is yours you know from observe: the side line and the participants with their names. Returns yourTurn and state; no opponent actions, map or resources are read. Without a colour it returns as soon as any human side can act and names that side in state (turn:<colour>). Each call waits at most 60 seconds. After yourTurn, observe, answer, then wait again. |
 
 ## Ресурсы
 
@@ -606,7 +746,7 @@ id: playbook-save-load-cycle
 title: Сохранение, загрузка и цикл восстановления партии
 topics: [save, load, browser, recover, verification]
 version: 2026-09-20
-sources: [../hota/07-agent-use.md, ../../STATE.md, ../../skills/hota-player/SKILL.md]
+sources: [../hota/07-agent-use.md, ../../skills/hota-player/SKILL.md]
 status: verified-on-this-machine
 type: how-to
 layer: agent
@@ -649,7 +789,7 @@ updated: "2026-09-20"
 - `game:save` (системные опции, отправляется `S`) открывает браузер сохранения: `screen=save_game`, доступно `save:confirm` (кнопка `scnrsav.def` id186).
 - Браузер помнит последнюю папку: открытый из партии, он показал содержимое `Games\Превосходство в воздухе` (`..`, `111`, `111ы`), а не корень.
 - Перед подтверждением обязательно прочитать выбранную строку в `Saves`: подтверждение пишет в выбранное имя. В этой партии подтверждение без правки имени перезаписало бы `111.GM1`.
-- Ввод имени файла и его чтение после ввода остаются незавершёнными (см. TASKS.md). Сейв `111ы.GM1` не перезаписывать.
+- Имя сохранения задаётся `save:name:<имя>` (буквы раскладки окна игры, цифры, дефис): мост стирает старое, набирает и читает поле обратно. Сейв `111ы.GM1` не перезаписывать.
 - Игра сама пишет `AUTOSAVE.GM1` при смене суток (20.09 20:20 обновлён на дне 2) и `BATTLE.GM1` перед боем.
 
 # Выход из браузера
@@ -672,7 +812,7 @@ id: playbook-town-economy
 title: Город, экономика, строительство и найм
 topics: [town, economy, building, recruitment]
 version: 2026-09-20
-sources: [../sources/bot-algorithms.md, ../../TASKS.md, ../../../TZ.md]
+sources: [../sources/bot-algorithms.md]
 status: verified-partial
 type: how-to
 layer: agent
@@ -687,6 +827,19 @@ updated: "2026-09-20"
 - В городе: `town:construction`, `town:tavern`, `town:recruit:0..2`, `town:close`.
 - Стройка: `town:construction` → экран `town_hall` → `building:inspect:0..17` → экран `building_confirmation` → `building:buy` или `building:cancel`.
 - Найм: `town:recruit:<level>` → `recruit:max` → `recruit:buy`.
+
+# Наём героя в таверне и слот гостя (проверено 23.09.2026, партия 4)
+
+Нанятый герой встаёт в город **гостем** (нижний ряд). Если гость уже есть, кнопка «Нанять» неактивна —
+в таверне ничего не выйдет. Порядок:
+
+1. `hero:switch` (клавиша Space) — гость уходит в **гарнизон** (верхний ряд) и встаёт во главе обороны;
+   армии гарнизона и героя **сливаются** в его армию (так же: щелчок по портрету героя, затем по
+   знамени слева от первого слота гарнизона).
+2. `town:tavern` → `tavern:pick:слева|справа` → `tavern:hire` — новый герой встаёт гостем.
+3. Кто из них выйдет на карту: гость выходит сам; гарнизонный — `hero:switch` меняет их местами.
+
+Этот же приём забирает весь гарнизон одним жестом: гостя в гарнизон — армии слились — обратно.
 
 # Как выбирать здание
 
@@ -740,7 +893,7 @@ updated: "2026-09-20"
 
 # Безопасность состояния
 
-Изменять ресурсы напрямую нельзя. Покупка идёт только штатной кнопкой. Пробел: многогородный выбор, передача армии между героями, количества найма кроме «максимум», полные карточки зданий/существ (см. TASKS.md).
+Изменять ресурсы напрямую нельзя. Покупка идёт только штатной кнопкой.
 
 
 <!-- ===== agent/12-turn-and-map.md ===== -->
@@ -750,7 +903,7 @@ id: playbook-turn-map
 title: Начало хода, цели, движение и разведка
 topics: [turn, heroes, movement, scouting, fog-of-war]
 version: 2026-09-19
-sources: [../sources/bot-algorithms.md, ../../../TZ.md]
+sources: [../sources/bot-algorithms.md]
 status: partial-capability
 type: how-to
 layer: agent
@@ -787,7 +940,7 @@ id: playbook-turn-end
 title: Конец хода, stale state и подтверждение результата
 topics: [end-turn, revision, idempotency, journal]
 version: 2026-09-19
-sources: [../../../TZ.md, ../../../src/HotaMcp/GameTools.cs]
+sources: [../../../src/HotaMcp/GameTools.cs]
 status: draft-research
 type: how-to
 layer: agent
@@ -810,7 +963,7 @@ id: playbook-battle-cycle
 title: Подготовка боя и цикл боевого решения
 topics: [battle, tactics, simulation, uncertainty]
 version: 2026-09-19
-sources: [../sources/bot-algorithms.md, ../../../TZ.md]
+sources: [../sources/bot-algorithms.md]
 status: verified-partial
 type: how-to
 layer: agent
@@ -829,6 +982,70 @@ VCMI BattleAI даёт более конкретный опубликованн�
 
 Бой выполняется действиями из `observe.Actions`: `combat:move:<клетка>`, `combat:attack:<отряд>`, `combat:wait`, `combat:defend`, `combat:retreat`, `combat:surrender`, `combat:spellbook`, `combat:auto`; заклинание — `spellbook:select:<id>` и затем `spell:target:<отряд>`. Атака с карты — отдельный инструмент `attack_target`. Боевое действие считается выполненным, только когда вырос боевой журнал и сменился активный отряд или раунд; заклинание дополнительно требует расхода маны. Непроверенными остаются: осада, сдача, полное покрытие школ магии.
 
+## Не выдвигать один отряд против нескольких
+
+Отряд, выдвинутый вперёд в одиночку, принимает удары всех вражеских отрядов подряд, а остальная
+армия в защите сзади ничем не помогает. Если противник стоит и ждёт, есть два правильных хода:
+держать всех позади и работать стрелками (баллиста, орки), пока враг не подойдёт сам, либо
+сближаться всей армией сразу, чтобы в следующем раунде ударили все.
+
+Пример из партии 22.09.2026: 99 Матросов в трёх отрядах стояли за оврагом. Три Чудища вышли
+вперёд одни, три отряда Матросов ударили по ним один за другим — одно Чудище погибло, ещё одна Рух
+погибла на ответке позже. Баллиста с Экспертной Артиллерией в это время снимала по 17 за ход и
+справилась бы без размена.
+
+Обратная ошибка — та же по сути. Самый быстрый отряд (летуны) бьёт первым, а остальные остаются
+в защите на месте. Тогда враг отвечает всем, что у него есть, именно по летунам. Правило: если
+первый удар нанёс быстрый отряд, в тот же раунд **все остальные идут к врагу** (`combat:move:<клетка>`
+к ближайшей доступной клетке), а не встают в защиту. Защита на месте — только когда весь план
+держать строй и стрелять, и никто не выдвинут.
+
+Сближаться — не значит ставить в первую линию кого попало. Ближе всех к врагу встаёт самый
+крепкий отряд (Древние Чудища), хрупкий многочисленный (Налётчики, 12 здоровья) идёт за ним и
+бьёт вторым. Иначе вражеские летуны выбирают хрупкий отряд: 27 Мантикор за раунд сняли 94
+Налётчика из 138, пока Древние стояли в стороне (партия 23.09.2026).
+
+Пример из партии 23.09.2026: 53 Мамонта двумя отрядами. Птицы Грома ударили первыми, Налётчики,
+Древние Чудища и Хобгоблины встали в защиту в своём углу. Мамонты дважды отработали по Птицам
+Грома — потеряно 20 Птиц Грома и 30 Налётчиков вместо почти бескровной победы.
+
+## Враг, который бьёт всех соседей
+
+Элементали Магии (и все с текстом «Атакует всех стоящих рядом врагов») одним ударом бьют каждый
+отряд, стоящий вплотную к ним, и на их удар не отвечают. Правило «сближаться всей армией» против
+них обратное: не сбивать отряды в кучу у врага. Вплотную подходит один крепкий отряд (Древние), а
+хрупкие стоят поодаль, стреляют стрелки и баллиста.
+
+Пример из партии 23.09.2026: 58 Элементалей Магии тремя отрядами. Налётчики встали вплотную к
+Древним Чудищам, отряд Элементалей подошёл и накрыл их вместе с Птицами Грома — потеряны все 41
+Налётчик и 14 Птиц Грома, хотя Древние с Благословением сносили по отряду за удар.
+
+## Осада
+
+Правила — `hota_docs("как устроена осада стены башни ров ворота")` и «как работает катапульта».
+Через мост:
+
+- С навыком Баллистика катапульту наводит игрок: `combat:catapult:<часть>` — ворота (клетка 96),
+  средняя верхняя стена (62), средняя нижняя стена (130), верхняя стена (29), нижняя стена (165).
+  Мост сначала наводит курсор и читает строку состояния («Атака: Средняя нижняя стена … прочность
+  цели: 1/3»); по разрушенному сегменту игра не стреляет, и мост тогда отказывает.
+- Выстрелы катапульты в журнал боя не пишутся; ход подтверждается сменой активного отряда.
+  Экспертная Баллистика — два выстрела за ход, по подъёмному мосту попадание 100%: ворота (2
+  прочности) сносятся за один ход, и клетки ворот появляются в доступных для хода.
+- Ров не проходить и не вставать на него (у Инферно 90 урона за раунд, −3 защиты, застревание).
+  Пешие входят через разбитые ворота или пробитый сегмент.
+- Пример 23.09.2026, Хеллвинд: ворота снесены первым ходом катапульты, Древние Чудища встали в
+  проём и били подходящих; стрелки и баллиста снимали Гогов на стене. Потери — 2 Птицы Грома
+  (башни бьют летунов) и 2 Древних.
+
+## Щелчок по стеку у правого края поля
+
+При наведении на стек HotA открывает панель его характеристик. У правого края поля эта панель
+ложится прямо на стек, и левый щелчок уходит в неё: удар не случается, хотя правая кнопка на той же
+точке показывает «Атака цели …». Мост наводит курсор, проверяет, не закрыта ли точка прицела, и
+переносит прицел в свободную часть той же клетки, по возможности со стороны удара. Если удар
+«не состоялся» по цели у края — это первое, что стоит проверить через debug_snapshot.
+
 
 <!-- ===== agent/15-game-start.md ===== -->
 
@@ -837,7 +1054,7 @@ id: playbook-game-start
 title: Начало партии и capability discovery
 topics: [startup, session, capabilities, visibility]
 version: 2026-09-19
-sources: [../sources/bot-algorithms.md, ../../../TZ.md, ../../../src/HotaMcp/GameTools.cs]
+sources: [../sources/bot-algorithms.md, ../../../src/HotaMcp/GameTools.cs]
 status: draft-research
 type: how-to
 layer: agent
@@ -870,7 +1087,7 @@ id: playbook-handoff-multi-agent
 title: Передача управления человеку и несколько агентов
 topics: [handoff, human, hotseat, lan, isolation]
 version: 2026-09-19
-sources: [../../../TZ.md, ../../../src/HotaMcp/GameTools.cs, ../sources/bot-algorithms.md]
+sources: [../../../src/HotaMcp/GameTools.cs, ../sources/bot-algorithms.md]
 status: design-gap
 type: how-to
 layer: agent
@@ -897,7 +1114,7 @@ id: agent-skill-draft
 title: Черновик поведения HotA агента через MCP
 topics: [agent-loop, capability-discovery, stale, uncertain, mcp]
 version: 2026-09-19
-sources: [../../../src/HotaMcp/GameTools.cs, ../../../TZ.md, ../sources/bot-algorithms.md]
+sources: [../../../src/HotaMcp/GameTools.cs, ../sources/bot-algorithms.md]
 status: draft
 type: how-to
 layer: agent
@@ -1009,7 +1226,6 @@ source_urls:
   - https://raw.githubusercontent.com/ERA-Projects/era-project-eng/main/Help/Era%20manual/html/plugins_and_patches.html
   - `native/game/game_bridge.cpp`
   - `native/game/attach.cpp`
-  - `docs/CAPABILITIES.md`
   - https://download.h3hota.com/upd/changelogs/rus.txt
 type: reference
 layer: agent
@@ -6321,7 +6537,7 @@ Value/AI Value не документируются в changelog — это да�
 
 # Справка игры Heroes of Might and Magic III (извлечение из HEROES3.HLP)
 
-> **type:** reference · **layer:** official · **source:** `G:/HoMM 3 Complete/HEROES3.HLP` (русская справка «Полное собрание») · **updated:** 2026-09-22
+> **type:** reference · **layer:** official · **source:** `G:/HoMM 3 Complete/HEROES3.HLP` (русская справка «Полное собрание») · **updated:** 2026-09-28
 
 Тексты справки игры, разбитые на части по порядку следования в файле. Ценность для агента: русские названия существ, навыков, заклинаний и объектов — ровно те, что видны в наблюдениях моста. Уровень основной справки, без профессиональных тонкостей и скрытых механик.
 
@@ -15962,6 +16178,7 @@ IN NO EVENT SHALL 3DO BE LIABLE FOR ANY INCIDENTAL, CONSEQUENTIAL (INCLUDING LOS
 | [`fight-strength.md`](fight-strength.md) | explanation | Стоит ли драться: как оценить силу вражеского отряда до боя | Этот файл отвечает на вопрос «выстоит ли моя армия против этого отряда» числами, которые игра |
 | [`game-loops.md`](game-loops.md) | explanation | Из каких циклов состоит партия и как они вложены друг в друга | Этот файл — не про то, как считается урон или что строить первым (это отдельные справки), а про то, **что вообще происходит на мета-уровне**: зачем нужен каждый ход, что копится из |
 | [`postmortem-2026-09-21.md`](postmortem-2026-09-21.md) | explanation | Разбор проигранной партии: как потеряли столицу, героев и игру | Что случилось. К четвёртой неделе было два города (Уоззар с Капитолием и захваченный Игне), два |
+| [`postmortem-2026-09-23.md`](postmortem-2026-09-23.md) | explanation | Разбор выигранной партии «Лицом к лицу»: что стоило войска и что сработало | Итог. Красный Оплот против синего Инферно на карте 36×36. Победа на 61-й день (месяц 3, неделя 1, |
 | [`priorities.md`](priorities.md) | explanation | Приоритеты и решения сильного игрока по неделям партии | Первая неделя решает, кто раньше выйдет на плюс по темпу — не какое-то одно здание. Классический опорный порядок построек для "богатой" карты (без дефицита ресурсов), который испол |
 | [`situations.md`](situations.md) | explanation | Реестр игровых ситуаций и решения (Heroes 3 HotA 1.8.x) | Ниже — не характеристики объектов (они уже есть в файлах игры), а решения: что выбрать, почему и когда правило не работает. Числа приоритетнее прозы, но по большинству ситуаций точ |
 | [`strategy-ladder.md`](strategy-ladder.md) | explanation | Машина состояний партии, роли героев и дерево дня | Зачем этот файл. Ход состоит из десятков мелких решений, и без общей рамки каждое принимается |
@@ -16086,7 +16303,8 @@ Celestial Heavens (условия: сложность «Рыцарь», 10 ка�
 ## Порядок построек первой недели: Инферно / Inferno
 
 Вариант под богатую карту (есть ресурсы на демонов рано): 1) Тигель импов (Imp Crucible) →
-2) Жилище демонов (Demons) → 3) Кузница (сразу купить и перевезти баллисту главному герою) →
+2) Жилище демонов (Demons) → 3) Кузница (у Инферно она продаёт Подводу с Боеприпасами, не
+баллисту — карточка здания в игре, проверено 25.09.2026; нужна при многих стрелках-Гогах) →
 4) Ратуша (Town Hall) — только если карта достаточно богатая под жилище горгулий → 5) Адские
 гончие (Hell Hounds) → 6) Форт → 7) Гильдия магии 1 уровня.
 
@@ -16465,6 +16683,24 @@ Heroes 3 — это пять вложенных циклов одного и т�
 Источник: https://heroes.thelazy.net/index.php/Movement
 Источник (структура цикла «осмотреться → цель → идти → оценить», адаптация): адаптация разбиения analyzer → goals → decomposition → execution, описанного в [разборе алгоритмов ботов](../sources/bot-algorithms.md), без копирования кода
 
+### Шаг «забрать»: сундук и артефакт — решение, а не подбор
+
+- **Сундук сокровищ** выбирается по роли героя: главный (боевой) герой берёт **опыт** — уровни дают
+  характеристики и навыки на всю партию; сборщик берёт золото.
+- **Артефакт** после подбора разбирается сразу: где он работает. Три случая:
+  1. Усиливает героя в бою (атака, защита, заклинания) — остаётся у главного.
+  2. Усиливает армию (здоровье, скорость, боевой дух существ) — у того, при ком армия, то есть
+     тоже у главного.
+  3. Работает от места, а не от боя: части Статуи Легиона дают прирост, **когда носитель
+     заканчивает ход в городе**, некромантические вещи — только некроманту. Такие вещи
+     передаются герою, который сидит в городе или вообще может их использовать.
+- Проверить, что артефакт делает, — правой кнопкой по его клетке (`inspect_element`): карточка
+  игры говорит условие дословно. Рюкзак проверяется целиком, а не только видимые пять клеток.
+
+Пример из партии 22.09.2026: Поясница Легиона («когда герой завершает ход в городе, прирост
+существ 3 уровня в нём +4») и Сутана Вампира (+10% некромантии) переданы от варвара-бойца
+ведьме-сборщице, которая закрывает дни в Тормине с Башней Орков.
+
 ## Дневной цикл: что происходит в начале и в конце дня
 
 Один день — это сумма ходов **всех** активных героев и **всех** городов одной стороны, затем передача хода следующей стороне; когда все стороны отходили — начинается новый день:
@@ -16521,6 +16757,12 @@ Heroes 3 — это пять вложенных циклов одного и т�
 ```
 
 Разрыв цикла на любом звене останавливает рост: постройки без ресурсов не появляются («расширение города без ресурсов делает невозможной постройку критических зданий, таких как Магистрат и Цитадель, без которых нельзя нарастить армию» — свободный пересказ мысли источника), армия без территории простаивает и не отбивает свою стоимость, территория без армии для её удержания — временный захват, который забирает обратно более сильный противник.
+
+### Очерёдность на новой территории
+
+Вышел в новую область — берёшь в таком порядке: **шахты → города → только потом банки, склады и артефакты**. Шахта и город дают доход каждый день с момента захвата, поэтому каждый день задержки — потерянный доход; банк и артефакт никуда не денутся и одноразовы. Банк по пути к шахте берётся, только если стоит на пути и не отнимает дня. (Правило от игрока-эксперта, партия 3, 23.09.2026.)
+
+Не ломиться к врагу, пока своя зона не зачищена и подкрепление не догнало главного героя: если проход к врагу закрыт сильной охраной, враг так же не пройдёт к тебе, и время работает на того, кто вычистил свою территорию и собрал армию целиком. Главный герой зачищает зону, второй возит ему прирост (и улучшает его в городе с улучшенными жилищами). (Правило от игрока-эксперта, партия 3.)
 
 Экономические здания-«мультипликаторы» (Ратуша → Магистрат → Капитолий) окупают именно свою прямую стоимость за 5 дней прироста дохода каждая ступень (математика на официальных цифрах доступна в отдельной справке по первой неделе) — но это окупаемость постройки, а не всей цепочки построек-предпосылок до неё; с учётом предпосылок реальный выход на Капитолий обычно приходится на вторую неделю партии.
 
@@ -16734,6 +16976,69 @@ The body of this document is in Russian; ask in either language, the index carri
   моста его нет.
 - Не проверено, помогла бы оборона Игне вместо контрудара: партия кончилась раньше.
 - Цена капитуляции показана один раз и от одной армии; формула не выведена.
+
+
+<!-- ===== play/postmortem-2026-09-23.md ===== -->
+
+---
+id: h3.play.postmortem-2026-09-23
+title: Разбор выигранной партии «Лицом к лицу»: что стоило войска и что сработало
+game_version_scope: HotA 1.8.x поверх Heroes III Complete, карта «Лицом к лицу», самая лёгкая сложность
+verification_status: Партия сыграна через мост 22–23.09.2026; числа взяты из журнала боёв и наблюдений моста.
+source_urls:
+  - ../agent/14-battle.md
+  - ./postmortem-2026-09-21.md
+type: guide
+layer: play
+updated: "2026-09-23"
+---
+# Разбор выигранной партии «Лицом к лицу»: что стоило войска и что сработало
+
+Итог. Красный Оплот против синего Инферно на карте 36×36. Победа на 61-й день (месяц 3, неделя 1,
+день 5): взяты Хеллвинд и Аваддон, разбиты герои Мариус, Эйслин и Рашка. Итоговый счёт 126, ранг
+«Орк». Ниже — где терялось войско и что стоит повторять, каждое с признаком, по которому это видно
+заранее.
+
+## 1. Отряды в куче у врага, который бьёт всех соседей
+
+58 Элементалей Магии тремя отрядами. Налётчики встали вплотную к Древним Чудищам, Элементали
+подошли и одним ударом накрыли их вместе с Птицами Грома: потеряны все 41 Налётчик и 14 Птиц Грома.
+
+**Признак:** в карточке врага «атакует всех стоящих рядом», а в сводке боя у своих отрядов в строке
+«вплотную» стоят друг друга. **Правило:** против таких вплотную ставить один крепкий отряд, хрупкие —
+поодаль, стрелки работают издалека.
+
+## 2. Быстрый отряд в одиночку впереди армии
+
+Птицы Грома в одиночку вылетели к Скорпикорам и потеряли 20. **Признак:** после хода у летуна в
+строке «вплотную» только враги, свои далеко. **Правило:** летун бьёт тогда, когда следом дотянется
+остальная армия, или бьёт стрелка, который не ответит.
+
+## 3. Бой без подкрепления, которое стояло рядом
+
+Перед нападением на Скорпикоров второй герой с войском был рядом, но армию не свели. **Признак:** в
+сводке карты у второго героя «до своего города» и позиция в паре дней от главного, а в его войске
+отряды того же города. **Правило:** перед сильным боем сначала свести армии, потом нападать.
+
+## 4. Челнок вместо одного рейса
+
+Второй герой возил прирост из одного города, пока в другом копился свой. Правильно — забрать
+прирост обоих городов и привезти одним рейсом за пару дней. **Правило:** гонец собирает недельный
+прирост всех городов по пути и идёт к главному один раз.
+
+## 5. Что сработало
+
+- Осада Хеллвинда: катапульта с Экспертной Баллистикой снесла ворота первым ходом, Древние Чудища
+  встали в проём, стрелки и баллиста снимали стрелков со стены. Потери — 2 Птицы Грома (башни бьют
+  летунов) и 2 Древних.
+- Ров не проходили и на него не вставали: у Инферно ров бьёт на 90 и снимает 3 защиты.
+- Главный герой прокачан одним и держал всё войско; второй — гонец и сборщик.
+
+## Перед следующей партией
+
+Прочитать этот разбор и `postmortem-2026-09-21.md` (проигранная партия: столица, оставленная без
+гарнизона). Вместе это пять правил: не оставлять город пустым, не сбиваться в кучу у врага, бьющего
+соседей, не бросать летуна одного, сводить армии до боя, возить прирост одним рейсом.
 
 
 <!-- ===== play/priorities.md ===== -->
@@ -17118,6 +17423,15 @@ updated: "2026-09-21"
 Источник: http://www.heroesofmightandmagic.com/heroes3/strategymanagement.shtml
 Источник: https://heroes.thelazy.net/index.php/Strategies
 Источник: https://gamefaqs.gamespot.com/pc/957844-heroes-of-might-and-magic-iii-complete/faqs/74418
+
+## Не хватает дерева или руды: рынок — не выход (short of wood or ore)
+
+Курс рынка зависит от числа рынков у игрока. С одним рынком он грабительский: 10 руды за
+1 дерево, 5 серы за 1 дерево, 2500 золота за 1 дерево (проверено в партии 22.09.2026). Пока рынков
+меньше трёх, обмен не делают. Дерево и руда берутся с карты: кучи ресурсов, Лесопилка и Рудник.
+Если на своей стороне их нет, главная задача разведки — выйти на новую территорию самым дешёвым
+проходом и найти там шахту. Без дерева встаёт вся лестница построек: Кузница → Муниципалитет →
+Капитолий, улучшенные жилища.
 
 ## Кончилось золото (out of gold)
 
@@ -19020,6 +19334,9 @@ The body of this document is in Russian; ask in either language, the index carri
 ## Пробелы
 
 - Числовые характеристики существ HotA (атака, защита, здоровье, скорость, урон, прирост, цена)
+  есть в `hota_reference("<имя>", "существо")`: для существ трёх городов HotA карточка строится из
+  таблицы существ запущенной игры — тех же чисел, что показывает её карточка отряда. Ниже — прежняя пометка:
+- Числовые характеристики существ HotA (атака, защита, здоровье, скорость, урон, прирост, цена)
   в этой таблице не приводятся: в официальной документации они даны текстом по каждому юниту, а
   в таблицах игры их нет вовсе. Сводной числовой таблицы по трём фракциям в корпусе пока нет.
 - Русские имена построек трёх фракций не выписаны — только классы героев и существа.
@@ -19935,8 +20252,23 @@ Herою можно оставить в шахте войска для охран
 мост сначала ищет клетку с тем же существом и только потом пустую. Окно разделения — экран
 `split_army` с действиями `split:confirm` и `split:decline`.
 
+**Разделить отряд нарочно** (мануал, «Splitting Troops»): выделить отряд, нажать кнопку «Разделить
+армии» (в городе — справа над списком городов, в обмене героев — у концов рядов армии), затем
+щёлкнуть по свободной клетке или отряду тех же существ. Откроется окно с ползунком:
+`split:amount:<n>`, `split:confirm`. Через мост: `army:split-give:<существо>`,
+`army:split-take:<существо>`, в обмене `exchange:split-give:<существо>` / `exchange:split-take:<существо>`.
+«Всех, кроме одного» — так же, ползунок на «всего минус один». Shift/Alt-жесты из подсказок игры
+мосту недоступны: модификаторы игра читает с настоящей клавиатуры (проверено 23.09).
+
 Источник: наблюдение в партии 21.09.2026 — перенос Пикси на клетку с Пикси слил отряды, перенос на
 пустую клетку открыл «Разделить: Пикси» с делением 39/40.
+
+## Забрать весь гарнизон герою одним действием
+
+Герой-гость в городе: `hero:switch` поднимает его в гарнизон, и все отряды гарнизона сразу
+сливаются с его армией; `hero:out` выводит его обратно наружу. Это одно действие вместо
+`army:take` на каждый отряд. Что должно остаться охраной, возвращается `army:give:<существо>`.
+(Совет пользователя, проверено в партии 26.09.2026.)
 
 ## Как улучшить уже нанятый отряд
 
@@ -20073,7 +20405,7 @@ sources:
 status: researched
 type: explanation
 layer: agent
-updated: "2026-09-20"
+updated: "2026-09-23"
 ---
 
 # Что действительно подтверждено открытым кодом
@@ -20099,6 +20431,75 @@ VCMI — отдельный open-source движок Heroes III. Его AI не 
 
 Документация также указывает `HypotheticBattle`: копия/обёртка изменяемых состояний для оценки действия без изменения реального состояния. Это хороший принцип для будущего боевого планировщика, но в текущем HotA bridge боевые команды отсутствуют.
 
+## Боевой ИИ MMAI (vcmi-gym)
+
+Нейросетевой боевой ИИ VCMI (с версии 1.7), обучен в проекте vcmi-gym (github.com/smanolloff/vcmi-gym,
+коммит `94f0feb`, 21.09.2026; код в VCMI `AI/MMAI`). Проект только про бой: карты приключений и городов
+там нет. Что модель видит о каждом отряде: число, атака, защита, выстрелы, урон мин/макс, здоровье и
+остаток здоровья верхнего, скорость, место в очереди, осталось ли ответок, ждал ли, мораль, удача,
+способности; о каждом гексе — проходим ли, останавливает ли (ров, зыбучий песок), наносит ли урон
+(ров, мины, огненная стена), куда ходящий отряд может встать и откуда ударить.
+
+Качество боя MMAI меряет ценностью армии (AI Value): награда = (урон нанесённый − полученный) +
+(ценность убитых − ценность потерянных), в конце боя — разница ценностей армий. Та же мера в сводке
+боя моста: «Потери с начала боя … (ценность N)». Хороший бой — когда враг потерял ценности больше,
+чем ты, а не когда просто победил.
+
+## Nullkiller2: цикл хода по исходникам
+
+Прочитано по коду VCMI `develop`, коммит `aa93511` (22.09.2026): `AI/Nullkiller2/Engine/Nullkiller.cpp`,
+`Engine/PriorityEvaluator.*`, `Analyzers/*`, `Behaviors/*`, `config/ai/nk2ai/nk2ai-settings.json`.
+
+Ход бота — несколько проходов, после каждого выполненного действия состояние пересчитывается заново:
+
+1. **Приоритетный проход** (до `maxPriorityPass` раз): нанять героя → выкупить армию → построить здание;
+   каждый раз выполняется одна лучшая из этих задач, потом всё пересчитывается.
+2. **Основные проходы** (до `maxPass` раз): сначала резервируются защитники городов, затем собираются
+   задачи от поведений — захват объектов, «отпереть кластер» (объекты за одной охраной), оборона,
+   бегство, сбор армии, разведка.
+3. Задачи выбираются по уровням, первый непустой уровень побеждает: постройки → **убить сейчас** (героя
+   или город, до которых дотянуться в этот ход) → **срочная оборона** → убить → бегство → разведка и
+   сбор (включая охраняемые ресурсы, артефакты, порталы) → оборона.
+4. Если достойных задач нет, а у героев остался ход, бот расширяет поиск на всю карту.
+
+Для агента это готовый порядок хода: сначала город (найм героя, выкуп армии, стройка), потом всё, что
+можно убить в этот ход, потом угрозы своим городам, потом сбор и разведка.
+
+## Nullkiller2: пороги и оценки
+
+Настройки по уровням сложности (`nk2ai-settings.json`):
+
+- атаковать, только если сила героя больше опасности цели в **1,1 раза** (`safeAttackRatio`);
+- допустимая доля потерь армии в бою — от 65 % на лёгкой до 35 % на сложных (`maxArmyLossTarget`);
+- отступать, когда осталось меньше 10–30 % армии или меньше 2000–10000 её ценности (`retreatThreshold*`);
+- бродячих героев 2–3 (`maxRoamingHeroes`);
+- угрозы городам считаются на 1–5 дней вперёд (`threatTurnDistanceLimit`);
+- «давление на золото» = (зарезервированное золото + цена армии + цена развития) / (1 + 2 × свободное
+  золото + недельный доход); выше 0,3 — бот перестаёт тратить на второстепенное (`BuildAnalyzer`).
+
+Ценность целей в золоте (`RewardEvaluator::getGoldReward`): куча золота — 600, другой ресурс — 100,
+сундук — 1500, водяное колесо — 1000, ящик Пандоры — 2500, тюрьма — 2500 (цена найма героя), шахта —
+5 дней её дохода (золотая 5000, остальные 375), город — 5 дней его дохода, чужой герой — 1250 плюс
+20 % стоимости его армии. Стратегическая ценность: шахта выше кучки того же ресурса; чужой город с
+фортом 1,0, с цитаделью 1,2, с замком 1,4, с капитолием 1,5.
+
+Сборка армии (`ArmyManager::getBestArmy`): отряды сортируются по силе, в семь слотов берутся сильнейшие;
+отряды чужой фракции добавляются, только если сила армии **с поправкой на мораль** от этого растёт.
+Слабый отряд, который портит мораль, выгоднее оставить в городе.
+
+Оборона (`DefenceBehavior`): для каждого города ищется самый быстрый и самый сильный враг, который
+дойдёт до него. Защиты хватает, если сила гарнизона (с героем в городе) больше угрозы, а для
+угрозы, которая дойдёт позже этого дня, — больше в 1,1 раза. Если не хватает — выкупить армию в
+городе, вернуть героя, нанять героя в таверне; главного героя без нужды в гарнизоне не запирают.
+
+Карта угроз (`DangerHitMapAnalyzer`): по всем вражеским героям, которых бот видел, прокладываются
+пути; для каждой клетки хранится самая сильная и самая быстрая угроза и через сколько дней она
+придёт. Ценность угрозы = сила / √(дни/3 + 1).
+
+Кластеры (`ObjectClusterizer`): объекты, путь к которым закрывает одна охрана, собираются в группу;
+ценность драки с охраной — сумма группы. Этот приём мост использует в `nearby_targets`: у недоступной
+цели названа охрана, которая запирает путь, а `LockedBehind` группирует цели по ней.
+
 ## Что нельзя переносить без доказательства
 
 - VCMI имеет сервер, клиент, свои callbacks, сетевую синхронизацию и TBB-потоки; HotA/HD Mod этого контракта не предоставляют.
@@ -20108,7 +20509,10 @@ VCMI — отдельный open-source движок Heroes III. Его AI не 
 
 ## Статус для HotaMcp
 
-Исходники `src/HotaMcp/GameTools.cs` подтверждают только `nearby_targets`, `inspect_target`, `game_status`, `observe`, `click_ui`, `read_journal`, `plan`. Сейчас `click_ui` ограничен открытием системных опций и возвратом на adventure. Нет доказанного tools для движения, строительства, найма, боя или завершения хода. Эти пробелы должны оставаться явными в capability discovery.
+Карту угроз и оценку ценности целей мост агенту не считает: по ТЗ §21 решения и оценки делает агент,
+а наблюдение отдаёт только то, что видит игрок. Из идей Nullkiller2 в мост перенесено объяснение
+недоступного пути (какая охрана запирает цель) и группировка целей за одной охраной — это видно
+игроку на экране. Остальное здесь — справка для решений агента.
 
 
 <!-- ===== sources/core.md ===== -->
@@ -20194,7 +20598,6 @@ updated: "2026-09-20"
 | `local.complete.readme` | `G:\HoMM 3 Complete\README.TXT` | базовая Complete, старые hotseat/TCP-IP сведения | Complete 4.0 readme, локальный read-only | локальный исторический, не HotA |
 | `local.hota.templates` | `G:\HoMM 3 Complete\HotA_RMGTemplates\1deaL\rmg.txt`, `_HD3_Data\Templates\*\rmg.txt` | реальный формат и пользовательские RMG templates | локальная коллекция | локальный read-only; версия не доказана |
 | `local.installed.build` | UI ID3001 после перезапуска + EXE/DLL SHA-256 | установленная сборка | HotA 1.8.0 | локальный runtime, подтверждено 2026-09-19 |
-| `TZ` | `outputs/hota-agent-bridge/TZ.md`, разделы 2, 3, 21 | проектные границы: HotA+HD, честность, MCP retrieval | текущий проект | внутренний контракт |
 
 ## Правила цитирования
 

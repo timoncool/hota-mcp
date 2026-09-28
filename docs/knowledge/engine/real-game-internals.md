@@ -35,7 +35,6 @@ source_urls:
   - https://raw.githubusercontent.com/ERA-Projects/era-project-eng/main/Help/Era%20manual/html/plugins_and_patches.html
   - `native/game/game_bridge.cpp`
   - `native/game/attach.cpp`
-  - `docs/CAPABILITIES.md`
   - https://download.h3hota.com/upd/changelogs/rus.txt
 type: reference
 layer: agent

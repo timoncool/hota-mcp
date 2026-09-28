@@ -3,7 +3,7 @@ id: agent-skill-draft
 title: Черновик поведения HotA агента через MCP
 topics: [agent-loop, capability-discovery, stale, uncertain, mcp]
 version: 2026-09-19
-sources: [../../../src/HotaMcp/GameTools.cs, ../../../TZ.md, ../sources/bot-algorithms.md]
+sources: [../../../src/HotaMcp/GameTools.cs, ../sources/bot-algorithms.md]
 status: draft
 type: how-to
 layer: agent

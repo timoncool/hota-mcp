@@ -23,7 +23,6 @@ updated: "2026-09-20"
 | `local.complete.readme` | `G:\HoMM 3 Complete\README.TXT` | базовая Complete, старые hotseat/TCP-IP сведения | Complete 4.0 readme, локальный read-only | локальный исторический, не HotA |
 | `local.hota.templates` | `G:\HoMM 3 Complete\HotA_RMGTemplates\1deaL\rmg.txt`, `_HD3_Data\Templates\*\rmg.txt` | реальный формат и пользовательские RMG templates | локальная коллекция | локальный read-only; версия не доказана |
 | `local.installed.build` | UI ID3001 после перезапуска + EXE/DLL SHA-256 | установленная сборка | HotA 1.8.0 | локальный runtime, подтверждено 2026-09-19 |
-| `TZ` | `outputs/hota-agent-bridge/TZ.md`, разделы 2, 3, 21 | проектные границы: HotA+HD, честность, MCP retrieval | текущий проект | внутренний контракт |
 
 ## Правила цитирования
 

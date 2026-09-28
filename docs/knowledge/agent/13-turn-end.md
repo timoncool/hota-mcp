@@ -3,7 +3,7 @@ id: playbook-turn-end
 title: Конец хода, stale state и подтверждение результата
 topics: [end-turn, revision, idempotency, journal]
 version: 2026-09-19
-sources: [../../../TZ.md, ../../../src/HotaMcp/GameTools.cs]
+sources: [../../../src/HotaMcp/GameTools.cs]
 status: draft-research
 type: how-to
 layer: agent

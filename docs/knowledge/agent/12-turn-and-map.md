@@ -3,7 +3,7 @@ id: playbook-turn-map
 title: Начало хода, цели, движение и разведка
 topics: [turn, heroes, movement, scouting, fog-of-war]
 version: 2026-09-19
-sources: [../sources/bot-algorithms.md, ../../../TZ.md]
+sources: [../sources/bot-algorithms.md]
 status: partial-capability
 type: how-to
 layer: agent

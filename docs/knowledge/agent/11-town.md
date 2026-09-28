@@ -3,7 +3,7 @@ id: playbook-town-economy
 title: Город, экономика, строительство и найм
 topics: [town, economy, building, recruitment]
 version: 2026-09-20
-sources: [../sources/bot-algorithms.md, ../../TASKS.md, ../../../TZ.md]
+sources: [../sources/bot-algorithms.md]
 status: verified-partial
 type: how-to
 layer: agent
@@ -84,4 +84,4 @@ updated: "2026-09-20"
 
 # Безопасность состояния
 
-Изменять ресурсы напрямую нельзя. Покупка идёт только штатной кнопкой. Пробел: многогородный выбор, передача армии между героями, количества найма кроме «максимум», полные карточки зданий/существ (см. TASKS.md).
+Изменять ресурсы напрямую нельзя. Покупка идёт только штатной кнопкой.

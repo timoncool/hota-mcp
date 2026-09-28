@@ -3,7 +3,7 @@ id: playbook-battle-cycle
 title: Подготовка боя и цикл боевого решения
 topics: [battle, tactics, simulation, uncertainty]
 version: 2026-09-19
-sources: [../sources/bot-algorithms.md, ../../../TZ.md]
+sources: [../sources/bot-algorithms.md]
 status: verified-partial
 type: how-to
 layer: agent

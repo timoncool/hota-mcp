@@ -3,7 +3,7 @@ id: playbook-game-start
 title: Начало партии и capability discovery
 topics: [startup, session, capabilities, visibility]
 version: 2026-09-19
-sources: [../sources/bot-algorithms.md, ../../../TZ.md, ../../../src/HotaMcp/GameTools.cs]
+sources: [../sources/bot-algorithms.md, ../../../src/HotaMcp/GameTools.cs]
 status: draft-research
 type: how-to
 layer: agent
